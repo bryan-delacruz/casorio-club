@@ -38,8 +38,14 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           Cero !important y cero CSS contra sus clases internas; los dos ajustes
           de abajo van por su API de appearance, que es la vía soportada.
         */}
+        {/*
+          Con membresía obligatoria, Clerk manda a todo usuario sin boda a la
+          tarea "choose-organization". Aquí se aloja en /elegir-boda para que
+          caiga dentro del diseño de la app y no en una pantalla suelta.
+        */}
         <ClerkProvider
           localization={clerkLocalization}
+          taskUrls={{ "choose-organization": "/elegir-boda" }}
           appearance={{
             theme: shadcn,
             // Dos ajustes, ambos por la API soportada de appearance:

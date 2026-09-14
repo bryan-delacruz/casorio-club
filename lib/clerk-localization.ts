@@ -34,6 +34,75 @@ export const clerkLocalization = {
       resendButton: "Reenviar el código",
     },
   },
+  /* Clerk llama "organización" a lo que aquí es una boda. Traducirlo importa:
+     si no, la app suena a herramienta de empresa en la parte que más se
+     comparte, que es justo la de invitar a alguien. */
+  organizationList: {
+    ...esES.organizationList,
+    title: "Elige una boda",
+    titleWithoutPersonal: "Elige una boda",
+    subtitle: "para entrar a {{applicationName}}",
+    action__createOrganization: "Abrir otra boda",
+    createOrganization: "Abrir otra boda",
+    action__invitationAccept: "Unirme",
+    invitationAcceptedLabel: "Ya estás dentro",
+  },
+  createOrganization: {
+    ...esES.createOrganization,
+    title: "Abran su boda",
+    formButtonSubmit: "Crear la boda",
+    invitePage: {
+      ...esES.createOrganization?.invitePage,
+      formButtonReset: "Ahora no",
+    },
+  },
+  organizationSwitcher: {
+    ...esES.organizationSwitcher,
+    action__createOrganization: "Abrir otra boda",
+    action__manageOrganization: "Ver quién está",
+    action__invitationAccept: "Unirme",
+    notSelected: "Ninguna boda elegida",
+    personalWorkspace: "Sin boda",
+  },
+  organizationProfile: {
+    ...esES.organizationProfile,
+    navbar: {
+      ...esES.organizationProfile?.navbar,
+      title: "La boda",
+      description: "Quién puede verla y editarla.",
+    },
+  },
+  /* La tarea que ve un usuario recién registrado, antes de entrar. Es la
+     primera pantalla después del código, así que aquí "organización" chirría
+     más que en ningún otro sitio. */
+  taskChooseOrganization: {
+    ...esES.taskChooseOrganization,
+    chooseOrganization: {
+      ...esES.taskChooseOrganization?.chooseOrganization,
+      title: "¿En qué boda entras?",
+      subtitle: "Abre la suya o únete a una a la que te hayan invitado.",
+      subtitle__createOrganizationDisabled: "Únete a una boda a la que te hayan invitado.",
+      action__createOrganization: "Abrir nuestra boda",
+      action__invitationAccept: "Unirme",
+    },
+    createOrganization: {
+      ...esES.taskChooseOrganization?.createOrganization,
+      title: "Abran su boda",
+      subtitle: "Ponle un nombre. Después invitas a quien organiza contigo.",
+      formFieldLabel__name: "Nombre de la boda",
+      formFieldInputPlaceholder__name: "Ana y Luis",
+      formButtonSubmit: "Crear la boda",
+      formButtonReset: "Cancelar",
+    },
+    organizationCreationDisabled: {
+      ...esES.taskChooseOrganization?.organizationCreationDisabled,
+      title: "Necesitas una invitación",
+      subtitle: "Pídele a quien abrió la boda que te invite por correo.",
+    },
+  },
+  formFieldLabel__organizationName: "Nombre de la boda",
+  formFieldInputPlaceholder__organizationName: "Ana y Luis",
+
   signUp: {
     ...esES.signUp,
     start: {
