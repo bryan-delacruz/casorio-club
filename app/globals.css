@@ -1,26 +1,205 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+/* Puente Clerk → shadcn: hace que los componentes de Clerk lean los mismos
+   tokens semánticos de abajo, así que salen con la paleta de Casorio sin un
+   solo override. Si algún día se cambia la marca, Clerk la sigue solo. */
+@import "@clerk/ui/themes/shadcn.css";
 
+@custom-variant dark (&:is(.dark *));
+
+/* ---------------------------------------------------------------
+   Casorio Club — paleta de marca
+
+   Los seis colores de la guía viven aquí y en ningún otro sitio, y se
+   expresan a través de los tokens semánticos de shadcn. No añadas
+   utilidades de color propias (bg-wine, text-milk…): los componentes
+   deben usar bg-background, text-foreground, bg-primary, border-border,
+   para que cambiar la marca sea cambiar este bloque.
+
+     mulled wine     #49110B     antique marble  #C8C2B7
+     woodland        #56483B     sandlight       #AD9E89
+     charcoal smoke  #191A1E     goat milk       #E7E5DB
+   --------------------------------------------------------------- */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Superficies: goat milk de fondo, un milk aclarado para lo elevado. */
+  --background: #e7e5db;
+  --foreground: #191a1e;
+  --card: #f4f2ec;
+  --card-foreground: #191a1e;
+  --popover: #f4f2ec;
+  --popover-foreground: #191a1e;
+
+  /* Mulled wine es la marca: botones, acentos y superficies invertidas. */
+  --primary: #49110b;
+  --primary-foreground: #e7e5db;
+
+  --secondary: #c8c2b7;
+  --secondary-foreground: #191a1e;
+
+  /* En shadcn --muted y --accent son superficies SUTILES (pies de tarjeta,
+     estados hover), no bloques de color: ahí va goat milk, no marble.
+     Marble se queda para --secondary, --border y --input, que sí son
+     elementos con presencia. Woodland es el texto secundario. */
+  --muted: #e7e5db;
+  --muted-foreground: #56483b;
+  --accent: #e7e5db;
+  --accent-foreground: #191a1e;
+
+  /* Un ladrillo más vivo que wine, para que la alarma se distinga
+     de la marca y no se lean igual. */
+  --destructive: #8a2412;
+
+  --border: #c8c2b7;
+  --input: #c8c2b7;
+  --ring: #49110b;
+
+  /* shadcn usa --input como color de BORDE, pero el tema shadcn de Clerk lo
+     usa como RELLENO del campo, y marble macizo pesa demasiado sobre paper.
+     Este token da el relleno; Clerk lo consume por su API de variables. */
+  --field: #ffffff;
+
+  --chart-1: #49110b;
+  --chart-2: #56483b;
+  --chart-3: #ad9e89;
+  --chart-4: #c8c2b7;
+  --chart-5: #191a1e;
+
+  --sidebar: #f4f2ec;
+  --sidebar-foreground: #191a1e;
+  --sidebar-primary: #49110b;
+  --sidebar-primary-foreground: #e7e5db;
+  --sidebar-accent: #c8c2b7;
+  --sidebar-accent-foreground: #191a1e;
+  --sidebar-border: #c8c2b7;
+  --sidebar-ring: #49110b;
+
+  /* 4px: la marca es de cantos casi rectos, como cartulina cortada. */
+  --radius: 0.25rem;
+}
+
+/* Modo oscuro provisional: invierte la paleta sin inventar colores nuevos
+   más allá de un charcoal elevado para las superficies. Sobre fondo oscuro
+   wine queda ilegible, así que el papel de acento lo toma sandlight. */
+.dark {
+  --background: #191a1e;
+  --foreground: #e7e5db;
+  --card: #232429;
+  --card-foreground: #e7e5db;
+  --popover: #232429;
+  --popover-foreground: #e7e5db;
+
+  --primary: #ad9e89;
+  --primary-foreground: #191a1e;
+
+  --secondary: #56483b;
+  --secondary-foreground: #e7e5db;
+
+  --muted: #56483b;
+  --muted-foreground: #ad9e89;
+  --accent: #56483b;
+  --accent-foreground: #e7e5db;
+
+  --destructive: #c4553c;
+
+  --border: #ffffff1f;
+  --input: #ffffff2b;
+  --ring: #ad9e89;
+  --field: #2b2c31;
+
+  --chart-1: #ad9e89;
+  --chart-2: #c8c2b7;
+  --chart-3: #56483b;
+  --chart-4: #e7e5db;
+  --chart-5: #8a2412;
+
+  --sidebar: #232429;
+  --sidebar-foreground: #e7e5db;
+  --sidebar-primary: #ad9e89;
+  --sidebar-primary-foreground: #191a1e;
+  --sidebar-accent: #56483b;
+  --sidebar-accent-foreground: #e7e5db;
+  --sidebar-border: #ffffff1f;
+  --sidebar-ring: #ad9e89;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-field: var(--field);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* Las fuentes van en @theme (no inline) a propósito: next/font define
+   --font-fraunces y --font-instrument en tiempo de ejecución, y @theme inline
+   resuelve las variables al compilar, así que ahí quedarían vacías. */
+@theme {
+  --font-sans: var(--font-instrument), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-fraunces), Georgia, "Times New Roman", serif;
+  --font-heading: var(--font-fraunces), Georgia, "Times New Roman", serif;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+
+  /* Fraunces es variable: se ablanda un punto para que el display tenga
+     calidez y no la severidad de un serif editorial. */
+  .font-display {
+    font-variation-settings: "SOFT" 30, "WONK" 1;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Los componentes de shadcn animan (Progress, overlays, tw-animate-css).
+   Quien pide menos movimiento en su sistema no debería recibirlo. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
