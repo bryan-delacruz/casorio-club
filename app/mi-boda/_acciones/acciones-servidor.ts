@@ -20,8 +20,18 @@ async function bodaActiva() {
 
 export type Momento = "idea" | "antes" | "el_dia" | "despues";
 
+/**
+ * Las lecturas toleran no tener sesión y devuelven vacío; las escrituras no.
+ *
+ * Next renderiza el layout y la página en paralelo, así que esta consulta
+ * puede ejecutarse antes de que `auth.protect()` del layout redirija. Lanzar
+ * ahí producía un 500 en una petición que de todos modos se descarta. Una
+ * escritura, en cambio, nunca debe pasar sin sesión.
+ */
 export async function listarAcciones() {
-  const { bodaId } = await bodaActiva();
+  const { orgId } = await auth();
+  if (!orgId) return [];
+  const bodaId = orgId;
   return getDb()
     .select()
     .from(acciones)
@@ -31,22 +41,28 @@ export async function listarAcciones() {
 
 /** La gente de esta boda, para elegir responsable. */
 export async function listarMiembros() {
-  const { bodaId } = await bodaActiva();
+  const { orgId } = await auth();
+  if (!orgId) return [];
+  const bodaId = orgId;
   const clerk = await clerkClient();
   const { data } = await clerk.organizations.getOrganizationMembershipList({
     organizationId: bodaId,
     limit: 20,
   });
-  return data.map((m) => ({
-    id: m.publicUserData?.userId ?? "",
-    nombre:
-      [m.publicUserData?.firstName, m.publicUserData?.lastName]
-        .filter(Boolean)
-        .join(" ") ||
-      m.publicUserData?.identifier ||
-      "Alguien",
-    imagen: m.publicUserData?.imageUrl ?? null,
-  }));
+  return data.map((m) => {
+    const u = m.publicUserData;
+    const propio = [u?.firstName, u?.lastName].filter(Boolean).join(" ");
+    // Sin nombre puesto, Clerk devuelve el correo. Mostrarlo entero desborda
+    // la tarjeta, así que se usa la parte de antes de la arroba.
+    const deCorreo = u?.identifier?.includes("@")
+      ? u.identifier.split("@")[0].replace(/[._-]+/g, " ")
+      : u?.identifier;
+    return {
+      id: u?.userId ?? "",
+      nombre: propio || deCorreo || "Alguien",
+      imagen: u?.imageUrl ?? null,
+    };
+  });
 }
 
 export async function crearAccion(datos: {
