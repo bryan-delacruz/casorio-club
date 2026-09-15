@@ -71,6 +71,66 @@ export const clerkLocalization = {
       title: "La boda",
       description: "Quién puede verla y editarla.",
     },
+    start: {
+      ...esES.organizationProfile?.start,
+      headerTitle__general: "La boda",
+      headerTitle__members: "Quiénes están",
+      profileSection: {
+        ...esES.organizationProfile?.start?.profileSection,
+        title: "Nombre de la boda",
+        primaryButton: "Cambiar el nombre",
+      },
+    },
+    profilePage: {
+      ...esES.organizationProfile?.profilePage,
+      title: "La boda",
+      dangerSection: {
+        ...esES.organizationProfile?.profilePage?.dangerSection,
+        title: "Cuidado",
+        leaveOrganization: {
+          ...esES.organizationProfile?.profilePage?.dangerSection
+            ?.leaveOrganization,
+          title: "Salirme de esta boda",
+          messageLine1:
+            "¿Seguro que quieres salirte? Dejarás de ver los trámites, los gastos y todo lo demás.",
+          messageLine2: "No se puede deshacer.",
+          actionDescription: 'Escribe "{{organizationName}}" para confirmar.',
+          successMessage: "Saliste de la boda.",
+        },
+        deleteOrganization: {
+          ...esES.organizationProfile?.profilePage?.dangerSection
+            ?.deleteOrganization,
+          title: "Borrar la boda",
+          messageLine1:
+            "¿Seguro que quieres borrarla? Se pierde para todos, no solo para ti.",
+          messageLine2: "No se puede deshacer.",
+          actionDescription: 'Escribe "{{organizationName}}" para confirmar.',
+          successMessage: "La boda se borró.",
+        },
+      },
+    },
+    invitePage: {
+      ...esES.organizationProfile?.invitePage,
+      title: "Invitar a la boda",
+      subtitle: "Pon su correo. Verá y editará lo mismo que tú.",
+      formButtonPrimary__continue: "Enviar la invitación",
+      selectDropdown__role: "Qué podrá hacer",
+      successMessage: "Invitación enviada.",
+      detailsTitle__inviteFailed:
+        "No se pudo enviar. Revisa esto y vuelve a intentar:",
+    },
+    membersPage: {
+      ...esES.organizationProfile?.membersPage,
+      detailsTitle__emptyRow: "Todavía no hay nadie más",
+      activeMembersTab: {
+        ...esES.organizationProfile?.membersPage?.activeMembersTab,
+        menuAction__remove: "Sacar de la boda",
+        tableHeader__user: "Quién",
+        tableHeader__joined: "Entró",
+        tableHeader__role: "Qué puede hacer",
+        tableHeader__actions: "",
+      },
+    },
   },
   /* La tarea que ve un usuario recién registrado, antes de entrar. Es la
      primera pantalla después del código, así que aquí "organización" chirría
