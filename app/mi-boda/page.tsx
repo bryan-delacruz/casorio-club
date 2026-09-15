@@ -1,16 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { auth, currentUser } from "@clerk/nextjs/server";
-import { clerkClient } from "@clerk/nextjs/server";
+import { auth, clerkClient, currentUser } from "@clerk/nextjs/server";
 import { Button } from "@/components/ui/button";
+import { Mapa } from "./_acciones/mapa";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  listarAcciones,
+  listarMiembros,
+} from "./_acciones/acciones-servidor";
 
 export const metadata: Metadata = { title: "Mi boda" };
 
@@ -19,82 +15,57 @@ export default async function MiBodaPage() {
   const user = await currentUser();
   const nombre = user?.firstName ?? "";
 
-  // Cuántos son en esta boda: es el dato que justifica invitar.
-  let miembros = 1;
+  const [acciones, miembros] = await Promise.all([
+    listarAcciones(),
+    listarMiembros(),
+  ]);
+
   let invitacionesPendientes = 0;
   if (orgId) {
     const clerk = await clerkClient();
-    const [lista, pendientes] = await Promise.all([
-      clerk.organizations.getOrganizationMembershipList({
-        organizationId: orgId,
-        limit: 20,
-      }),
-      clerk.organizations.getOrganizationInvitationList({
+    const pendientes =
+      await clerk.organizations.getOrganizationInvitationList({
         organizationId: orgId,
         status: ["pending"],
-      }),
-    ]);
-    miembros = lista.totalCount;
+      });
     invitacionesPendientes = pendientes.totalCount;
   }
 
-  const solo = miembros === 1 && invitacionesPendientes === 0;
+  const solo = miembros.length === 1 && invitacionesPendientes === 0;
+  const hechas = acciones.filter((a) => a.hecha).length;
+  const conDinero = acciones.reduce(
+    (s, a) => s + (a.monto ? Number(a.monto) : 0),
+    0,
+  );
 
   return (
-    <main className="mx-auto w-full max-w-3xl flex-1 px-5 py-14 sm:px-10">
-      <h1 className="font-display text-foreground text-[2.5rem] leading-tight">
-        {nombre ? `Hola, ${nombre}` : "Hola"}
-      </h1>
-      <p className="text-muted-foreground mt-3 max-w-[60ch] leading-relaxed">
-        {solo
-          ? "Tu boda ya está abierta, pero la estás llevando solo. Trae a quien la organiza contigo y verán lo mismo."
-          : "Tu boda está abierta y compartida. Todavía no hay nada anotado."}
-      </p>
-
-      <Card className="mt-10">
-        <CardHeader>
-          <CardTitle className="font-display text-lg font-normal">
-            {solo ? "Todavía están solos aquí" : "Ya son varios"}
-          </CardTitle>
-          <CardDescription>
-            {miembros === 1 ? "1 persona" : `${miembros} personas`}
-            {invitacionesPendientes > 0 &&
-              ` · ${invitacionesPendientes} invitación${
-                invitacionesPendientes === 1 ? "" : "es"
-              } sin aceptar`}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-muted-foreground text-sm">
-            Quien entre a esta boda ve y edita lo mismo que tú: los trámites,
-            los pendientes, las compras y los gastos.
+    <main className="mx-auto w-full max-w-6xl flex-1 px-5 py-10 sm:px-10">
+      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+        <div>
+          <h1 className="font-display text-foreground text-[2rem] leading-tight">
+            {nombre ? `Hola, ${nombre}` : "Hola"}
+          </h1>
+          <p className="text-muted-foreground mt-1.5 max-w-[60ch] leading-6">
+            {acciones.length === 0
+              ? "Empieza por anotar lo que se les venga a la cabeza. Ya decidirán después cuándo va cada cosa."
+              : `${hechas} de ${acciones.length} hechas${
+                  conDinero > 0
+                    ? ` · S/ ${conDinero.toLocaleString("es-PE")} comprometidos`
+                    : ""
+                }`}
           </p>
-        </CardContent>
-        <CardFooter>
-          <Button asChild>
-            <Link href="/mi-boda/equipo">
-              {solo ? "Invitar a alguien" : "Ver quién está"}
-            </Link>
+        </div>
+
+        {solo && (
+          <Button variant="outline" size="lg" asChild>
+            <Link href="/mi-boda/equipo">Invitar a alguien</Link>
           </Button>
-        </CardFooter>
-      </Card>
+        )}
+      </div>
 
-      <Card className="mt-6">
-        <CardHeader>
-          <CardTitle className="font-display text-lg font-normal">
-            Aún no hay nada anotado
-          </CardTitle>
-          <CardDescription>
-            Aquí van los trámites, pendientes, compras, gastos y la línea de
-            tiempo.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-muted-foreground text-sm">
-            Falta conectar la base de datos para poder guardarlos.
-          </p>
-        </CardContent>
-      </Card>
+      <div className="mt-8">
+        <Mapa iniciales={acciones} miembros={miembros} />
+      </div>
     </main>
   );
 }

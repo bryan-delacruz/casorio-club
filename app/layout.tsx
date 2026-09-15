@@ -3,6 +3,7 @@ import { Fraunces, Instrument_Sans } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import { shadcn } from "@clerk/ui/themes";
 import { clerkLocalization } from "@/lib/clerk-localization";
+import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
 const fraunces = Fraunces({
@@ -57,6 +58,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           }}
         >
           {children}
+          <Toaster position="bottom-center" />
         </ClerkProvider>
       </body>
     </html>

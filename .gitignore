@@ -40,3 +40,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# skills que instalan los CLI de terceros (Clerk, Neon); no son código nuestro
+.agents/
+.claude/skills/
