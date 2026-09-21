@@ -4,20 +4,29 @@ import type { Accion } from "@/db/schema";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import type { Miembro } from "./tipos";
 
-const SIN_DUENO = "sin-dueno";
+const POR_REPARTIR = "por-repartir";
+
+type Cuenta = {
+  id: string;
+  nombre: string;
+  imagen: string | null;
+  total: number;
+  hecho: number;
+};
 
 /**
- * Porcentajes enteros que suman 100 exactos.
+ * Reparte un entero entre varias partes sin perder ni inventar unidades.
  *
- * Redondear cada parte por su cuenta deja sumas de 99 o 101, y dos personas a
- * medias salen "50% y 51%". Se reparte el sobrante por resto mayor.
+ * Redondear cada parte por su cuenta no cuadra: los porcentajes suman 99 o
+ * 101, y S/ 567.57 más S/ 247.57 se muestran como 568 y 248 bajo un total de
+ * 815. Se reparte el sobrante por resto mayor.
  */
-function reparteCien(partes: number[]) {
+function reparte(partes: number[], objetivo: number) {
   const total = partes.reduce((s, n) => s + n, 0);
   if (total <= 0) return partes.map(() => 0);
-  const exactos = partes.map((n) => (n / total) * 100);
+  const exactos = partes.map((n) => (n / total) * objetivo);
   const enteros = exactos.map(Math.floor);
-  let sobra = 100 - enteros.reduce((s, n) => s + n, 0);
+  let sobra = objetivo - enteros.reduce((s, n) => s + n, 0);
   const orden = exactos
     .map((n, i) => ({ i, resto: n - Math.floor(n) }))
     .sort((a, b) => b.resto - a.resto);
@@ -29,20 +38,15 @@ function reparteCien(partes: number[]) {
   return enteros;
 }
 
-type Cuenta = {
-  id: string;
-  nombre: string;
-  imagen: string | null;
-  total: number;
-  pagado: number;
-};
+const soles = (n: number) => `S/ ${n.toLocaleString("es-PE")}`;
 
 /**
- * Cuánto pone cada quien.
+ * Lo que va costando la boda, y cuánto puso cada quien.
  *
- * Quien responde por una acción es quien la paga, así que el reparto sale
- * del responsable. Lo marcado como hecho cuenta como pagado; el resto es
- * plata comprometida que todavía no sale del bolsillo.
+ * Paga quien responde por cada acción, así que el reparto sale del
+ * responsable. El número grande es el de los dos: esto lleva la cuenta de un
+ * bote común, no una deuda entre ustedes. Por eso el orden sigue al de los
+ * miembros y no al monto: ordenar de mayor a menor haría un podio.
  */
 export function Reparto({
   lista,
@@ -56,51 +60,60 @@ export function Reparto({
   for (const a of lista) {
     const monto = a.monto ? Number(a.monto) : 0;
     if (monto <= 0) continue;
-    const id = a.responsableId ?? SIN_DUENO;
+    const id = a.responsableId ?? POR_REPARTIR;
     const quien = miembros.find((m) => m.id === id);
     const cuenta = cuentas.get(id) ?? {
       id,
-      nombre: quien?.nombre ?? "Todavía nadie",
+      nombre: quien?.nombre ?? "Por repartir",
       imagen: quien?.imagen ?? null,
       total: 0,
-      pagado: 0,
+      hecho: 0,
     };
     cuenta.total += monto;
-    if (a.hecha) cuenta.pagado += monto;
+    if (a.hecha) cuenta.hecho += monto;
     cuentas.set(id, cuenta);
   }
 
   if (cuentas.size === 0) return null;
 
-  // Sin dueño va al final: es lo que falta repartir, no una persona.
-  const filas = [...cuentas.values()].sort((a, b) =>
-    a.id === SIN_DUENO ? 1 : b.id === SIN_DUENO ? -1 : b.total - a.total,
-  );
+  const orden = miembros.map((m) => m.id);
+  const filas = [...cuentas.values()].sort((a, b) => {
+    if (a.id === POR_REPARTIR) return 1;
+    if (b.id === POR_REPARTIR) return -1;
+    return orden.indexOf(a.id) - orden.indexOf(b.id);
+  });
+
   const total = filas.reduce((s, f) => s + f.total, 0);
-  const soles = (n: number) => `S/ ${n.toLocaleString("es-PE")}`;
-  const porcentaje = reparteCien(filas.map((f) => f.total));
+  const hecho = filas.reduce((s, f) => s + f.hecho, 0);
+  const crudos = filas.map((f) => f.total);
+  const monto = reparte(crudos, Math.round(total));
+  const porcentaje = reparte(crudos, 100);
+  const juntos = miembros.length > 2 ? "Entre todos" : "Entre los dos";
 
   return (
-    <section className="mb-6">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h2 className="font-display text-lg">Quién pone cuánto</h2>
-        <p className="text-muted-foreground text-sm">
-          Paga quien responde por cada cosa.
+    <section className="mb-7">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <p className="font-display text-[1.75rem] leading-9">
+          {soles(Math.round(total))}
         </p>
+        <h2 className="text-muted-foreground">
+          {juntos}
+          {hecho > 0 && `, ${soles(Math.round(hecho))} ya salió del bolsillo`}
+        </h2>
       </div>
 
-      {/* Una barra, un trozo por persona: el reparto se ve antes de leerlo. */}
+      {/* Un trozo por persona, del mismo color: es un bote, no una carrera. */}
       <div className="bg-secondary mt-3 flex h-1.5 overflow-hidden rounded-full">
         {filas.map((f, i) => (
           <div
             key={f.id}
             style={{ width: `${(f.total / total) * 100}%` }}
             className={
-              f.id === SIN_DUENO
-                ? "bg-muted-foreground/25"
+              f.id === POR_REPARTIR
+                ? "bg-muted-foreground/20"
                 : i === 0
                   ? "bg-primary"
-                  : "bg-primary/45"
+                  : "bg-primary/50"
             }
           />
         ))}
@@ -109,28 +122,28 @@ export function Reparto({
       <dl className="mt-3 flex flex-wrap gap-x-6 gap-y-2">
         {filas.map((f, i) => (
           <div key={f.id} className="flex min-w-0 items-center gap-2">
-            <Avatar className="size-5">
-              {f.imagen && <AvatarImage src={f.imagen} alt="" />}
-              <AvatarFallback className="text-[0.5rem]">
-                {f.nombre.slice(0, 2).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
+            {f.id === POR_REPARTIR ? (
+              <span className="bg-muted-foreground/20 size-2 rounded-full" />
+            ) : (
+              <Avatar className="size-5">
+                {f.imagen && <AvatarImage src={f.imagen} alt="" />}
+                <AvatarFallback className="text-[0.5rem]">
+                  {f.nombre.slice(0, 2).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+            )}
             {/* capitalize solo en personas: el correo llega en minúsculas,
-                pero "Todavía Nadie" con las dos mayúsculas se lee mal. */}
+                pero "Por Repartir" con las dos mayúsculas se lee mal. */}
             <dt
               className={`truncate text-sm ${
-                f.id === SIN_DUENO ? "text-muted-foreground" : "capitalize"
+                f.id === POR_REPARTIR ? "text-muted-foreground" : "capitalize"
               }`}
             >
-              {f.id === SIN_DUENO ? f.nombre : f.nombre.split(" ")[0]}
+              {f.id === POR_REPARTIR ? f.nombre : f.nombre.split(" ")[0]}
             </dt>
             <dd className="text-sm tabular-nums">
-              {soles(f.total)}
-              <span className="text-muted-foreground">
-                {" "}
-                · {porcentaje[i]}%
-                {f.pagado > 0 && ` · ${soles(f.pagado)} ya`}
-              </span>
+              {soles(monto[i])}
+              <span className="text-muted-foreground"> · {porcentaje[i]}%</span>
             </dd>
           </div>
         ))}

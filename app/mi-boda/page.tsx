@@ -33,10 +33,6 @@ export default async function MiBodaPage() {
 
   const solo = miembros.length === 1 && invitacionesPendientes === 0;
   const hechas = acciones.filter((a) => a.hecha).length;
-  const conDinero = acciones.reduce(
-    (s, a) => s + (a.monto ? Number(a.monto) : 0),
-    0,
-  );
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-5 py-10 sm:px-10">
@@ -48,11 +44,7 @@ export default async function MiBodaPage() {
           <p className="text-muted-foreground mt-1.5 max-w-[60ch] leading-6">
             {acciones.length === 0
               ? "Empieza por anotar lo que se les venga a la cabeza. Ya decidirán después cuándo va cada cosa."
-              : `${hechas} de ${acciones.length} hechas${
-                  conDinero > 0
-                    ? ` · S/ ${conDinero.toLocaleString("es-PE")} comprometidos`
-                    : ""
-                }`}
+              : `${hechas} de ${acciones.length} hechas.`}
           </p>
         </div>
 
