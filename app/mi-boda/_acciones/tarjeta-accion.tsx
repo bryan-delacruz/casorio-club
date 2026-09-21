@@ -1,8 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Check, Clock, Coins, MoreHorizontal, Trash2 } from "lucide-react";
+import { Check, Clock, Coins, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import type { Accion } from "@/db/schema";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -14,15 +15,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { Momento } from "./acciones-servidor";
+import { EditarAccion } from "./formulario-accion";
+import { DESTINOS, type Miembro } from "./tipos";
 
-export type Miembro = { id: string; nombre: string; imagen: string | null };
-
-export const DESTINOS: { id: Momento; nombre: string }[] = [
-  { id: "antes", nombre: "Antes" },
-  { id: "el_dia", nombre: "El día" },
-  { id: "despues", nombre: "Después" },
-  { id: "idea", nombre: "Ideas sueltas" },
-];
+export type { Miembro } from "./tipos";
 
 const dinero = new Intl.NumberFormat("es-PE", {
   style: "currency",
@@ -41,6 +37,7 @@ const dinero = new Intl.NumberFormat("es-PE", {
 export function TarjetaAccion({
   accion,
   miembro,
+  miembros = [],
   onAlternar,
   onMover,
   onBorrar,
@@ -48,6 +45,7 @@ export function TarjetaAccion({
 }: {
   accion: Accion;
   miembro?: Miembro;
+  miembros?: Miembro[];
   onAlternar?: (id: string, hecha: boolean) => void;
   onMover?: (id: string, momento: Momento) => void;
   onBorrar?: (id: string) => void;
@@ -55,9 +53,11 @@ export function TarjetaAccion({
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: accion.id, disabled: !arrastrable });
+  const [editando, setEditando] = useState(false);
 
   const monto = accion.monto ? Number(accion.monto) : null;
   const otros = DESTINOS.filter((d) => d.id !== accion.momento);
+  const conMenu = arrastrable && (onMover || onBorrar);
 
   return (
     <div
@@ -93,7 +93,7 @@ export function TarjetaAccion({
           {accion.titulo}
         </p>
 
-        {arrastrable && (onMover || onBorrar) && (
+        {conMenu && (
           <DropdownMenu>
             <DropdownMenuTrigger
               onPointerDown={(e) => e.stopPropagation()}
@@ -103,6 +103,10 @@ export function TarjetaAccion({
               <MoreHorizontal className="size-4" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuItem onSelect={() => setEditando(true)}>
+                <Pencil /> Cambiar
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuLabel>Mover a</DropdownMenuLabel>
               {otros.map((d) => (
                 <DropdownMenuItem
@@ -150,6 +154,18 @@ export function TarjetaAccion({
             </span>
           )}
         </div>
+      )}
+
+      {/* Fuera del menú: dentro se desmontaría al cerrarse el menú. Se monta
+          solo mientras está abierto para que los campos partan del valor
+          guardado cada vez. */}
+      {conMenu && editando && (
+        <EditarAccion
+          accion={accion}
+          miembros={miembros}
+          abierto={editando}
+          onAbiertoChange={setEditando}
+        />
       )}
     </div>
   );

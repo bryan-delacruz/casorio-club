@@ -22,8 +22,9 @@ import {
   moverAccion,
   type Momento,
 } from "./acciones-servidor";
-import { NuevaAccion, type Miembro } from "./nueva-accion-reexport";
+import { NuevaAccion } from "./formulario-accion";
 import { TarjetaAccion } from "./tarjeta-accion";
+import type { Miembro } from "./tipos";
 
 const CARRILES: { id: Momento; titulo: string; pie: string }[] = [
   { id: "antes", titulo: "Antes", pie: "todo lo que hay que tener listo" },
@@ -189,6 +190,7 @@ export function Mapa({
                 key={a.id}
                 accion={a}
                 miembro={a.responsableId ? porId.get(a.responsableId) : undefined}
+                miembros={miembros}
                 onAlternar={alAlternar}
                 onMover={alMover}
                 onBorrar={alBorrar}
@@ -230,6 +232,7 @@ export function Mapa({
                       key={a.id}
                       accion={a}
                       miembro={a.responsableId ? porId.get(a.responsableId) : undefined}
+                      miembros={miembros}
                       onAlternar={alAlternar}
                       onMover={alMover}
                       onBorrar={alBorrar}

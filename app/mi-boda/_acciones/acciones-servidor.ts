@@ -97,6 +97,40 @@ export async function crearAccion(datos: {
   revalidatePath("/mi-boda");
 }
 
+/**
+ * Editar no toca `momento` ni `orden`: mover es cosa del menú y del arrastre.
+ * Si el formulario también moviera, habría dos caminos que recalculan el orden
+ * del carril y se pisarían.
+ */
+export async function editarAccion(
+  id: string,
+  datos: {
+    titulo: string;
+    cuestaTiempo: boolean;
+    monto: string | null;
+    responsableId: string | null;
+    notas: string | null;
+  },
+) {
+  const { bodaId } = await bodaActiva();
+  const titulo = datos.titulo.trim();
+  if (!titulo) throw new Error("Falta el título");
+
+  await getDb()
+    .update(acciones)
+    .set({
+      titulo,
+      cuestaTiempo: datos.cuestaTiempo,
+      monto: datos.monto,
+      responsableId: datos.responsableId,
+      notas: datos.notas,
+      actualizadaEl: new Date(),
+    })
+    .where(and(eq(acciones.id, id), eq(acciones.bodaId, bodaId)));
+
+  revalidatePath("/mi-boda");
+}
+
 export async function moverAccion(id: string, momento: Momento) {
   const { bodaId } = await bodaActiva();
   const [{ siguiente }] = await getDb()
