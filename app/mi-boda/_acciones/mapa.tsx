@@ -23,6 +23,7 @@ import {
   type Momento,
 } from "./acciones-servidor";
 import { NuevaAccion } from "./formulario-accion";
+import { Reparto } from "./reparto";
 import { TarjetaAccion } from "./tarjeta-accion";
 import type { Miembro } from "./tipos";
 
@@ -170,6 +171,8 @@ export function Mapa({
       onDragEnd={alSoltar}
       onDragCancel={() => setArrastrando(null)}
     >
+      <Reparto lista={lista} miembros={miembros} />
+
       {/* Bandeja de ideas: lo que todavía no sabes dónde va. */}
       <Carril
         id="idea"
