@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Check, Clock, Coins, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
-import type { Accion } from "@/db/schema";
+import { Check, Clock, Coins, MoreHorizontal, Pencil, Trash2, Wallet } from "lucide-react";
+import type { Accion, Pago } from "@/db/schema";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -16,15 +16,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { Momento } from "./acciones-servidor";
 import { EditarAccion } from "./formulario-accion";
-import { DESTINOS, type Miembro } from "./tipos";
+import { PagosAccion } from "./pagos-accion";
+import { cuentaDe, DESTINOS, soles, type Miembro } from "./tipos";
 
 export type { Miembro } from "./tipos";
-
-const dinero = new Intl.NumberFormat("es-PE", {
-  style: "currency",
-  currency: "PEN",
-  maximumFractionDigits: 0,
-});
 
 /**
  * Una acción.
@@ -38,6 +33,7 @@ export function TarjetaAccion({
   accion,
   miembro,
   miembros = [],
+  pagos = [],
   onAlternar,
   onMover,
   onBorrar,
@@ -46,6 +42,7 @@ export function TarjetaAccion({
   accion: Accion;
   miembro?: Miembro;
   miembros?: Miembro[];
+  pagos?: Pago[];
   onAlternar?: (id: string, hecha: boolean) => void;
   onMover?: (id: string, momento: Momento) => void;
   onBorrar?: (id: string) => void;
@@ -54,8 +51,10 @@ export function TarjetaAccion({
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: accion.id, disabled: !arrastrable });
   const [editando, setEditando] = useState(false);
+  const [viendoPagos, setViendoPagos] = useState(false);
 
-  const monto = accion.monto ? Number(accion.monto) : null;
+  const { total, pagado, falta } = cuentaDe(accion.monto, pagos);
+  const conMonto = accion.monto !== null;
   const otros = DESTINOS.filter((d) => d.id !== accion.momento);
   const conMenu = arrastrable && (onMover || onBorrar);
 
@@ -106,6 +105,11 @@ export function TarjetaAccion({
               <DropdownMenuItem onSelect={() => setEditando(true)}>
                 <Pencil /> Cambiar
               </DropdownMenuItem>
+              {conMonto && (
+                <DropdownMenuItem onSelect={() => setViendoPagos(true)}>
+                  <Wallet /> Pagos
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuLabel>Mover a</DropdownMenuLabel>
               {otros.map((d) => (
@@ -128,17 +132,34 @@ export function TarjetaAccion({
         )}
       </div>
 
-      {(accion.cuestaTiempo || monto !== null || miembro) && (
+      {(accion.cuestaTiempo || conMonto || miembro) && (
         <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 pl-6">
           {accion.cuestaTiempo && (
             <span className="text-muted-foreground flex items-center gap-1 text-xs">
               <Clock className="size-3.5" /> tiempo
             </span>
           )}
-          {monto !== null && (
-            <span className="text-muted-foreground flex items-center gap-1 text-xs">
-              <Coins className="size-3.5" /> {dinero.format(monto)}
-            </span>
+          {conMonto && (
+            <button
+              type="button"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={() => conMenu && setViendoPagos(true)}
+              disabled={!conMenu}
+              className={`flex items-center gap-1 text-xs ${
+                conMenu ? "cursor-pointer" : ""
+              } ${
+                pagado > 0 && falta === 0
+                  ? "text-primary"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Coins className="size-3.5" />
+              {pagado === 0
+                ? soles(total)
+                : falta === 0
+                  ? `${soles(total)} pagado`
+                  : `faltan ${soles(falta)} de ${soles(total)}`}
+            </button>
           )}
           {miembro && (
             <span className="text-muted-foreground ml-auto flex min-w-0 items-center gap-1.5 text-xs">
@@ -165,6 +186,15 @@ export function TarjetaAccion({
           miembros={miembros}
           abierto={editando}
           onAbiertoChange={setEditando}
+        />
+      )}
+      {conMenu && viendoPagos && (
+        <PagosAccion
+          accion={accion}
+          pagos={pagos}
+          miembros={miembros}
+          abierto={viendoPagos}
+          onAbiertoChange={setViendoPagos}
         />
       )}
     </div>

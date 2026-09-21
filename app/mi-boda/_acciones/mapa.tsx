@@ -15,7 +15,7 @@ import {
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { useState } from "react";
 import { toast } from "sonner";
-import type { Accion } from "@/db/schema";
+import type { Accion, Pago } from "@/db/schema";
 import {
   alternarHecha,
   borrarAccion,
@@ -71,9 +71,11 @@ function Carril({
 export function Mapa({
   iniciales,
   miembros,
+  pagos,
 }: {
   iniciales: Accion[];
   miembros: Miembro[];
+  pagos: Pago[];
 }) {
   const [, iniciar] = useTransition();
   const [arrastrando, setArrastrando] = useState<Accion | null>(null);
@@ -88,6 +90,13 @@ export function Mapa({
   const porMomento = (m: Momento) => lista.filter((a) => a.momento === m);
   const ideas = porMomento("idea");
   const porId = new Map(miembros.map((m) => [m.id, m]));
+
+  const pagosDe = new Map<string, Pago[]>();
+  for (const p of pagos) {
+    const lote = pagosDe.get(p.accionId) ?? [];
+    lote.push(p);
+    pagosDe.set(p.accionId, lote);
+  }
 
   const sensores = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -171,7 +180,7 @@ export function Mapa({
       onDragEnd={alSoltar}
       onDragCancel={() => setArrastrando(null)}
     >
-      <Reparto lista={lista} miembros={miembros} />
+      <Reparto lista={lista} miembros={miembros} pagos={pagos} />
 
       {/* Bandeja de ideas: lo que todavía no sabes dónde va. */}
       <Carril
@@ -194,6 +203,7 @@ export function Mapa({
                 accion={a}
                 miembro={a.responsableId ? porId.get(a.responsableId) : undefined}
                 miembros={miembros}
+                pagos={pagosDe.get(a.id)}
                 onAlternar={alAlternar}
                 onMover={alMover}
                 onBorrar={alBorrar}
@@ -236,6 +246,7 @@ export function Mapa({
                       accion={a}
                       miembro={a.responsableId ? porId.get(a.responsableId) : undefined}
                       miembros={miembros}
+                      pagos={pagosDe.get(a.id)}
                       onAlternar={alAlternar}
                       onMover={alMover}
                       onBorrar={alBorrar}

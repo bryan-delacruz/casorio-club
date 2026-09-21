@@ -1,5 +1,6 @@
 import {
   boolean,
+  date,
   index,
   integer,
   numeric,
@@ -78,3 +79,47 @@ export const acciones = pgTable(
 
 export type Accion = typeof acciones.$inferSelect;
 export type AccionNueva = typeof acciones.$inferInsert;
+
+/**
+ * Cada vez que sale plata por una acción.
+ *
+ * El adelanto y el saldo no son campos: son la suma de estas filas contra el
+ * monto de la acción. Un solo campo "ya pagado" obligaría a sobrescribirlo en
+ * cada abono y no diría cuándo se pagó, que es justo lo que uno olvida.
+ * Al fotógrafo se le deja algo al reservar y el resto después.
+ */
+export const pagos = pgTable(
+  "pagos",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+
+    /** orgId de Clerk. Repetido aquí para poder filtrar sin cruzar tablas. */
+    bodaId: text("boda_id").notNull(),
+
+    accionId: uuid("accion_id")
+      .notNull()
+      .references(() => acciones.id, { onDelete: "cascade" }),
+
+    /** numeric por lo mismo que el monto de la acción: céntimos exactos. */
+    monto: numeric("monto", { precision: 12, scale: 2 }).notNull(),
+
+    /**
+     * Quién puso la plata. Copia del responsable al momento de pagar, no una
+     * lectura en vivo: si mañana la acción cambia de dueño, quien pagó sigue
+     * siendo el que pagó.
+     */
+    pagadoPorId: text("pagado_por_id"),
+
+    /** Solo el día. La hora de un adelanto no le importa a nadie. */
+    fecha: date("fecha").notNull(),
+
+    nota: text("nota"),
+
+    creadoEl: timestamp("creado_el", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index("pagos_boda_accion_idx").on(t.bodaId, t.accionId)],
+);
+
+export type Pago = typeof pagos.$inferSelect;

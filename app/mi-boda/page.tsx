@@ -6,6 +6,7 @@ import { Mapa } from "./_acciones/mapa";
 import {
   listarAcciones,
   listarMiembros,
+  listarPagos,
 } from "./_acciones/acciones-servidor";
 
 export const metadata: Metadata = { title: "Mi boda" };
@@ -15,9 +16,10 @@ export default async function MiBodaPage() {
   const user = await currentUser();
   const nombre = user?.firstName ?? "";
 
-  const [acciones, miembros] = await Promise.all([
+  const [acciones, miembros, pagos] = await Promise.all([
     listarAcciones(),
     listarMiembros(),
+    listarPagos(),
   ]);
 
   let invitacionesPendientes = 0;
@@ -56,7 +58,7 @@ export default async function MiBodaPage() {
       </div>
 
       <div className="mt-8">
-        <Mapa iniciales={acciones} miembros={miembros} />
+        <Mapa iniciales={acciones} miembros={miembros} pagos={pagos} />
       </div>
     </main>
   );

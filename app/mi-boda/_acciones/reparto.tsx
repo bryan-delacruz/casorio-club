@@ -1,8 +1,8 @@
 "use client";
 
-import type { Accion } from "@/db/schema";
+import type { Accion, Pago } from "@/db/schema";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import type { Miembro } from "./tipos";
+import { soles, type Miembro } from "./tipos";
 
 const POR_REPARTIR = "por-repartir";
 
@@ -38,8 +38,6 @@ function reparte(partes: number[], objetivo: number) {
   return enteros;
 }
 
-const soles = (n: number) => `S/ ${n.toLocaleString("es-PE")}`;
-
 /**
  * Lo que va costando la boda, y cuánto puso cada quien.
  *
@@ -51,9 +49,11 @@ const soles = (n: number) => `S/ ${n.toLocaleString("es-PE")}`;
 export function Reparto({
   lista,
   miembros,
+  pagos,
 }: {
   lista: Accion[];
   miembros: Miembro[];
+  pagos: Pago[];
 }) {
   const cuentas = new Map<string, Cuenta>();
 
@@ -70,8 +70,15 @@ export function Reparto({
       hecho: 0,
     };
     cuenta.total += monto;
-    if (a.hecha) cuenta.hecho += monto;
     cuentas.set(id, cuenta);
+  }
+
+  // Lo pagado va por su cuenta: quien puso la plata quedó grabado en el pago,
+  // y la acción puede haber cambiado de dueño después.
+  for (const p of pagos) {
+    const id = p.pagadoPorId ?? POR_REPARTIR;
+    const cuenta = cuentas.get(id);
+    if (cuenta) cuenta.hecho += Number(p.monto);
   }
 
   if (cuentas.size === 0) return null;
@@ -94,11 +101,11 @@ export function Reparto({
     <section className="mb-7">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <p className="font-display text-[1.75rem] leading-9">
-          {soles(Math.round(total))}
+          {soles(total)}
         </p>
         <h2 className="text-muted-foreground">
           {juntos}
-          {hecho > 0 && `, ${soles(Math.round(hecho))} ya salió del bolsillo`}
+          {hecho > 0 && `, ${soles(hecho)} ya pagados`}
         </h2>
       </div>
 

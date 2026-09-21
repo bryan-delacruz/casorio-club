@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { getDb } from "@/db";
-import { acciones } from "@/db/schema";
+import { acciones, pagos } from "@/db/schema";
 
 /**
  * Toda consulta y escritura se ata a la boda activa que Clerk reporta en la
@@ -63,6 +63,61 @@ export async function listarMiembros() {
       imagen: u?.imageUrl ?? null,
     };
   });
+}
+
+/** Todos los pagos de la boda. La página los reparte por acción. */
+export async function listarPagos() {
+  const { orgId } = await auth();
+  if (!orgId) return [];
+  return getDb()
+    .select()
+    .from(pagos)
+    .where(eq(pagos.bodaId, orgId))
+    .orderBy(asc(pagos.fecha), asc(pagos.creadoEl));
+}
+
+/**
+ * Anota que salió plata por una acción.
+ *
+ * Quien paga se copia del responsable en este momento. Leerlo en vivo haría
+ * que cambiar de dueño reescribiera quién pagó el mes pasado.
+ */
+export async function registrarPago(datos: {
+  accionId: string;
+  monto: string;
+  fecha: string;
+  nota: string | null;
+}) {
+  const { bodaId } = await bodaActiva();
+  const monto = Number(datos.monto);
+  if (!Number.isFinite(monto) || monto <= 0) throw new Error("Monto inválido");
+
+  // La acción tiene que ser de esta boda: sin esto, un accionId ajeno colaría
+  // un pago en otra boda.
+  const [accion] = await getDb()
+    .select({ responsableId: acciones.responsableId })
+    .from(acciones)
+    .where(and(eq(acciones.id, datos.accionId), eq(acciones.bodaId, bodaId)));
+  if (!accion) throw new Error("Esa acción no es de esta boda");
+
+  await getDb().insert(pagos).values({
+    bodaId,
+    accionId: datos.accionId,
+    monto: monto.toFixed(2),
+    pagadoPorId: accion.responsableId,
+    fecha: datos.fecha,
+    nota: datos.nota,
+  });
+
+  revalidatePath("/mi-boda");
+}
+
+export async function borrarPago(id: string) {
+  const { bodaId } = await bodaActiva();
+  await getDb()
+    .delete(pagos)
+    .where(and(eq(pagos.id, id), eq(pagos.bodaId, bodaId)));
+  revalidatePath("/mi-boda");
 }
 
 export async function crearAccion(datos: {
