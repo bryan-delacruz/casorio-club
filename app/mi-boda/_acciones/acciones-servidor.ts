@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, asc, eq, inArray, or, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { getDb } from "@/db";
 import { acciones, bodas, dependencias, pagos } from "@/db/schema";
@@ -19,6 +19,7 @@ async function bodaActiva() {
 }
 
 export type Momento = "idea" | "antes" | "el_dia" | "despues";
+export type Estado = "por_hacer" | "haciendo" | "hecho";
 
 /** La fecha de la boda, si ya la decidieron. */
 export async function obtenerBoda() {
@@ -50,31 +51,45 @@ export async function listarDependencias() {
 }
 
 /**
- * "A necesita B". Rechaza el ciclo: si B ya depende de A, directa o por una
- * cadena, aceptarlo dejaría dos tareas esperándose para siempre.
+ * Deja las dependencias de una acción exactamente en esta lista.
+ *
+ * Se guarda el conjunto entero y no una a una porque así se elige todo de
+ * golpe y se manda una sola vez. Rechaza el círculo: si alguna de las nuevas
+ * ya depende de esta, directa o por una cadena, las dos se quedarían
+ * esperándose para siempre.
  */
-export async function anadirDependencia(accionId: string, requiereId: string) {
+export async function guardarDependencias(accionId: string, requiere: string[]) {
   const { bodaId } = await bodaActiva();
-  if (accionId === requiereId) throw new Error("Una acción no se necesita a sí misma");
+  const pedidas = [...new Set(requiere)].filter((id) => id !== accionId);
 
   const suyas = await getDb()
     .select({ id: acciones.id })
     .from(acciones)
-    .where(and(eq(acciones.bodaId, bodaId), inArray(acciones.id, [accionId, requiereId])));
-  if (suyas.length !== 2) throw new Error("Esa acción no es de esta boda");
+    .where(
+      and(
+        eq(acciones.bodaId, bodaId),
+        inArray(acciones.id, [accionId, ...pedidas]),
+      ),
+    );
+  const validas = new Set(suyas.map((a) => a.id));
+  if (!validas.has(accionId)) throw new Error("Esa acción no es de esta boda");
+  const limpias = pedidas.filter((id) => validas.has(id));
 
   const todas = await getDb()
     .select()
     .from(dependencias)
     .where(eq(dependencias.bodaId, bodaId));
 
-  // ¿Se llega de requiereId a accionId siguiendo las flechas que ya existen?
+  // El grafo sin las de esta acción, más las que se piden ahora.
   const porQuien = new Map<string, string[]>();
   for (const d of todas) {
+    if (d.accionId === accionId) continue;
     porQuien.set(d.accionId, [...(porQuien.get(d.accionId) ?? []), d.requiereId]);
   }
+
+  // ¿Se llega desde alguna de las nuevas de vuelta a esta acción?
   const vistos = new Set<string>();
-  const pila = [requiereId];
+  const pila = [...limpias];
   while (pila.length) {
     const actual = pila.pop()!;
     if (actual === accionId) throw new Error("Eso haría un círculo");
@@ -84,24 +99,16 @@ export async function anadirDependencia(accionId: string, requiereId: string) {
   }
 
   await getDb()
-    .insert(dependencias)
-    .values({ bodaId, accionId, requiereId })
-    .onConflictDoNothing();
-
-  revalidatePath("/mi-boda");
-}
-
-export async function quitarDependencia(accionId: string, requiereId: string) {
-  const { bodaId } = await bodaActiva();
-  await getDb()
     .delete(dependencias)
     .where(
-      and(
-        eq(dependencias.bodaId, bodaId),
-        eq(dependencias.accionId, accionId),
-        eq(dependencias.requiereId, requiereId),
-      ),
+      and(eq(dependencias.bodaId, bodaId), eq(dependencias.accionId, accionId)),
     );
+  if (limpias.length > 0) {
+    await getDb()
+      .insert(dependencias)
+      .values(limpias.map((requiereId) => ({ bodaId, accionId, requiereId })));
+  }
+
   revalidatePath("/mi-boda");
 }
 
@@ -294,11 +301,11 @@ export async function moverAccion(id: string, momento: Momento) {
   revalidatePath("/mi-boda");
 }
 
-export async function alternarHecha(id: string, hecha: boolean) {
+export async function cambiarEstado(id: string, estado: Estado) {
   const { bodaId } = await bodaActiva();
   await getDb()
     .update(acciones)
-    .set({ hecha, actualizadaEl: new Date() })
+    .set({ estado, actualizadaEl: new Date() })
     .where(and(eq(acciones.id, id), eq(acciones.bodaId, bodaId)));
   revalidatePath("/mi-boda");
 }

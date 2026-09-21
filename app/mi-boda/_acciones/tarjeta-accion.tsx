@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Check, Clock, Coins, MoreHorizontal, Pencil, Trash2, Wallet } from "lucide-react";
+import type { Estado } from "./acciones-servidor";
 import type { Accion, Pago } from "@/db/schema";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -17,7 +18,14 @@ import {
 import type { Momento } from "./acciones-servidor";
 import { EditarAccion } from "./formulario-accion";
 import { PagosAccion } from "./pagos-accion";
-import { cuentaDe, DESTINOS, soles, type Miembro } from "./tipos";
+import {
+  cuentaDe,
+  DESTINOS,
+  ESTADOS,
+  siguienteEstado,
+  soles,
+  type Miembro,
+} from "./tipos";
 
 export type { Miembro } from "./tipos";
 
@@ -49,7 +57,7 @@ export function TarjetaAccion({
   otras?: Accion[];
   requiere?: Set<string>;
   titulos?: Map<string, string>;
-  onAlternar?: (id: string, hecha: boolean) => void;
+  onAlternar?: (id: string, estado: Estado) => void;
   onMover?: (id: string, momento: Momento) => void;
   onBorrar?: (id: string) => void;
   arrastrable?: boolean;
@@ -59,6 +67,8 @@ export function TarjetaAccion({
   const [editando, setEditando] = useState(false);
   const [viendoPagos, setViendoPagos] = useState(false);
 
+  const hecha = accion.estado === "hecho";
+  const haciendo = accion.estado === "haciendo";
   const { total, pagado, falta } = cuentaDe(accion.monto, pagos);
   const conMonto = accion.monto !== null;
   const otros = DESTINOS.filter((d) => d.id !== accion.momento);
@@ -72,27 +82,36 @@ export function TarjetaAccion({
       {...(arrastrable ? { ...attributes, ...listeners } : {})}
       className={`group bg-card border-border rounded-md border p-3 ${
         arrastrable ? "cursor-grab touch-none active:cursor-grabbing" : ""
-      } ${isDragging ? "opacity-40" : ""} ${accion.hecha ? "opacity-60" : ""}`}
+      } ${isDragging ? "opacity-40" : ""} ${hecha ? "opacity-60" : ""} ${
+        haciendo ? "border-primary/50" : ""
+      }`}
     >
       <div className="flex items-start gap-2">
         <button
           type="button"
           // Sin esto, tocar el círculo empezaría un arrastre en vez de marcar.
           onPointerDown={(e) => e.stopPropagation()}
-          onClick={() => onAlternar?.(accion.id, !accion.hecha)}
-          aria-label={accion.hecha ? "Marcar como pendiente" : "Marcar como hecha"}
+          onClick={() => onAlternar?.(accion.id, siguienteEstado(accion.estado))}
+          // El círculo avanza: por hacer, haciendo, hecho, y vuelta a empezar.
+          // El menú tiene los tres estados escritos para saltar directo.
+          aria-label={`${ESTADOS.find((e) => e.id === accion.estado)?.nombre}. Pasar a ${
+            ESTADOS.find((e) => e.id === siguienteEstado(accion.estado))?.nombre
+          }`}
           className={`mt-0.5 grid size-4 shrink-0 cursor-pointer place-items-center rounded-full border ${
-            accion.hecha
+            hecha
               ? "border-primary bg-primary text-primary-foreground"
-              : "border-muted-foreground/45"
+              : haciendo
+                ? "border-primary"
+                : "border-muted-foreground/45"
           }`}
         >
-          {accion.hecha && <Check className="size-3" strokeWidth={3} />}
+          {hecha && <Check className="size-3" strokeWidth={3} />}
+          {haciendo && <span className="bg-primary size-1.5 rounded-full" />}
         </button>
 
         <p
           className={`min-w-0 flex-1 text-[0.9375rem] leading-5 ${
-            accion.hecha ? "text-muted-foreground line-through" : "text-foreground"
+            hecha ? "text-muted-foreground line-through" : "text-foreground"
           }`}
         >
           {accion.titulo}
@@ -116,6 +135,16 @@ export function TarjetaAccion({
                   <Wallet /> Pagos
                 </DropdownMenuItem>
               )}
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>Estado</DropdownMenuLabel>
+              {ESTADOS.filter((e) => e.id !== accion.estado).map((e) => (
+                <DropdownMenuItem
+                  key={e.id}
+                  onSelect={() => onAlternar?.(accion.id, e.id)}
+                >
+                  {e.nombre}
+                </DropdownMenuItem>
+              ))}
               <DropdownMenuSeparator />
               <DropdownMenuLabel>Mover a</DropdownMenuLabel>
               {otros.map((d) => (

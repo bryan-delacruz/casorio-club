@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, type Dispatch, type SetStateAction } from "react";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import type { Accion } from "@/db/schema";
@@ -26,10 +26,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  anadirDependencia,
   crearAccion,
   editarAccion,
-  quitarDependencia,
+  guardarDependencias,
   type Momento,
 } from "./acciones-servidor";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -303,54 +302,82 @@ export function NuevaAccion({
 /**
  * De qué depende esta acción.
  *
- * Cada casilla guarda al instante, sin esperar al botón: así el aviso de
- * círculo llega cuando la marcas y no al final, con todo lo demás ya escrito.
+ * Marcas todas las que quieras y se guardan con el resto al dar a Guardar.
+ * Antes cada casilla iba sola al servidor y elegir cinco eran cinco esperas.
  */
 function Necesita({
-  accion,
   otras,
-  requiere,
+  marcadas,
+  setMarcadas,
 }: {
-  accion: Accion;
   otras: Accion[];
-  requiere: Set<string>;
+  marcadas: Set<string>;
+  setMarcadas: Dispatch<SetStateAction<Set<string>>>;
 }) {
-  const [guardando, iniciar] = useTransition();
+  const [filtro, setFiltro] = useState("");
 
   if (otras.length === 0) return null;
 
-  function alternar(id: string, marcada: boolean) {
-    iniciar(async () => {
-      try {
-        if (marcada) await anadirDependencia(accion.id, id);
-        else await quitarDependencia(accion.id, id);
-      } catch (e) {
-        toast.error(
-          e instanceof Error && e.message === "Eso haría un círculo"
-            ? "No puede ser: esa ya te espera a ti."
-            : "No se pudo guardar.",
-        );
-      }
+  const texto = filtro.trim().toLowerCase();
+  const vistas = texto
+    ? otras.filter((o) => o.titulo.toLowerCase().includes(texto))
+    : otras;
+
+  // Con la forma de función y no `new Set(marcadas)`: marcar varias seguidas
+  // leía el conjunto de antes y solo se quedaba la última.
+  function alternar(id: string) {
+    setMarcadas((antes) => {
+      const copia = new Set(antes);
+      if (copia.has(id)) copia.delete(id);
+      else copia.add(id);
+      return copia;
     });
   }
 
   return (
     <div className="mt-5 space-y-2">
-      <Label>Qué tiene que estar listo antes</Label>
-      <div className="border-border max-h-40 overflow-y-auto rounded-md border">
-        {otras.map((o) => (
-          <label
-            key={o.id}
-            className="hover:bg-muted/50 flex cursor-pointer items-center gap-2.5 px-3 py-2 text-sm"
+      <div className="flex items-baseline justify-between gap-3">
+        <Label>Qué tiene que estar listo antes</Label>
+        {marcadas.size > 0 && (
+          <button
+            type="button"
+            onClick={() => setMarcadas(new Set())}
+            className="text-muted-foreground hover:text-foreground cursor-pointer text-xs"
           >
-            <Checkbox
-              checked={requiere.has(o.id)}
-              disabled={guardando}
-              onCheckedChange={(v) => alternar(o.id, v === true)}
-            />
-            <span className="min-w-0 flex-1 truncate">{o.titulo}</span>
-          </label>
-        ))}
+            Quitar {marcadas.size}
+          </button>
+        )}
+      </div>
+
+      {/* El buscador aparece cuando la lista ya no se abarca de un vistazo. */}
+      {otras.length > 6 && (
+        <Input
+          value={filtro}
+          onChange={(e) => setFiltro(e.target.value)}
+          placeholder="Buscar entre las demás"
+          className="h-8"
+        />
+      )}
+
+      <div className="border-border max-h-44 overflow-y-auto rounded-md border">
+        {vistas.length === 0 ? (
+          <p className="text-muted-foreground px-3 py-2 text-sm">
+            Ninguna se llama así.
+          </p>
+        ) : (
+          vistas.map((o) => (
+            <label
+              key={o.id}
+              className="hover:bg-muted/50 flex cursor-pointer items-center gap-2.5 px-3 py-2 text-sm"
+            >
+              <Checkbox
+                checked={marcadas.has(o.id)}
+                onCheckedChange={() => alternar(o.id)}
+              />
+              <span className="min-w-0 flex-1 truncate">{o.titulo}</span>
+            </label>
+          ))
+        )}
       </div>
     </div>
   );
@@ -373,6 +400,7 @@ export function EditarAccion({
 }) {
   const [cuestaTiempo, setCuestaTiempo] = useState(accion.cuestaTiempo);
   const [cuestaDinero, setCuestaDinero] = useState(accion.monto !== null);
+  const [marcadas, setMarcadas] = useState(() => new Set(requiere));
   const [enviando, iniciar] = useTransition();
 
   function enviar(form: FormData) {
@@ -381,10 +409,15 @@ export function EditarAccion({
     iniciar(async () => {
       try {
         await editarAccion(accion.id, datos);
+        await guardarDependencias(accion.id, [...marcadas]);
         onAbiertoChange(false);
         toast.success("Guardado.");
-      } catch {
-        toast.error("No se pudo guardar. Intenta otra vez.");
+      } catch (e) {
+        toast.error(
+          e instanceof Error && e.message === "Eso haría un círculo"
+            ? "Alguna de esas ya te espera a ti. Lo demás quedó guardado."
+            : "No se pudo guardar. Intenta otra vez.",
+        );
       }
     });
   }
@@ -412,7 +445,7 @@ export function EditarAccion({
             setCuestaDinero={setCuestaDinero}
           />
 
-          <Necesita accion={accion} otras={otras} requiere={requiere} />
+          <Necesita otras={otras} marcadas={marcadas} setMarcadas={setMarcadas} />
 
           <DialogFooter className="mt-7">
             <Button type="submit" disabled={enviando}>

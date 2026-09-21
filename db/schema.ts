@@ -46,6 +46,15 @@ export const momento = pgEnum("momento", [
 ]);
 
 /**
+ * En qué punto está una acción.
+ *
+ * Tres estados y no un sí/no: "haciendo" es donde se atasca todo — el
+ * expediente presentado y en revisión, el vestido en costura. Sin ese estado
+ * esas cosas se ven igual que las que nadie ha tocado.
+ */
+export const estado = pgEnum("estado", ["por_hacer", "haciendo", "hecho"]);
+
+/**
  * Una sola entidad para todo lo que hay que hacer.
  *
  * No hay tablas separadas de trámites, compras y gastos a propósito: un
@@ -80,7 +89,7 @@ export const acciones = pgTable(
     /** userId de Clerk. Null = todavía sin dueño. */
     responsableId: text("responsable_id"),
 
-    hecha: boolean("hecha").notNull().default(false),
+    estado: estado("estado").notNull().default("por_hacer"),
 
     /**
      * Cuándo cae en el calendario, contado hacia atrás desde la boda: 12 son

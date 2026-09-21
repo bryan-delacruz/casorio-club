@@ -17,9 +17,10 @@ import { useState } from "react";
 import { toast } from "sonner";
 import type { Accion, Dependencia, Pago } from "@/db/schema";
 import {
-  alternarHecha,
   borrarAccion,
+  cambiarEstado,
   moverAccion,
+  type Estado,
   type Momento,
 } from "./acciones-servidor";
 import { NuevaAccion } from "./formulario-accion";
@@ -85,7 +86,7 @@ export function Mapa({
   // Optimista: la tarjeta se mueve en cuanto la sueltas, sin esperar al servidor.
   const [lista, aplicar] = useOptimistic(
     iniciales,
-    (actual: Accion[], cambio: { id: string; momento?: Momento; hecha?: boolean }) =>
+    (actual: Accion[], cambio: { id: string; momento?: Momento; estado?: Estado }) =>
       actual.map((a) => (a.id === cambio.id ? { ...a, ...cambio } : a)),
   );
 
@@ -167,11 +168,11 @@ export function Mapa({
     });
   }
 
-  function alAlternar(id: string, hecha: boolean) {
+  function alAlternar(id: string, estado: Estado) {
     iniciar(async () => {
-      aplicar({ id, hecha });
+      aplicar({ id, estado });
       try {
-        await alternarHecha(id, hecha);
+        await cambiarEstado(id, estado);
       } catch {
         toast.error("No se pudo actualizar.");
       }

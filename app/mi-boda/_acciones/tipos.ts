@@ -1,4 +1,4 @@
-import type { Momento } from "./acciones-servidor";
+import type { Estado, Momento } from "./acciones-servidor";
 
 export type Miembro = { id: string; nombre: string; imagen: string | null };
 
@@ -39,4 +39,17 @@ export function diaCorto(fecha: string) {
     day: "numeric",
     month: "short",
   });
+}
+
+/** Los tres estados, en el orden en que se avanza. */
+export const ESTADOS: { id: Estado; nombre: string }[] = [
+  { id: "por_hacer", nombre: "Por hacer" },
+  { id: "haciendo", nombre: "Haciendo" },
+  { id: "hecho", nombre: "Hecho" },
+];
+
+/** El siguiente al tocar el círculo: por hacer, haciendo, hecho, y vuelta. */
+export function siguienteEstado(actual: Estado): Estado {
+  const i = ESTADOS.findIndex((e) => e.id === actual);
+  return ESTADOS[(i + 1) % ESTADOS.length].id;
 }

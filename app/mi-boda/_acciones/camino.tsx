@@ -4,6 +4,7 @@ import Link from "next/link";
 import { TriangleAlert } from "lucide-react";
 import type { Accion, Dependencia } from "@/db/schema";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import type { Momento } from "./acciones-servidor";
 import { FechaBoda } from "./fecha-boda";
 import { soles, type Miembro } from "./tipos";
 
@@ -14,23 +15,33 @@ import { soles, type Miembro } from "./tipos";
  * negativo después. Así el diagrama tiene algo que dibujar desde el primer
  * día, y la barra sale punteada para no hacer pasar la suposición por dato.
  */
-const POR_DEFECTO: Record<string, number> = {
-  antes: 8,
-  el_dia: 0,
-  despues: -2,
-};
+const POR_DEFECTO: Record<string, number> = { antes: 8, el_dia: 0, despues: -2 };
+
+const GRUPOS: { id: Momento; titulo: string }[] = [
+  { id: "antes", titulo: "Antes" },
+  { id: "el_dia", titulo: "El día" },
+  { id: "despues", titulo: "Después" },
+];
 
 const inicioDe = (a: Accion) => a.inicioSemanas ?? POR_DEFECTO[a.momento] ?? 0;
 const duracionDe = (a: Accion) => Math.max(1, a.duracionSemanas);
 /** El final, también contado hacia atrás: empezar en 12 y durar 4 acaba en 8. */
 const finDe = (a: Accion) => inicioDe(a) - duracionDe(a) + 1;
 
-function fechaDeSemana(boda: string | null, semanas: number) {
+function diaDeSemana(boda: string | null, semanas: number) {
   if (!boda) return null;
   const [a, m, d] = boda.split("-").map(Number);
   const dia = new Date(a, m - 1, d);
   dia.setDate(dia.getDate() - semanas * 7);
   return dia.toLocaleDateString("es-PE", { day: "numeric", month: "short" });
+}
+
+/** A cuántas semanas de la boda estamos hoy. Null si no hay fecha. */
+function semanasHastaLaBoda(boda: string | null) {
+  if (!boda) return null;
+  const [a, m, d] = boda.split("-").map(Number);
+  const dias = (new Date(a, m - 1, d).getTime() - Date.now()) / 86_400_000;
+  return Math.round(dias / 7);
 }
 
 export function Camino({
@@ -69,19 +80,46 @@ export function Camino({
     );
   }
 
-  // El eje va de lo más lejano antes de la boda a lo más tardío después.
-  const primera = Math.max(...enCalendario.map(inicioDe));
-  const ultima = Math.min(...enCalendario.map(finDe), 0);
+  // El eje va de lo más lejano antes de la boda a lo más tardío después, con
+  // un respiro a cada lado para que ninguna barra muera contra el borde.
+  const primera = Math.max(...enCalendario.map(inicioDe)) + 1;
+  const ultima = Math.min(...enCalendario.map(finDe), 0) - 1;
   const columnas = primera - ultima + 1;
   const columnaDe = (semanas: number) => primera - semanas + 1;
 
-  const filas = [...enCalendario].sort((a, b) => inicioDe(b) - inicioDe(a));
+  const marcas = new Set<number>([0]);
+  for (let s = 0; s <= primera; s += 4) marcas.add(s);
+  for (let s = -4; s >= ultima; s -= 4) marcas.add(s);
 
-  // Marcas del eje: cada cuatro semanas, más la boda.
-  const marcas: number[] = [];
-  for (let s = primera; s >= ultima; s -= 4) marcas.push(s);
-  if (!marcas.includes(0) && 0 <= primera && 0 >= ultima) marcas.push(0);
-  marcas.sort((a, b) => b - a);
+  const hoy = semanasHastaLaBoda(fechaBoda);
+  const columnaHoy =
+    hoy !== null && hoy <= primera && hoy >= ultima ? columnaDe(hoy) : null;
+
+  const rejilla = {
+    gridTemplateColumns: `11rem repeat(${columnas}, minmax(2.25rem, 1fr))`,
+  };
+
+  /** Las líneas verticales de fondo, iguales en cada fila. */
+  const lineas = Array.from({ length: columnas }, (_, i) => {
+    const semanas = primera - i;
+    const esBoda = semanas === 0;
+    const esHoy = columnaHoy !== null && i + 1 === columnaHoy;
+    if (!marcas.has(semanas) && !esHoy) return null;
+    return (
+      <div
+        key={`linea-${i}`}
+        aria-hidden
+        style={{ gridColumn: i + 2, gridRow: 1 }}
+        className={`h-full ${
+          esBoda
+            ? "border-primary/40 border-l"
+            : esHoy
+              ? "border-foreground/30 border-l border-dashed"
+              : "border-border/60 border-l"
+        }`}
+      />
+    );
+  });
 
   return (
     <div className="space-y-6">
@@ -98,129 +136,179 @@ export function Camino({
       </div>
 
       <div className="overflow-x-auto pb-2">
-        <div className="min-w-140">
+        <div style={{ minWidth: `${11 + columnas * 2.25}rem` }}>
           {/* Eje */}
           <div
-            className="border-border text-muted-foreground grid items-end gap-x-px border-b pb-1.5 text-xs"
-            style={{
-              gridTemplateColumns: `9.5rem repeat(${columnas}, minmax(0.75rem, 1fr))`,
-            }}
+            className="border-border text-muted-foreground grid items-end border-b pb-1.5 text-xs"
+            style={rejilla}
           >
-            <span className="bg-background sticky left-0 z-10" />
-            {marcas.map((semanas) => (
-              <span
-                key={semanas}
-                // Colocada a mano en su semana: dejar que el grid las fuera
-                // acomodando solas las apilaba todas a la izquierda.
-                style={{ gridColumn: `${columnaDe(semanas) + 1} / span 4` }}
-                className={`whitespace-nowrap ${
-                  semanas === 0 ? "text-foreground" : ""
-                }`}
-              >
-                {semanas === 0
-                  ? "la boda"
-                  : semanas > 0
-                    ? `${semanas} sem`
-                    : `+${-semanas}`}
-                {fechaDeSemana(fechaBoda, semanas) && (
-                  <span className="text-muted-foreground/70">
-                    {" "}
-                    · {fechaDeSemana(fechaBoda, semanas)}
-                  </span>
-                )}
-              </span>
-            ))}
-          </div>
-
-          {/* Filas */}
-          <div className="mt-1.5 space-y-1">
-            {filas.map((a) => {
-              const inicio = columnaDe(inicioDe(a));
-              const span = Math.min(duracionDe(a), columnas - inicio + 1);
-              const supuesta = a.inicioSemanas === null;
-              const quien = a.responsableId ? gente.get(a.responsableId) : undefined;
-              const necesita = (requiereDe.get(a.id) ?? [])
-                .map((id) => porId.get(id))
-                .filter((x): x is Accion => Boolean(x));
-
-              // Un requisito que termina después de que esto empieza es un
-              // choque: no puedes empezar algo que espera a otra cosa.
-              const choques = necesita.filter(
-                (r) => r.momento !== "idea" && finDe(r) < inicioDe(a),
-              );
-
-              return (
-                <div
-                  key={a.id}
-                  className="grid items-center gap-x-px"
-                  style={{
-                    gridTemplateColumns: `9.5rem repeat(${columnas}, minmax(0.75rem, 1fr))`,
-                  }}
+            <span className="bg-background sticky left-0 z-20" />
+            {[...marcas]
+              .sort((a, b) => b - a)
+              .map((semanas) => (
+                <span
+                  key={semanas}
+                  // Colocada a mano en su semana: dejar que el grid las fuera
+                  // acomodando solas las apilaba todas a la izquierda.
+                  style={{ gridColumn: `${columnaDe(semanas) + 1} / span 4` }}
+                  className={`whitespace-nowrap pl-1 ${
+                    semanas === 0 ? "text-foreground" : ""
+                  }`}
                 >
-                  <div className="bg-background sticky left-0 z-10 min-w-0 pr-3">
-                    <p
-                      className={`truncate text-sm ${
-                        a.hecha ? "text-muted-foreground line-through" : ""
-                      }`}
-                    >
-                      {a.titulo}
-                    </p>
-                    {necesita.length > 0 && (
-                      <p
-                        className={`truncate text-xs ${
-                          choques.length > 0
-                            ? "text-destructive"
-                            : "text-muted-foreground"
-                        }`}
-                      >
-                        {choques.length > 0 && (
-                          <TriangleAlert className="mr-1 inline size-3" />
-                        )}
-                        ↳ {necesita.map((r) => r.titulo).join(", ")}
-                      </p>
-                    )}
-                  </div>
-
-                  <div
-                    style={{ gridColumn: `${inicio + 1} / span ${span}` }}
-                    title={`${a.titulo} · ${duracionDe(a)} ${duracionDe(a) === 1 ? "semana" : "semanas"}`}
-                    className={`flex h-7 min-w-0 items-center gap-1.5 rounded px-2 ${
-                      a.hecha
-                        ? "bg-secondary text-muted-foreground"
-                        : supuesta
-                          ? "border-primary/40 text-primary border border-dashed"
-                          : "bg-primary text-primary-foreground"
-                    }`}
-                  >
-                    {quien && (
-                      <Avatar className="size-4 shrink-0">
-                        {quien.imagen && <AvatarImage src={quien.imagen} alt="" />}
-                        <AvatarFallback className="text-[0.5rem]">
-                          {quien.nombre.slice(0, 2).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                    )}
-                    {a.monto && (
-                      <span className="truncate text-xs tabular-nums">
-                        {soles(Number(a.monto))}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+                  {semanas === 0
+                    ? "la boda"
+                    : semanas > 0
+                      ? `${semanas} sem`
+                      : `+${-semanas}`}
+                  {diaDeSemana(fechaBoda, semanas) && (
+                    <span className="text-muted-foreground/70">
+                      {" "}
+                      · {diaDeSemana(fechaBoda, semanas)}
+                    </span>
+                  )}
+                </span>
+              ))}
           </div>
+
+          {GRUPOS.map((g) => {
+            const suyas = enCalendario
+              .filter((a) => a.momento === g.id)
+              .sort((a, b) => inicioDe(b) - inicioDe(a));
+            if (suyas.length === 0) return null;
+
+            return (
+              <section key={g.id} className="mt-4">
+                <h3 className="bg-background text-muted-foreground sticky left-0 z-20 mb-1.5 w-fit text-xs tracking-wide uppercase">
+                  {g.titulo}
+                </h3>
+
+                <div className="space-y-1">
+                  {suyas.map((a) => {
+                    const inicio = columnaDe(inicioDe(a));
+                    const span = Math.min(duracionDe(a), columnas - inicio + 1);
+                    const supuesta = a.inicioSemanas === null;
+                    const hecha = a.estado === "hecho";
+                    const haciendo = a.estado === "haciendo";
+                    const quien = a.responsableId
+                      ? gente.get(a.responsableId)
+                      : undefined;
+
+                    const necesita = (requiereDe.get(a.id) ?? [])
+                      .map((id) => porId.get(id))
+                      .filter((x): x is Accion => Boolean(x));
+
+                    // Un requisito que termina después de que esto empieza es
+                    // un choque: no puedes empezar algo que espera a otra cosa.
+                    const choques = necesita.filter(
+                      (r) =>
+                        r.momento !== "idea" &&
+                        r.estado !== "hecho" &&
+                        finDe(r) < inicioDe(a),
+                    );
+
+                    return (
+                      <div key={a.id} className="grid items-center" style={rejilla}>
+                        {lineas}
+
+                        <div
+                          style={{ gridColumn: 1, gridRow: 1 }}
+                          className="bg-background sticky left-0 z-20 min-w-0 pr-3"
+                        >
+                          <p
+                            className={`truncate text-sm ${
+                              hecha ? "text-muted-foreground line-through" : ""
+                            }`}
+                          >
+                            {a.titulo}
+                          </p>
+                          {necesita.length > 0 && (
+                            <p
+                              className={`truncate text-xs ${
+                                choques.length > 0
+                                  ? "text-destructive"
+                                  : "text-muted-foreground"
+                              }`}
+                              title={necesita.map((r) => r.titulo).join(", ")}
+                            >
+                              {choques.length > 0 && (
+                                <TriangleAlert className="mr-1 inline size-3" />
+                              )}
+                              ↳ {necesita.map((r) => r.titulo).join(", ")}
+                            </p>
+                          )}
+                        </div>
+
+                        <div
+                          style={{
+                            gridColumn: `${inicio + 1} / span ${span}`,
+                            gridRow: 1,
+                          }}
+                          title={`${a.titulo} · ${duracionDe(a)} ${
+                            duracionDe(a) === 1 ? "semana" : "semanas"
+                          }${supuesta ? " (supuesto)" : ""}`}
+                          className={`z-10 flex h-7 min-w-0 items-center gap-1.5 rounded px-2 ${
+                            supuesta
+                              ? "border-muted-foreground/40 text-muted-foreground border border-dashed"
+                              : hecha
+                                ? "bg-primary/15 text-muted-foreground"
+                                : haciendo
+                                  ? "bg-primary text-primary-foreground"
+                                  : "bg-secondary text-foreground"
+                          }`}
+                        >
+                          {/* En una barra de una o dos semanas no cabe todo.
+                              El nombre completo está en la columna fija de la
+                              izquierda, así que aquí se cae primero el monto y
+                              luego el título. */}
+                          {quien && (
+                            <Avatar className="size-4 shrink-0">
+                              {quien.imagen && (
+                                <AvatarImage src={quien.imagen} alt="" />
+                              )}
+                              <AvatarFallback className="text-[0.5rem]">
+                                {quien.nombre.slice(0, 2).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                          )}
+                          {span >= 3 && (
+                            <span className="truncate text-xs">{a.titulo}</span>
+                          )}
+                          {a.monto && span >= 2 && (
+                            <span className="ml-auto shrink-0 text-xs tabular-nums">
+                              {soles(Number(a.monto))}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            );
+          })}
         </div>
       </div>
 
-      <p className="text-muted-foreground text-xs">
-        Las barras punteadas son una suposición por el carril donde está la
-        acción. Ponle semanas desde{" "}
-        <Link href="/mi-boda" className="underline">
-          el mapa
-        </Link>{" "}
-        para fijarlas.
-      </p>
+      <div className="text-muted-foreground flex flex-wrap items-center gap-x-5 gap-y-2 text-xs">
+        <span className="flex items-center gap-1.5">
+          <span className="bg-secondary h-3 w-5 rounded-sm" /> Por hacer
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="bg-primary h-3 w-5 rounded-sm" /> Haciendo
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="bg-primary/15 h-3 w-5 rounded-sm" /> Hecho
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="border-muted-foreground/40 h-3 w-5 rounded-sm border border-dashed" />
+          Sin semanas puestas
+        </span>
+        {columnaHoy !== null && (
+          <span className="flex items-center gap-1.5">
+            <span className="border-foreground/30 h-3 border-l border-dashed" /> Hoy
+          </span>
+        )}
+      </div>
 
       {sueltas.length > 0 && (
         <div className="border-border rounded-lg border border-dashed p-4">
