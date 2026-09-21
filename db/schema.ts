@@ -6,10 +6,31 @@ import {
   numeric,
   pgEnum,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uuid,
 } from "drizzle-orm/pg-core";
+
+/**
+ * Los datos de la boda misma. Todo lo demás vive en Clerk.
+ *
+ * La fila se crea sola la primera vez que hace falta: la boda existe desde
+ * que existe la organización en Clerk, aunque aquí no haya nada escrito.
+ */
+export const bodas = pgTable("bodas", {
+  /** orgId de Clerk. */
+  id: text("id").primaryKey(),
+
+  /** El día. Null mientras no lo hayan decidido. */
+  fecha: date("fecha"),
+
+  actualizadaEl: timestamp("actualizada_el", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export type Boda = typeof bodas.$inferSelect;
 
 /**
  * Dónde vive una acción en el camino a la boda.
@@ -60,6 +81,17 @@ export const acciones = pgTable(
     responsableId: text("responsable_id"),
 
     hecha: boolean("hecha").notNull().default(false),
+
+    /**
+     * Cuándo cae en el calendario, contado hacia atrás desde la boda: 12 son
+     * doce semanas antes, 0 es el mismo día, -4 son cuatro después.
+     *
+     * Se guarda relativo y no como fecha porque mover la boda mueve todo
+     * con ella, que es lo que pasa de verdad cuando se cambia el día.
+     * Null = todavía sin decidir; el diagrama la coloca según su momento.
+     */
+    inicioSemanas: integer("inicio_semanas"),
+    duracionSemanas: integer("duracion_semanas").notNull().default(1),
 
     /** Posición dentro de su carril, para ordenar a mano. */
     orden: integer("orden").notNull().default(0),
@@ -123,3 +155,29 @@ export const pagos = pgTable(
 );
 
 export type Pago = typeof pagos.$inferSelect;
+
+/**
+ * Qué tiene que estar listo antes de qué.
+ *
+ * Una fila dice "accionId necesita que requiereId esté hecha". Se guardan
+ * como pares y no como una lista dentro de la acción para poder preguntar
+ * en los dos sentidos: qué necesita esto, y a quién frena.
+ */
+export const dependencias = pgTable(
+  "dependencias",
+  {
+    bodaId: text("boda_id").notNull(),
+    accionId: uuid("accion_id")
+      .notNull()
+      .references(() => acciones.id, { onDelete: "cascade" }),
+    requiereId: uuid("requiere_id")
+      .notNull()
+      .references(() => acciones.id, { onDelete: "cascade" }),
+  },
+  (t) => [
+    primaryKey({ columns: [t.accionId, t.requiereId] }),
+    index("dependencias_boda_idx").on(t.bodaId),
+  ],
+);
+
+export type Dependencia = typeof dependencias.$inferSelect;

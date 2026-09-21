@@ -15,7 +15,7 @@ import {
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { useState } from "react";
 import { toast } from "sonner";
-import type { Accion, Pago } from "@/db/schema";
+import type { Accion, Dependencia, Pago } from "@/db/schema";
 import {
   alternarHecha,
   borrarAccion,
@@ -72,10 +72,12 @@ export function Mapa({
   iniciales,
   miembros,
   pagos,
+  dependencias,
 }: {
   iniciales: Accion[];
   miembros: Miembro[];
   pagos: Pago[];
+  dependencias: Dependencia[];
 }) {
   const [, iniciar] = useTransition();
   const [arrastrando, setArrastrando] = useState<Accion | null>(null);
@@ -90,6 +92,14 @@ export function Mapa({
   const porMomento = (m: Momento) => lista.filter((a) => a.momento === m);
   const ideas = porMomento("idea");
   const porId = new Map(miembros.map((m) => [m.id, m]));
+  const titulos = new Map(lista.map((a) => [a.id, a.titulo]));
+
+  const requiereDe = new Map<string, Set<string>>();
+  for (const d of dependencias) {
+    const suyas = requiereDe.get(d.accionId) ?? new Set<string>();
+    suyas.add(d.requiereId);
+    requiereDe.set(d.accionId, suyas);
+  }
 
   const pagosDe = new Map<string, Pago[]>();
   for (const p of pagos) {
@@ -204,6 +214,9 @@ export function Mapa({
                 miembro={a.responsableId ? porId.get(a.responsableId) : undefined}
                 miembros={miembros}
                 pagos={pagosDe.get(a.id)}
+                otras={lista.filter((o) => o.id !== a.id)}
+                requiere={requiereDe.get(a.id)}
+                titulos={titulos}
                 onAlternar={alAlternar}
                 onMover={alMover}
                 onBorrar={alBorrar}
@@ -247,6 +260,9 @@ export function Mapa({
                       miembro={a.responsableId ? porId.get(a.responsableId) : undefined}
                       miembros={miembros}
                       pagos={pagosDe.get(a.id)}
+                      otras={lista.filter((o) => o.id !== a.id)}
+                      requiere={requiereDe.get(a.id)}
+                      titulos={titulos}
                       onAlternar={alAlternar}
                       onMover={alMover}
                       onBorrar={alBorrar}

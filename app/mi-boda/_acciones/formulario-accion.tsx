@@ -25,7 +25,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { crearAccion, editarAccion, type Momento } from "./acciones-servidor";
+import {
+  anadirDependencia,
+  crearAccion,
+  editarAccion,
+  quitarDependencia,
+  type Momento,
+} from "./acciones-servidor";
+import { Checkbox } from "@/components/ui/checkbox";
 import type { Miembro } from "./tipos";
 
 const SIN_RESPONSABLE = "sin-responsable";
@@ -38,6 +45,7 @@ const SIN_RESPONSABLE = "sin-responsable";
  */
 function Campos({
   accion,
+  momento,
   miembros,
   cuestaTiempo,
   setCuestaTiempo,
@@ -45,12 +53,18 @@ function Campos({
   setCuestaDinero,
 }: {
   accion?: Accion;
+  momento: Momento;
   miembros: Miembro[];
   cuestaTiempo: boolean;
   setCuestaTiempo: (v: boolean) => void;
   cuestaDinero: boolean;
   setCuestaDinero: (v: boolean) => void;
 }) {
+  // Una idea suelta todavía no tiene sitio en el calendario, y el mismo día
+  // de la boda no se cuenta en semanas.
+  const enCalendario = momento === "antes" || momento === "despues";
+  const cuando = momento === "antes" ? "antes de la boda" : "después de la boda";
+
   return (
     <div className="mt-6 space-y-5">
       <div className="space-y-2">
@@ -99,6 +113,40 @@ function Campos({
         )}
       </div>
 
+      {enCalendario && (
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="min-w-20 flex-1 space-y-2">
+            <Label htmlFor="semanas">Semanas {cuando}</Label>
+            <Input
+              id="semanas"
+              name="semanas"
+              type="number"
+              min="0"
+              max="260"
+              inputMode="numeric"
+              placeholder="8"
+              defaultValue={
+                accion?.inicioSemanas === null || accion?.inicioSemanas === undefined
+                  ? ""
+                  : String(Math.abs(accion.inicioSemanas))
+              }
+            />
+          </div>
+          <div className="min-w-20 flex-1 space-y-2">
+            <Label htmlFor="dura">Cuántas dura</Label>
+            <Input
+              id="dura"
+              name="dura"
+              type="number"
+              min="1"
+              max="260"
+              inputMode="numeric"
+              defaultValue={String(accion?.duracionSemanas ?? 1)}
+            />
+          </div>
+        </div>
+      )}
+
       <div className="space-y-2">
         <Label htmlFor="responsable">Quién responde</Label>
         <Select
@@ -133,18 +181,45 @@ function Campos({
   );
 }
 
-/** Lee el formulario. Devuelve null si falta el título. */
-function leer(form: FormData, cuestaTiempo: boolean, cuestaDinero: boolean) {
+/**
+ * Lee el formulario. Devuelve null si falta el título.
+ *
+ * Las semanas se escriben siempre en positivo y el signo lo pone el momento:
+ * antes de la boda cuentan hacia atrás, después hacia adelante. Nadie debería
+ * teclear "-4" para decir "un mes después".
+ */
+function leer(
+  form: FormData,
+  momento: Momento,
+  cuestaTiempo: boolean,
+  cuestaDinero: boolean,
+) {
   const titulo = String(form.get("titulo") ?? "").trim();
   if (!titulo) return null;
   const responsable = String(form.get("responsable") ?? SIN_RESPONSABLE);
   const montoCrudo = String(form.get("monto") ?? "").trim();
+
+  const semanasCrudo = String(form.get("semanas") ?? "").trim();
+  const semanas = semanasCrudo === "" ? null : Math.abs(Number(semanasCrudo));
+  const dura = Math.max(1, Number(form.get("dura") ?? 1) || 1);
+
+  const inicioSemanas =
+    momento === "el_dia"
+      ? 0
+      : semanas === null || !Number.isFinite(semanas)
+        ? null
+        : momento === "despues"
+          ? -semanas
+          : semanas;
+
   return {
     titulo,
     cuestaTiempo,
     monto: cuestaDinero && montoCrudo ? montoCrudo : null,
     responsableId: responsable === SIN_RESPONSABLE ? null : responsable,
     notas: String(form.get("notas") ?? "").trim() || null,
+    inicioSemanas,
+    duracionSemanas: dura,
   };
 }
 
@@ -163,7 +238,7 @@ export function NuevaAccion({
   const [enviando, iniciar] = useTransition();
 
   function enviar(form: FormData) {
-    const datos = leer(form, cuestaTiempo, cuestaDinero);
+    const datos = leer(form, momento, cuestaTiempo, cuestaDinero);
     if (!datos) return;
     iniciar(async () => {
       try {
@@ -202,6 +277,7 @@ export function NuevaAccion({
           </DialogHeader>
 
           <Campos
+            momento={momento}
             miembros={miembros}
             cuestaTiempo={cuestaTiempo}
             setCuestaTiempo={setCuestaTiempo}
@@ -224,14 +300,74 @@ export function NuevaAccion({
  * Editar. Va controlado desde fuera porque lo abre el menú de la tarjeta, y
  * un diálogo dentro de un menú se desmonta cuando el menú se cierra.
  */
+/**
+ * De qué depende esta acción.
+ *
+ * Cada casilla guarda al instante, sin esperar al botón: así el aviso de
+ * círculo llega cuando la marcas y no al final, con todo lo demás ya escrito.
+ */
+function Necesita({
+  accion,
+  otras,
+  requiere,
+}: {
+  accion: Accion;
+  otras: Accion[];
+  requiere: Set<string>;
+}) {
+  const [guardando, iniciar] = useTransition();
+
+  if (otras.length === 0) return null;
+
+  function alternar(id: string, marcada: boolean) {
+    iniciar(async () => {
+      try {
+        if (marcada) await anadirDependencia(accion.id, id);
+        else await quitarDependencia(accion.id, id);
+      } catch (e) {
+        toast.error(
+          e instanceof Error && e.message === "Eso haría un círculo"
+            ? "No puede ser: esa ya te espera a ti."
+            : "No se pudo guardar.",
+        );
+      }
+    });
+  }
+
+  return (
+    <div className="mt-5 space-y-2">
+      <Label>Qué tiene que estar listo antes</Label>
+      <div className="border-border max-h-40 overflow-y-auto rounded-md border">
+        {otras.map((o) => (
+          <label
+            key={o.id}
+            className="hover:bg-muted/50 flex cursor-pointer items-center gap-2.5 px-3 py-2 text-sm"
+          >
+            <Checkbox
+              checked={requiere.has(o.id)}
+              disabled={guardando}
+              onCheckedChange={(v) => alternar(o.id, v === true)}
+            />
+            <span className="min-w-0 flex-1 truncate">{o.titulo}</span>
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function EditarAccion({
   accion,
   miembros,
+  otras,
+  requiere,
   abierto,
   onAbiertoChange,
 }: {
   accion: Accion;
   miembros: Miembro[];
+  otras: Accion[];
+  requiere: Set<string>;
   abierto: boolean;
   onAbiertoChange: (v: boolean) => void;
 }) {
@@ -240,7 +376,7 @@ export function EditarAccion({
   const [enviando, iniciar] = useTransition();
 
   function enviar(form: FormData) {
-    const datos = leer(form, cuestaTiempo, cuestaDinero);
+    const datos = leer(form, accion.momento, cuestaTiempo, cuestaDinero);
     if (!datos) return;
     iniciar(async () => {
       try {
@@ -268,12 +404,15 @@ export function EditarAccion({
 
           <Campos
             accion={accion}
+            momento={accion.momento}
             miembros={miembros}
             cuestaTiempo={cuestaTiempo}
             setCuestaTiempo={setCuestaTiempo}
             cuestaDinero={cuestaDinero}
             setCuestaDinero={setCuestaDinero}
           />
+
+          <Necesita accion={accion} otras={otras} requiere={requiere} />
 
           <DialogFooter className="mt-7">
             <Button type="submit" disabled={enviando}>

@@ -34,6 +34,9 @@ export function TarjetaAccion({
   miembro,
   miembros = [],
   pagos = [],
+  otras = [],
+  requiere,
+  titulos,
   onAlternar,
   onMover,
   onBorrar,
@@ -43,6 +46,9 @@ export function TarjetaAccion({
   miembro?: Miembro;
   miembros?: Miembro[];
   pagos?: Pago[];
+  otras?: Accion[];
+  requiere?: Set<string>;
+  titulos?: Map<string, string>;
   onAlternar?: (id: string, hecha: boolean) => void;
   onMover?: (id: string, momento: Momento) => void;
   onBorrar?: (id: string) => void;
@@ -180,10 +186,22 @@ export function TarjetaAccion({
       {/* Fuera del menú: dentro se desmontaría al cerrarse el menú. Se monta
           solo mientras está abierto para que los campos partan del valor
           guardado cada vez. */}
+      {requiere && requiere.size > 0 && titulos && (
+        <p className="text-muted-foreground mt-2 pl-6 text-xs">
+          ↳ necesita{" "}
+          {[...requiere]
+            .map((id) => titulos.get(id))
+            .filter(Boolean)
+            .join(", ")}
+        </p>
+      )}
+
       {conMenu && editando && (
         <EditarAccion
           accion={accion}
           miembros={miembros}
+          otras={otras}
+          requiere={requiere ?? new Set()}
           abierto={editando}
           onAbiertoChange={setEditando}
         />

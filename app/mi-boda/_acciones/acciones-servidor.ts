@@ -1,10 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, or, sql } from "drizzle-orm";
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { getDb } from "@/db";
-import { acciones, pagos } from "@/db/schema";
+import { acciones, bodas, dependencias, pagos } from "@/db/schema";
 
 /**
  * Toda consulta y escritura se ata a la boda activa que Clerk reporta en la
@@ -19,6 +19,91 @@ async function bodaActiva() {
 }
 
 export type Momento = "idea" | "antes" | "el_dia" | "despues";
+
+/** La fecha de la boda, si ya la decidieron. */
+export async function obtenerBoda() {
+  const { orgId } = await auth();
+  if (!orgId) return null;
+  const [fila] = await getDb().select().from(bodas).where(eq(bodas.id, orgId));
+  return fila ?? null;
+}
+
+export async function guardarFechaBoda(fecha: string | null) {
+  const { bodaId } = await bodaActiva();
+  await getDb()
+    .insert(bodas)
+    .values({ id: bodaId, fecha })
+    .onConflictDoUpdate({
+      target: bodas.id,
+      set: { fecha, actualizadaEl: new Date() },
+    });
+  revalidatePath("/mi-boda");
+}
+
+export async function listarDependencias() {
+  const { orgId } = await auth();
+  if (!orgId) return [];
+  return getDb()
+    .select()
+    .from(dependencias)
+    .where(eq(dependencias.bodaId, orgId));
+}
+
+/**
+ * "A necesita B". Rechaza el ciclo: si B ya depende de A, directa o por una
+ * cadena, aceptarlo dejaría dos tareas esperándose para siempre.
+ */
+export async function anadirDependencia(accionId: string, requiereId: string) {
+  const { bodaId } = await bodaActiva();
+  if (accionId === requiereId) throw new Error("Una acción no se necesita a sí misma");
+
+  const suyas = await getDb()
+    .select({ id: acciones.id })
+    .from(acciones)
+    .where(and(eq(acciones.bodaId, bodaId), inArray(acciones.id, [accionId, requiereId])));
+  if (suyas.length !== 2) throw new Error("Esa acción no es de esta boda");
+
+  const todas = await getDb()
+    .select()
+    .from(dependencias)
+    .where(eq(dependencias.bodaId, bodaId));
+
+  // ¿Se llega de requiereId a accionId siguiendo las flechas que ya existen?
+  const porQuien = new Map<string, string[]>();
+  for (const d of todas) {
+    porQuien.set(d.accionId, [...(porQuien.get(d.accionId) ?? []), d.requiereId]);
+  }
+  const vistos = new Set<string>();
+  const pila = [requiereId];
+  while (pila.length) {
+    const actual = pila.pop()!;
+    if (actual === accionId) throw new Error("Eso haría un círculo");
+    if (vistos.has(actual)) continue;
+    vistos.add(actual);
+    pila.push(...(porQuien.get(actual) ?? []));
+  }
+
+  await getDb()
+    .insert(dependencias)
+    .values({ bodaId, accionId, requiereId })
+    .onConflictDoNothing();
+
+  revalidatePath("/mi-boda");
+}
+
+export async function quitarDependencia(accionId: string, requiereId: string) {
+  const { bodaId } = await bodaActiva();
+  await getDb()
+    .delete(dependencias)
+    .where(
+      and(
+        eq(dependencias.bodaId, bodaId),
+        eq(dependencias.accionId, accionId),
+        eq(dependencias.requiereId, requiereId),
+      ),
+    );
+  revalidatePath("/mi-boda");
+}
 
 /**
  * Las lecturas toleran no tener sesión y devuelven vacío; las escrituras no.
@@ -127,6 +212,8 @@ export async function crearAccion(datos: {
   monto: string | null;
   responsableId: string | null;
   notas: string | null;
+  inicioSemanas: number | null;
+  duracionSemanas: number;
 }) {
   const { bodaId } = await bodaActiva();
   const titulo = datos.titulo.trim();
@@ -146,6 +233,8 @@ export async function crearAccion(datos: {
     monto: datos.monto,
     responsableId: datos.responsableId,
     notas: datos.notas,
+    inicioSemanas: datos.inicioSemanas,
+    duracionSemanas: datos.duracionSemanas,
     orden: siguiente,
   });
 
@@ -165,6 +254,8 @@ export async function editarAccion(
     monto: string | null;
     responsableId: string | null;
     notas: string | null;
+    inicioSemanas: number | null;
+    duracionSemanas: number;
   },
 ) {
   const { bodaId } = await bodaActiva();
@@ -179,6 +270,8 @@ export async function editarAccion(
       monto: datos.monto,
       responsableId: datos.responsableId,
       notas: datos.notas,
+      inicioSemanas: datos.inicioSemanas,
+      duracionSemanas: datos.duracionSemanas,
       actualizadaEl: new Date(),
     })
     .where(and(eq(acciones.id, id), eq(acciones.bodaId, bodaId)));

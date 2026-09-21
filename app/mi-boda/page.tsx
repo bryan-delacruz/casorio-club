@@ -3,8 +3,10 @@ import Link from "next/link";
 import { auth, clerkClient, currentUser } from "@clerk/nextjs/server";
 import { Button } from "@/components/ui/button";
 import { Mapa } from "./_acciones/mapa";
+import { Vistas } from "./_acciones/vistas";
 import {
   listarAcciones,
+  listarDependencias,
   listarMiembros,
   listarPagos,
 } from "./_acciones/acciones-servidor";
@@ -16,10 +18,11 @@ export default async function MiBodaPage() {
   const user = await currentUser();
   const nombre = user?.firstName ?? "";
 
-  const [acciones, miembros, pagos] = await Promise.all([
+  const [acciones, miembros, pagos, dependencias] = await Promise.all([
     listarAcciones(),
     listarMiembros(),
     listarPagos(),
+    listarDependencias(),
   ]);
 
   let invitacionesPendientes = 0;
@@ -57,8 +60,17 @@ export default async function MiBodaPage() {
         )}
       </div>
 
-      <div className="mt-8">
-        <Mapa iniciales={acciones} miembros={miembros} pagos={pagos} />
+      <div className="mt-7">
+        <Vistas />
+      </div>
+
+      <div className="mt-6">
+        <Mapa
+          iniciales={acciones}
+          miembros={miembros}
+          pagos={pagos}
+          dependencias={dependencias}
+        />
       </div>
     </main>
   );
