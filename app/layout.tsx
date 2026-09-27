@@ -17,13 +17,30 @@ const instrument = Instrument_Sans({
   subsets: ["latin"],
 });
 
+const DESCRIPTION =
+  "Lleva los pendientes, trámites, compras y gastos de tu matrimonio civil en un solo lugar, junto a quien lo está organizando contigo.";
+
 export const metadata: Metadata = {
+  metadataBase: new URL("https://casorio-club.vercel.app"),
   title: {
     default: "Casorio Club",
     template: "%s · Casorio Club",
   },
-  description:
-    "Lleva los pendientes, trámites, compras y gastos de tu matrimonio civil en un solo lugar, junto a quien lo está organizando contigo.",
+  description: DESCRIPTION,
+  // Sin Open Graph, LinkedIn y WhatsApp no generan la vista previa del link.
+  openGraph: {
+    type: "website",
+    locale: "es_PE",
+    url: "/",
+    siteName: "Casorio Club",
+    title: "Casorio Club — Tu matrimonio civil, organizado entre dos",
+    description: DESCRIPTION,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Casorio Club — Tu matrimonio civil, organizado entre dos",
+    description: DESCRIPTION,
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
