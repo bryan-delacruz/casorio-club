@@ -1,7 +1,7 @@
 import { ImageResponse } from "next/og";
 
 // Imagen que representa la marca al compartir el link (WhatsApp, LinkedIn, etc.).
-export const alt = "Casorio Club — Tu matrimonio civil, organizado entre dos";
+export const alt = "Casorio Club — Your civil wedding, planned together";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -36,15 +36,15 @@ export default function OpengraphImage() {
 
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           <div style={{ fontSize: 80, fontWeight: 600, lineHeight: 1.04, letterSpacing: -2, maxWidth: 960 }}>
-            Tu matrimonio civil, organizado entre dos.
+            Your civil wedding, planned together.
           </div>
           <div style={{ fontSize: 30, color: "rgba(231,229,219,0.82)", maxWidth: 880, fontFamily: "sans-serif" }}>
-            Pendientes, trámites, compras y gastos en un solo lugar.
+            To-dos, paperwork, purchases, and expenses in one place.
           </div>
         </div>
 
         <div style={{ display: "flex", fontSize: 24, color: "rgba(231,229,219,0.7)", fontFamily: "monospace" }}>
-          tablero compartido · presupuesto · fechas y dependencias
+          shared board · budget · dates and dependencies
         </div>
       </div>
     ),

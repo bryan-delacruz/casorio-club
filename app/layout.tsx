@@ -20,6 +20,10 @@ const instrument = Instrument_Sans({
 const DESCRIPTION =
   "Lleva los pendientes, trámites, compras y gastos de tu matrimonio civil en un solo lugar, junto a quien lo está organizando contigo.";
 
+const OG_TITLE = "Casorio Club — Your civil wedding, planned together";
+const OG_DESCRIPTION =
+  "Keep the to-dos, paperwork, purchases, and expenses of your civil wedding in one place, shared with the person planning it with you.";
+
 export const metadata: Metadata = {
   metadataBase: new URL("https://casorio-club.vercel.app"),
   title: {
@@ -28,18 +32,19 @@ export const metadata: Metadata = {
   },
   description: DESCRIPTION,
   // Sin Open Graph, LinkedIn y WhatsApp no generan la vista previa del link.
+  // La tarjeta va en inglés (LinkedIn, portafolio); la página sigue en español.
   openGraph: {
     type: "website",
-    locale: "es_PE",
+    locale: "en_US",
     url: "/",
     siteName: "Casorio Club",
-    title: "Casorio Club — Tu matrimonio civil, organizado entre dos",
-    description: DESCRIPTION,
+    title: OG_TITLE,
+    description: OG_DESCRIPTION,
   },
   twitter: {
     card: "summary_large_image",
-    title: "Casorio Club — Tu matrimonio civil, organizado entre dos",
-    description: DESCRIPTION,
+    title: OG_TITLE,
+    description: OG_DESCRIPTION,
   },
 };
 
