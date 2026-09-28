@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { OrganizationSwitcher, UserButton } from "@clerk/nextjs";
 import { Wordmark } from "@/components/wordmark";
 import { Button } from "@/components/ui/button";
+import { DEMO } from "@/lib/demo";
 
 /**
  * Puerta de la zona privada. Al vivir en el layout, protege esta ruta y todo
@@ -13,10 +14,16 @@ export default async function MiBodaLayout({
 }: {
   children: React.ReactNode;
 }) {
-  await auth.protect();
+  const { orgId } = await auth.protect();
 
   return (
     <div className="flex min-h-dvh flex-col">
+      {orgId === DEMO.orgId && (
+        <p className="bg-secondary text-secondary-foreground px-5 py-2 text-center text-sm">
+          Estás en una boda de ejemplo. Puedes cambiar lo que quieras: se
+          reinicia sola cada día.
+        </p>
+      )}
       <header className="border-border flex flex-wrap items-center gap-x-4 gap-y-3 border-b px-5 py-4 sm:px-10">
         <Link href="/mi-boda">
           <Wordmark />

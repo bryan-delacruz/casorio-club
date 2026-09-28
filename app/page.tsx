@@ -74,8 +74,14 @@ export default async function Home() {
                 </Link>
               </Button>
               {!dentro && (
-                <span className="text-muted-foreground text-sm">
-                  Gratis, y se comparte con quien organiza contigo.
+                <Button variant="outline" size="lg" className="h-10 px-5 text-[0.9375rem]" asChild>
+                  <Link href="/demo" prefetch={false}>Probar la demo</Link>
+                </Button>
+              )}
+              {!dentro && (
+                <span className="text-muted-foreground w-full text-sm">
+                  Gratis, y se comparte con quien organiza contigo. La demo entra
+                  sin contraseña a una boda de ejemplo.
                 </span>
               )}
             </div>

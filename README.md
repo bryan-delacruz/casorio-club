@@ -7,7 +7,7 @@
 ![Drizzle](https://img.shields.io/badge/drizzle_orm-C5F74F?style=for-the-badge&logo=drizzle&logoColor=black)
 ![TailwindCSS](https://img.shields.io/badge/tailwindcss-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)
 
-**Live:** [casorio-club.vercel.app](https://casorio-club.vercel.app)
+**Live:** [casorio-club.vercel.app](https://casorio-club.vercel.app) — click **Probar la demo** to enter a sample wedding with one click, no password. It resets itself every day.
 
 A shared workspace for couples planning a civil wedding in Peru. Paperwork, to-dos, purchases and expenses live in one place, and both partners (plus anyone they invite) work on the same board.
 
@@ -17,6 +17,7 @@ The UI is in Spanish, for its target users.
 
 - **Shared wedding space:** each wedding is a Clerk Organization. Invite your partner or family, manage members and switch between weddings.
 - **Passwordless sign-in:** email plus a 6-digit code, with a fully localized Clerk UI.
+- **One-click demo:** `/demo` signs visitors in as a member of a sample wedding with a one-time Clerk sign-in token. The sample data (actions, payments and dependencies, dated relative to today) is rebuilt on entry when it is older than 12 hours, with no cron or extra secret.
 - **Action board:** drag and drop actions between lanes — *idea*, *before*, *the day* and *after* — with `dnd-kit`. A non-drag path exists for keyboard and touch users.
 - **One entity for everything:** a paperwork step that costs money *is* an expense. Each action can take time (⏱), cost money (💰), both or neither, so totals never miss an item.
 - **Owners and progress:** assign each action to a member and mark it done.
