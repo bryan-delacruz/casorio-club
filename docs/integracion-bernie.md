@@ -2,7 +2,7 @@
 
 > **Spec (SDD).** Este documento manda sobre el código de la integración: si algo
 > cambia, primero se actualiza aquí. **Estado: propuesta, pendiente de aprobación.**
-> Contrato del lado proveedor: `SPEC.md` §15 y `docs/api/openapi.yaml` en el repo
+> Contrato del lado proveedor: `SPEC.md` §15 y `docs/api/openapi.json` en el repo
 > de Bernie Wallet. Diseñada lista para producción.
 
 ## 1. Objetivo
@@ -145,7 +145,7 @@ que revise Apps conectadas en Bernie.
 ## 10. Pruebas
 
 - **Contrato:** esquema Zod de la respuesta de `sync` validado contra los ejemplos
-  del `openapi.yaml` de Bernie (copiados como fixtures, con su versión).
+  del `openapi.json` de Bernie (copiados como fixtures, con su versión).
 - Verificación de webhooks contra los vectores de prueba de Standard Webhooks.
 - Aplicar cambios: `added/modified/removed`, asignados vs. sin asignar, `cursor_reset`.
 - PKCE: `code_challenge` = S256 del verificador; `state` distinto → error.
