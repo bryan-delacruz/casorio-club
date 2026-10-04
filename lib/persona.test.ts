@@ -28,6 +28,11 @@ test("ignora palabras que no empiezan con letra", () => {
 });
 
 test("personaDe: sin nombre usa el correo", () => {
-  assert.deepEqual(personaDe({ id: "u1", identifier: "ana.rios@x.com" }), { id: "u1", nombre: "ana rios", iniciales: "AR" });
+  assert.deepEqual(personaDe({ id: "u1", identifier: "ana.rios@x.com" }), { id: "u1", nombre: "ana rios", iniciales: "AR", imagen: undefined });
   assert.equal(personaDe({ id: "u2", firstName: "Luis", lastName: "Mendoza Paz" }).nombre, "Luis Mendoza Paz");
+});
+
+test("personaDe: la foto solo si la persona la subió", () => {
+  assert.equal(personaDe({ id: "u1", imageUrl: "https://img/x", hasImage: true }).imagen, "https://img/x");
+  assert.equal(personaDe({ id: "u1", imageUrl: "https://img/x", hasImage: false }).imagen, undefined);
 });

@@ -19,7 +19,7 @@ export function MenuPersona({
   persona,
   correo,
 }: {
-  persona: { id: string; nombre: string; iniciales: string };
+  persona: { id: string; nombre: string; iniciales: string; imagen?: string };
   correo?: string;
 }) {
   const { openUserProfile, signOut } = useClerk();

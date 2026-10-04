@@ -74,18 +74,19 @@
   --sidebar-border: #c8c2b7;
   --sidebar-ring: #49110b;
 
-  /* Avatares (lib/persona.ts): cinco pares fondo/texto de la misma paleta.
-     A cada persona le toca uno fijo según su id. */
-  --persona-1-fondo: #49110b;
+  /* Avatares (lib/persona.ts): cinco pares fondo/texto de la paleta o tonos
+     vecinos. Letra ≥ 6.5:1 sobre su fondo y círculo ≥ 2:1 sobre la página,
+     para que ninguno se funda con el fondo. A cada persona le toca uno fijo. */
+  --persona-1-fondo: #49110b; /* vino */
   --persona-1-texto: #e7e5db;
-  --persona-2-fondo: #ad9e89;
+  --persona-2-fondo: #ad9e89; /* arena */
   --persona-2-texto: #191a1e;
-  --persona-3-fondo: #56483b;
+  --persona-3-fondo: #56483b; /* café */
   --persona-3-texto: #e7e5db;
-  --persona-4-fondo: #c8c2b7;
-  --persona-4-texto: #49110b;
-  --persona-5-fondo: #191a1e;
-  --persona-5-texto: #ad9e89;
+  --persona-4-fondo: #8c3a2c; /* vino claro */
+  --persona-4-texto: #f4f1e8;
+  --persona-5-fondo: #191a1e; /* tinta */
+  --persona-5-texto: #c8c2b7;
 
   /* 4px: la marca es de cantos casi rectos, como cartulina cortada. */
   --radius: 0.25rem;
@@ -135,8 +136,17 @@
   --sidebar-border: #ffffff1f;
   --sidebar-ring: #ad9e89;
 
-  /* El charcoal se pierde sobre charcoal: en oscuro ese par se invierte. */
-  --persona-5-fondo: #e7e5db;
+  /* Sobre tinta, los fondos oscuros se pierden: en oscuro todos aclaran y la
+     letra pasa a oscura, con los mismos contrastes mínimos. */
+  --persona-1-fondo: #d39a8b; /* vino rosado */
+  --persona-1-texto: #49110b;
+  --persona-2-fondo: #ad9e89; /* arena */
+  --persona-2-texto: #191a1e;
+  --persona-3-fondo: #9c8a74; /* café claro */
+  --persona-3-texto: #121316;
+  --persona-4-fondo: #e7e5db; /* leche */
+  --persona-4-texto: #49110b;
+  --persona-5-fondo: #c8c2b7; /* piedra */
   --persona-5-texto: #191a1e;
 }
 

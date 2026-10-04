@@ -63,7 +63,14 @@ export const listarMiembros = cache(async () => {
     limit: 20,
   });
   return data.map(({ publicUserData: u }) =>
-    personaDe({ id: u?.userId ?? "", firstName: u?.firstName, lastName: u?.lastName, identifier: u?.identifier }),
+    personaDe({
+      id: u?.userId ?? "",
+      firstName: u?.firstName,
+      lastName: u?.lastName,
+      identifier: u?.identifier,
+      hasImage: u?.hasImage,
+      imageUrl: u?.imageUrl,
+    }),
   );
 });
 

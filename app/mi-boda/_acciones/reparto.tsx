@@ -10,6 +10,7 @@ type Cuenta = {
   id: string;
   nombre: string;
   iniciales: string;
+  imagen?: string;
   total: number;
   hecho: number;
 };
@@ -66,6 +67,7 @@ export function Reparto({
       id,
       nombre: quien?.nombre ?? "Por repartir",
       iniciales: quien?.iniciales ?? "",
+      imagen: quien?.imagen,
       total: 0,
       hecho: 0,
     };
