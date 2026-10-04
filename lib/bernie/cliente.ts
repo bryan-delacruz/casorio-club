@@ -47,7 +47,13 @@ async function pedirTokens(cuerpo: Record<string, string>): Promise<Tokens> {
   if (!res.ok || typeof json?.access_token !== "string") {
     // invalid_grant = el refresh token ya no sirve (revocado o rotado por otra sync).
     const codigo = json?.error === "invalid_grant" ? "invalid_grant" : "unauthorized";
-    throw new ErrorBernie(codigo, `Token endpoint respondió ${res.status}`);
+    // Solo el código y el mensaje de error de Supabase (p. ej. invalid_credentials),
+    // nunca el cuerpo completo ni lo que se envió: así el log sirve sin filtrar secretos.
+    const motivo = [json?.error_code ?? json?.error, json?.msg ?? json?.error_description]
+      .filter((x) => typeof x === "string")
+      .join(": ")
+      .slice(0, 160);
+    throw new ErrorBernie(codigo, `Token endpoint respondió ${res.status}${motivo ? ` (${motivo})` : ""}`);
   }
   return {
     accessToken: json.access_token,
