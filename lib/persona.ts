@@ -46,6 +46,9 @@ export function personaDe(u: {
   firstName?: string | null;
   lastName?: string | null;
   identifier?: string | null;
+  /** Clerk: true solo si la persona subió su foto (no hay login social). */
+  hasImage?: boolean;
+  imageUrl?: string | null;
 }) {
   const propio = [u.firstName, u.lastName].filter(Boolean).join(" ");
   const deCorreo = u.identifier?.includes("@")
@@ -55,5 +58,7 @@ export function personaDe(u: {
     id: u.id,
     nombre: propio || deCorreo || "Alguien",
     iniciales: inicialesDe(u.firstName, u.lastName, deCorreo),
+    // Sin foto propia, Clerk da una silueta genérica: ahí van las iniciales.
+    imagen: u.hasImage && u.imageUrl ? u.imageUrl : undefined,
   };
 }

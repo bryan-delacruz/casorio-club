@@ -69,7 +69,14 @@ export default async function MiBodaLayout({
           </Button>
           {yo && (
             <MenuPersona
-              persona={personaDe({ id: yo.id, firstName: yo.firstName, lastName: yo.lastName, identifier: correo })}
+              persona={personaDe({
+                id: yo.id,
+                firstName: yo.firstName,
+                lastName: yo.lastName,
+                identifier: correo,
+                hasImage: yo.hasImage,
+                imageUrl: yo.imageUrl,
+              })}
               correo={correo}
             />
           )}
