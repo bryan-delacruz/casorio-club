@@ -271,16 +271,20 @@ function FilaGasto({ gasto, acciones }: { gasto: Gasto; acciones: Accion[] }) {
     });
   }
 
+  // Dos líneas: arriba qué fue y cuánto, abajo qué hacer con él. En una sola
+  // línea los controles dejaban al comercio en tres letras.
   return (
-    <li className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
-      <div className="min-w-0 flex-1">
-        <p className="truncate font-medium">{gasto.comercio}</p>
-        <p className="text-muted-foreground text-sm">
-          {diaCorto(gasto.fecha)}
-          {gasto.subcategoria ? ` · ${gasto.subcategoria}` : ""}
-        </p>
+    <li className="space-y-3 p-4">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="font-medium break-words">{gasto.comercio}</p>
+          <p className="text-muted-foreground text-sm">
+            {diaCorto(gasto.fecha)}
+            {gasto.subcategoria ? ` · ${gasto.subcategoria}` : ""}
+          </p>
+        </div>
+        <p className="shrink-0 font-medium tabular-nums">{monto(gasto.monto, gasto.moneda)}</p>
       </div>
-      <p className="font-medium tabular-nums sm:w-28 sm:text-right">{monto(gasto.monto, gasto.moneda)}</p>
       <div className="flex flex-wrap items-center gap-2">
         {compatibles.length > 0 && (
           <Select value={accionId} onValueChange={setAccionId} disabled={pendiente}>
