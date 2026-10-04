@@ -59,7 +59,7 @@ el usuario los asigna, crea una acción con ellos o los descarta.
 `webhooks_recibidos` — idempotencia.
 - `webhook_id` text PK, `recibido_el`. Se purgan a los 7 días.
 
-`pagos` — columna nueva `origen` enum `manual | bernie` default `manual` (badge en la UI).
+`pagos` **no cambia**: el badge "de Bernie" se deriva de `gastos_bernie.pago_id`. Así Casorio se despliega antes de crear las tablas de la integración sin romper nada.
 
 ## 5. Conexión
 
@@ -129,10 +129,10 @@ que revise Apps conectadas en Bernie.
   coincida con la subcategoría, sin distinguir mayúsculas ni tildes), **Crear
   acción**, **Descartar**. Contador en la navegación.
 - Asignar crea el pago con `monto`, `fecha`, `nota = comercio`,
-  `pagado_por_id = conectada_por_id`, `origen = bernie`.
+  `pagado_por_id = conectada_por_id`.
 - **Ajustes de la boda → Bernie Wallet:** estado, quién conectó, última sync, último
   error, **Sincronizar**, **Desconectar**.
-- Badge "de Bernie" en los pagos con `origen = bernie`.
+- Badge "de Bernie" en los pagos enlazados desde `gastos_bernie` (solo si la integración está configurada).
 - Teclado y lector de pantalla: todo operable sin arrastrar (igual que el tablero).
 
 ## 9. Seguridad y privacidad
@@ -187,7 +187,7 @@ de cambios (`added/modified/removed`, asignados vs. sin asignar, fecha en Lima).
 
 1. Variables de §11 en Vercel y `.env.local`.
 2. Esquema: `pnpm dlx dotenv-cli -e .env.local -- pnpm drizzle-kit push` (tablas
-   `conexiones_bernie`, `gastos_bernie`, `webhooks_recibidos` y columna `pagos.origen`).
+   `conexiones_bernie`, `gastos_bernie` y `webhooks_recibidos`; no modifica tablas existentes).
 3. Clerk → Webhooks: endpoint `https://casorio-club.vercel.app/api/webhooks/clerk` con
    `organizationMembership.deleted` y `organization.deleted`; su signing secret en
    `CLERK_WEBHOOK_SIGNING_SECRET`.

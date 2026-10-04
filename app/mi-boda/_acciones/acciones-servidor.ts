@@ -1,10 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { getDb } from "@/db";
-import { acciones, bodas, dependencias, pagos } from "@/db/schema";
+import { acciones, bodas, dependencias, gastosBernie, pagos, type Pago } from "@/db/schema";
+import { integracionDisponible } from "@/lib/bernie/config";
 
 /**
  * Toda consulta y escritura se ata a la boda activa que Clerk reporta en la
@@ -158,14 +159,25 @@ export async function listarMiembros() {
 }
 
 /** Todos los pagos de la boda. La página los reparte por acción. */
-export async function listarPagos() {
+export async function listarPagos(): Promise<Pago[]> {
   const { orgId } = await auth();
   if (!orgId) return [];
-  return getDb()
+  const filas = await getDb()
     .select()
     .from(pagos)
     .where(eq(pagos.bodaId, orgId))
     .orderBy(asc(pagos.fecha), asc(pagos.creadoEl));
+  if (!integracionDisponible()) return filas;
+
+  // Pagos que vinieron de Bernie, para el badge. Si las tablas de la
+  // integración aún no existen, simplemente no hay badge.
+  const deBernie = await getDb()
+    .select({ pagoId: gastosBernie.pagoId })
+    .from(gastosBernie)
+    .where(and(eq(gastosBernie.bodaId, orgId), isNotNull(gastosBernie.pagoId)))
+    .then((r) => new Set(r.map((x) => x.pagoId)))
+    .catch(() => new Set<string | null>());
+  return filas.map((p) => ({ ...p, deBernie: deBernie.has(p.id) }));
 }
 
 /**

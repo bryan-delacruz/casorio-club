@@ -116,9 +116,9 @@ async function asignar(bodaId: string, gastoId: string, accionId: string) {
       where id = ${gastoId}::uuid and boda_id = ${bodaId}::text and pago_id is null and not descartado
       returning monto, fecha, comercio
     )
-    insert into ${pagos} (id, boda_id, accion_id, monto, pagado_por_id, fecha, nota, origen)
+    insert into ${pagos} (id, boda_id, accion_id, monto, pagado_por_id, fecha, nota)
     select ${pagoId}::uuid, ${bodaId}::text, ${accionId}::uuid, g.monto, ${conexion?.conectadaPorId ?? null}::text,
-           g.fecha, g.comercio, 'bernie'::origen_pago
+           g.fecha, g.comercio
     from g
     returning id
   `);

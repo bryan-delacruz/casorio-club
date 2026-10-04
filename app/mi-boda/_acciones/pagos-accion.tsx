@@ -126,7 +126,7 @@ export function PagosAccion({
                       · {nombre(p.pagadoPorId)}
                     </span>
                   )}
-                  {p.origen === "bernie" && (
+                  {p.deBernie && (
                     <span className="bg-secondary text-secondary-foreground ml-2 rounded-full px-2 py-0.5 text-xs">
                       de Bernie
                     </span>

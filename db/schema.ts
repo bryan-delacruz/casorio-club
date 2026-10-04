@@ -130,9 +130,6 @@ export type AccionNueva = typeof acciones.$inferInsert;
  * cada abono y no diría cuándo se pagó, que es justo lo que uno olvida.
  * Al fotógrafo se le deja algo al reservar y el resto después.
  */
-/** De dónde vino un pago: anotado a mano o asignado desde Bernie Wallet. */
-export const origenPago = pgEnum("origen_pago", ["manual", "bernie"]);
-
 export const pagos = pgTable(
   "pagos",
   {
@@ -160,8 +157,6 @@ export const pagos = pgTable(
 
     nota: text("nota"),
 
-    origen: origenPago("origen").notNull().default("manual"),
-
     creadoEl: timestamp("creado_el", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -169,7 +164,12 @@ export const pagos = pgTable(
   (t) => [index("pagos_boda_accion_idx").on(t.bodaId, t.accionId)],
 );
 
-export type Pago = typeof pagos.$inferSelect;
+/**
+ * `deBernie` no es columna: se deriva de gastos_bernie (un pago asignado desde
+ * Bernie tiene un gasto que lo apunta). Así `pagos` no cambia y la app se puede
+ * desplegar antes de crear las tablas de la integración.
+ */
+export type Pago = typeof pagos.$inferSelect & { deBernie?: boolean };
 
 /**
  * Qué tiene que estar listo antes de qué.
