@@ -24,8 +24,10 @@ export default async function CaminoPage({
     listarMetas(),
     searchParams,
   ]);
-  // Por meta salvo que se pida otra cosa (docs/metas.md §4).
-  const agrupar: Agrupar = por === "momento" ? "momento" : "meta";
+  // Por meta si la boda tiene metas; sin metas, todo caería en un solo grupo
+  // "Sin meta", así que por momento (docs/metas.md §4). La URL manda si lo dice.
+  const agrupar: Agrupar =
+    por === "momento" || por === "meta" ? por : metas.length > 0 ? "meta" : "momento";
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-5 py-10 sm:px-10">

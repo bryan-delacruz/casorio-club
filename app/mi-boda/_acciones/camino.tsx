@@ -186,7 +186,7 @@ export function Camino({
         {(["meta", "momento"] as const).map((op) => (
           <Link
             key={op}
-            href={op === "meta" ? "/mi-boda/camino" : "/mi-boda/camino?por=momento"}
+            href={`/mi-boda/camino?por=${op}`}
             aria-current={agrupar === op ? "page" : undefined}
             className={`rounded-sm px-3 py-1 ${
               agrupar === op ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
@@ -531,10 +531,11 @@ function EmpezarRegistroCivil() {
       onClick={() =>
         iniciar(async () => {
           try {
-            await empezarRegistroCivil();
-            toast.success("Meta Registro civil creada con sus pasos.");
-          } catch (e) {
-            toast.error(e instanceof Error ? e.message : "No se pudo crear. Intenta otra vez.");
+            const r = await empezarRegistroCivil();
+            if (r.error) toast.error(r.error);
+            else toast.success("Meta Registro civil creada con sus pasos.");
+          } catch {
+            toast.error("No se pudo crear. Intenta otra vez.");
           }
         })
       }

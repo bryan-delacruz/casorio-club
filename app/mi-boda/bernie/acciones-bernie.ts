@@ -27,6 +27,25 @@ function refrescar() {
 
 const UNA_HORA_MS = 60 * 60 * 1000;
 
+/**
+ * Un error pensado para el usuario. En producción Next oculta el mensaje de
+ * cualquier error que una server action lanza, así que estos no se lanzan al
+ * cliente: las acciones públicas los devuelven como { error }.
+ */
+class Aviso extends Error {}
+
+type Resultado = { error?: string };
+
+async function comoResultado(fn: () => Promise<void>): Promise<Resultado> {
+  try {
+    await fn();
+    return {};
+  } catch (e) {
+    if (e instanceof Aviso) return { error: e.message };
+    throw e;
+  }
+}
+
 /** Datos de la bandeja y de la conexión, para la página. */
 export async function listarBandeja() {
   const { orgId } = await auth();
@@ -103,10 +122,10 @@ async function asignar(bodaId: string, gastoId: string, accionId: string) {
       .from(conexionesBernie)
       .where(eq(conexionesBernie.bodaId, bodaId)),
   ]);
-  if (!accion) throw new Error("Esa acción no es de esta boda");
-  if (!gasto) throw new Error("Ese gasto no es de esta boda");
+  if (!accion) throw new Aviso("Esa acción ya no existe.");
+  if (!gasto) throw new Aviso("Ese gasto ya no existe.");
   if (gasto.moneda !== accion.moneda) {
-    throw new Error(`El gasto está en ${gasto.moneda} y la acción en ${accion.moneda}`);
+    throw new Aviso(`El gasto está en ${gasto.moneda} y la acción en ${accion.moneda}.`);
   }
 
   const pagoId = crypto.randomUUID();
@@ -123,24 +142,29 @@ async function asignar(bodaId: string, gastoId: string, accionId: string) {
     from g
     returning id
   `);
-  if (resultado.rows.length === 0) throw new Error("Ese gasto ya fue asignado");
+  if (resultado.rows.length === 0) throw new Aviso("Ese gasto ya fue asignado.");
 }
 
-export async function asignarGasto(gastoId: string, accionId: string) {
+export async function asignarGasto(gastoId: string, accionId: string): Promise<Resultado> {
   const { bodaId } = await bodaActiva();
-  await asignar(bodaId, gastoId, accionId);
+  const r = await comoResultado(() => asignar(bodaId, gastoId, accionId));
   refrescar();
+  return r;
 }
 
 /** Crea una acción con el nombre de la subcategoría (o del comercio) y le asigna el gasto. */
-export async function crearAccionConGasto(gastoId: string) {
+export async function crearAccionConGasto(gastoId: string): Promise<Resultado> {
   const { bodaId } = await bodaActiva();
+  return comoResultado(() => crearAccionYAsignar(bodaId, gastoId));
+}
+
+async function crearAccionYAsignar(bodaId: string, gastoId: string) {
   const db = getDb();
   const [gasto] = await db
     .select()
     .from(gastosBernie)
     .where(and(eq(gastosBernie.id, gastoId), eq(gastosBernie.bodaId, bodaId), isNull(gastosBernie.pagoId)));
-  if (!gasto) throw new Error("Ese gasto ya no está por asignar");
+  if (!gasto) throw new Aviso("Ese gasto ya no está por asignar.");
 
   const [{ siguiente }] = await db
     .select({ siguiente: sql<number>`coalesce(max(${acciones.orden}), -1) + 1` })

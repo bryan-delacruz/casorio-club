@@ -66,20 +66,24 @@ function DialogContent({
         )}
         {...props}
       >
-        {children}
+        {/* El ✕ va en un contenedor sticky de alto cero, antes del contenido:
+            con el diálogo haciendo scroll, un botón absolute se iría con él. */}
         {showCloseButton && (
-          <DialogPrimitive.Close data-slot="dialog-close" asChild>
-            <Button
-              variant="ghost"
-              className="absolute top-2 right-2"
-              size="icon-sm"
-            >
-              <XIcon
-              />
-              <span className="sr-only">Close</span>
-            </Button>
-          </DialogPrimitive.Close>
+          <div className="pointer-events-none sticky top-2 z-10 -mb-4 h-0">
+            <DialogPrimitive.Close data-slot="dialog-close" asChild>
+              <Button
+                variant="ghost"
+                className="pointer-events-auto absolute -top-2 -right-2"
+                size="icon-sm"
+              >
+                <XIcon
+                />
+                <span className="sr-only">Cerrar</span>
+              </Button>
+            </DialogPrimitive.Close>
+          </div>
         )}
+        {children}
       </DialogPrimitive.Content>
     </DialogPortal>
   )

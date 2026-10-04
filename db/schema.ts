@@ -84,7 +84,12 @@ export const metas = pgTable(
     orden: integer("orden").notNull().default(0),
     creadaEl: timestamp("creada_el", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("metas_boda_orden_idx").on(t.bodaId, t.orden)],
+  (t) => [
+    index("metas_boda_orden_idx").on(t.bodaId, t.orden),
+    // Dos metas con el mismo nombre en una boda confunden; además frena que
+    // dos personas apliquen la plantilla a la vez y la dupliquen.
+    uniqueIndex("metas_boda_titulo_idx").on(t.bodaId, t.titulo),
+  ],
 );
 
 export type Meta = typeof metas.$inferSelect;

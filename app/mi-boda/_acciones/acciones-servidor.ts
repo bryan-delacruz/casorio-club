@@ -370,33 +370,53 @@ export async function listarMetas() {
 
 const MAX_TITULO_META = 60;
 
-export async function crearMeta(titulo: string): Promise<{ id: string; titulo: string }> {
+/** Violación del índice único (boda_id, titulo) de metas. */
+function esDuplicado(e: unknown) {
+  const texto = String((e as { cause?: unknown })?.cause ?? e);
+  return /23505|duplicate key|metas_boda_titulo_idx/.test(texto + String((e as { code?: string })?.code ?? ""));
+}
+
+/**
+ * Devuelve { error } en vez de lanzar: en producción Next oculta el mensaje
+ * de los errores que una server action lanza, y estos son para el usuario.
+ */
+export async function crearMeta(titulo: string): Promise<{ id?: string; error?: string }> {
   const { bodaId } = await bodaActiva();
   const limpio = titulo.trim().slice(0, MAX_TITULO_META);
-  if (!limpio) throw new Error("Falta el nombre de la meta");
+  if (!limpio) return { error: "Ponle un nombre a la meta." };
 
   const [{ siguiente }] = await getDb()
     .select({ siguiente: sql<number>`coalesce(max(${metas.orden}), -1) + 1` })
     .from(metas)
     .where(eq(metas.bodaId, bodaId));
-  const [meta] = await getDb()
-    .insert(metas)
-    .values({ bodaId, titulo: limpio, orden: siguiente })
-    .returning({ id: metas.id, titulo: metas.titulo });
-
-  revalidatePath("/mi-boda");
-  return meta;
+  try {
+    const [meta] = await getDb()
+      .insert(metas)
+      .values({ bodaId, titulo: limpio, orden: siguiente })
+      .returning({ id: metas.id });
+    revalidatePath("/mi-boda");
+    return { id: meta.id };
+  } catch (e) {
+    if (esDuplicado(e)) return { error: `Ya tienen una meta llamada "${limpio}".` };
+    throw e;
+  }
 }
 
-export async function renombrarMeta(id: string, titulo: string) {
+export async function renombrarMeta(id: string, titulo: string): Promise<{ error?: string }> {
   const { bodaId } = await bodaActiva();
   const limpio = titulo.trim().slice(0, MAX_TITULO_META);
-  if (!limpio) throw new Error("Falta el nombre de la meta");
-  await getDb()
-    .update(metas)
-    .set({ titulo: limpio })
-    .where(and(eq(metas.id, id), eq(metas.bodaId, bodaId)));
+  if (!limpio) return { error: "Ponle un nombre a la meta." };
+  try {
+    await getDb()
+      .update(metas)
+      .set({ titulo: limpio })
+      .where(and(eq(metas.id, id), eq(metas.bodaId, bodaId)));
+  } catch (e) {
+    if (esDuplicado(e)) return { error: `Ya tienen una meta llamada "${limpio}".` };
+    throw e;
+  }
   revalidatePath("/mi-boda");
+  return {};
 }
 
 /** Borrar la meta no borra sus acciones: quedan sin meta (on delete set null). */
@@ -411,18 +431,26 @@ export async function borrarMeta(id: string) {
  * existen con el mismo título y crea las que faltan, con sus dependencias.
  * Todo en un solo batch: o queda completa o no queda nada.
  */
-export async function empezarRegistroCivil() {
+export async function empezarRegistroCivil(): Promise<{ error?: string }> {
   const { bodaId } = await bodaActiva();
   const db = getDb();
 
   const [existentes, yaHay] = await Promise.all([
-    db.select({ id: acciones.id, titulo: acciones.titulo }).from(acciones).where(eq(acciones.bodaId, bodaId)),
+    db
+      .select({
+        id: acciones.id,
+        titulo: acciones.titulo,
+        momento: acciones.momento,
+        inicioSemanas: acciones.inicioSemanas,
+      })
+      .from(acciones)
+      .where(eq(acciones.bodaId, bodaId)),
     db
       .select({ id: metas.id })
       .from(metas)
       .where(and(eq(metas.bodaId, bodaId), eq(metas.titulo, REGISTRO_CIVIL.titulo))),
   ]);
-  if (yaHay.length) throw new Error("Ya tienen la meta Registro civil");
+  if (yaHay.length) return { error: "Ya tienen la meta Registro civil." };
 
   const { reutilizar, crear } = planPlantilla(REGISTRO_CIVIL.pasos, existentes);
   const metaId = crypto.randomUUID();
@@ -438,7 +466,8 @@ export async function empezarRegistroCivil() {
     p.requiere.map((r) => ({ bodaId, accionId: ids.get(p.clave)!, requiereId: ids.get(r)! })),
   );
 
-  await db.batch([
+  try {
+    await db.batch([
     db.insert(metas).values({ id: metaId, bodaId, titulo: REGISTRO_CIVIL.titulo, orden: siguiente }),
     ...(crear.length
       ? [
@@ -458,18 +487,33 @@ export async function empezarRegistroCivil() {
           ),
         ]
       : []),
-    ...[...reutilizar].map(([clave, id]) =>
-      db
+    ...[...reutilizar].map(([clave, id]) => {
+      const paso = REGISTRO_CIVIL.pasos.find((p) => p.clave === clave)!;
+      const actual = existentes.find((e) => e.id === id)!;
+      // Lo que la pareja ya decidió (semanas, carril) se respeta; lo que falta
+      // se completa con la plantilla, si no quedaría fuera del camino.
+      const sinFecha = actual.momento === "idea" || actual.inicioSemanas === null;
+      return db
         .update(acciones)
         .set({
           metaId,
-          esHito: REGISTRO_CIVIL.pasos.find((p) => p.clave === clave)?.hito ?? false,
+          esHito: paso.hito ?? false,
+          ...(sinFecha
+            ? { momento: momentoDe(paso.inicio), inicioSemanas: paso.inicio, duracionSemanas: paso.dura }
+            : {}),
           actualizadaEl: new Date(),
         })
-        .where(and(eq(acciones.id, id), eq(acciones.bodaId, bodaId))),
-    ),
+        .where(and(eq(acciones.id, id), eq(acciones.bodaId, bodaId)));
+    }),
     db.insert(dependencias).values(filasDependencias).onConflictDoNothing(),
-  ]);
+    ]);
+  } catch (e) {
+    // Otra persona la aplicó al mismo tiempo: el índice único lo frenó y el
+    // batch no dejó nada a medias.
+    if (esDuplicado(e)) return { error: "Ya tienen la meta Registro civil." };
+    throw e;
+  }
 
   revalidatePath("/mi-boda");
+  return {};
 }

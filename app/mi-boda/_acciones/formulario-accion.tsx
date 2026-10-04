@@ -27,6 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  borrarMeta,
   crearAccion,
   crearMeta,
   editarAccion,
@@ -280,14 +281,34 @@ function leer(
   };
 }
 
-/** La meta elegida; si es nueva, se crea primero y se devuelve su id. */
-async function resolverMeta(meta: string, form: FormData): Promise<string | null> {
-  if (meta === SIN_META) return null;
-  if (meta !== NUEVA_META) return meta;
-  const nombre = String(form.get("metaNueva") ?? "").trim();
-  if (!nombre) return null;
-  return (await crearMeta(nombre)).id;
+class MetaInvalida extends Error {}
+
+/**
+ * La meta elegida. Si es nueva, se crea primero (la acción necesita su id) y
+ * se devuelve `creada` para poder borrarla si después falla guardar la acción:
+ * si no, quedaría una meta vacía y reintentar chocaría con su propio nombre.
+ */
+async function resolverMeta(meta: string, form: FormData): Promise<{ id: string | null; creada?: string }> {
+  if (meta === SIN_META) return { id: null };
+  if (meta !== NUEVA_META) return { id: meta };
+  const r = await crearMeta(String(form.get("metaNueva") ?? ""));
+  if (!r.id) throw new MetaInvalida(r.error ?? "No se pudo crear la meta.");
+  return { id: r.id, creada: r.id };
 }
+
+/** Guarda la acción y, si falla, deshace la meta que se acaba de crear. */
+async function guardarConMeta(meta: string, form: FormData, guardar: (metaId: string | null) => Promise<void>) {
+  const { id, creada } = await resolverMeta(meta, form);
+  try {
+    await guardar(id);
+  } catch (e) {
+    if (creada) await borrarMeta(creada).catch(() => null);
+    throw e;
+  }
+}
+
+/** Mensaje para el toast: el de la meta si fue eso, si no uno genérico. */
+const mensajeDe = (e: unknown, generico: string) => (e instanceof MetaInvalida ? e.message : generico);
 
 export function NuevaAccion({
   momento,
@@ -319,13 +340,12 @@ export function NuevaAccion({
     if (!datos) return;
     iniciar(async () => {
       try {
-        const metaId = await resolverMeta(meta, form);
-        await crearAccion({ ...datos, momento, metaId });
+        await guardarConMeta(meta, form, (metaId) => crearAccion({ ...datos, momento, metaId }));
         setAbierto(false);
         reiniciar();
         toast.success("Anotado.");
-      } catch {
-        toast.error("No se pudo guardar. Intenta otra vez.");
+      } catch (e) {
+        toast.error(mensajeDe(e, "No se pudo guardar. Intenta otra vez."));
       }
     });
   }
@@ -436,7 +456,10 @@ function Necesita({
         />
       )}
 
-      <div className="border-border max-h-40 overflow-y-auto rounded-md border">
+      {/* relative: el Checkbox de Radix deja un <input> oculto absolute junto a
+          la casilla. Sin un contenedor posicionado, ese input se ubica respecto
+          del diálogo, escapa de esta lista con scroll y estira el diálogo. */}
+      <div className="border-border relative max-h-40 overflow-y-auto rounded-md border">
         {vistas.length === 0 ? (
           <p className="text-muted-foreground px-3 py-2 text-sm">Ninguna se llama así.</p>
         ) : (
@@ -488,8 +511,7 @@ export function EditarAccion({
     if (!datos) return;
     iniciar(async () => {
       try {
-        const metaId = await resolverMeta(meta, form);
-        await editarAccion(accion.id, { ...datos, metaId });
+        await guardarConMeta(meta, form, (metaId) => editarAccion(accion.id, { ...datos, metaId }));
         await guardarDependencias(accion.id, [...marcadas]);
         onAbiertoChange(false);
         toast.success("Guardado.");
@@ -497,7 +519,7 @@ export function EditarAccion({
         toast.error(
           e instanceof Error && e.message === "Eso haría un círculo"
             ? "Alguna de esas ya te espera a ti. Lo demás quedó guardado."
-            : "No se pudo guardar. Intenta otra vez.",
+            : mensajeDe(e, "No se pudo guardar. Intenta otra vez."),
         );
       }
     });
