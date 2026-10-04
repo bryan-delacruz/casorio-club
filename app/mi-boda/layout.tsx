@@ -1,6 +1,8 @@
 import Link from "next/link";
-import { auth } from "@clerk/nextjs/server";
-import { OrganizationSwitcher, UserButton } from "@clerk/nextjs";
+import { auth, currentUser } from "@clerk/nextjs/server";
+import { OrganizationSwitcher } from "@clerk/nextjs";
+import { MenuPersona } from "@/components/menu-persona";
+import { personaDe } from "@/lib/persona";
 import { Wordmark } from "@/components/wordmark";
 import { Button } from "@/components/ui/button";
 import { DEMO } from "@/lib/demo";
@@ -23,7 +25,11 @@ export default async function MiBodaLayout({
   // La bandeja de Bernie se ofrece solo si la integración está configurada y
   // no es la boda demo (docs/integracion-bernie.md §9).
   const conBernie = !!orgId && orgId !== DEMO.orgId && integracionDisponible();
-  const porAsignar = conBernie ? await contarPorAsignar(orgId) : 0;
+  const [porAsignar, yo] = await Promise.all([
+    conBernie ? contarPorAsignar(orgId) : 0,
+    currentUser(),
+  ]);
+  const correo = yo?.primaryEmailAddress?.emailAddress;
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -61,7 +67,12 @@ export default async function MiBodaLayout({
           <Button variant="ghost" size="lg" asChild>
             <Link href="/mi-boda/equipo">Quién está</Link>
           </Button>
-          <UserButton />
+          {yo && (
+            <MenuPersona
+              persona={personaDe({ id: yo.id, firstName: yo.firstName, lastName: yo.lastName, identifier: correo })}
+              correo={correo}
+            />
+          )}
         </div>
       </header>
 

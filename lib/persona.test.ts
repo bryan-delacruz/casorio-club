@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { colorDe, COLORES_PERSONA, inicialesDe } from "./persona.ts";
+import { colorDe, COLORES_PERSONA, inicialesDe, personaDe } from "./persona.ts";
 
 test("iniciales: nombre y primer apellido", () => {
   assert.equal(inicialesDe("Luis", "Mendoza Paz"), "LM");
@@ -25,4 +25,9 @@ test("color: estable por persona y dentro de la paleta", () => {
 test("ignora palabras que no empiezan con letra", () => {
   assert.equal(inicialesDe("Ana", "(demo)"), "AN");
   assert.equal(inicialesDe("Luis", "(demo) Mendoza"), "LM");
+});
+
+test("personaDe: sin nombre usa el correo", () => {
+  assert.deepEqual(personaDe({ id: "u1", identifier: "ana.rios@x.com" }), { id: "u1", nombre: "ana rios", iniciales: "AR" });
+  assert.equal(personaDe({ id: "u2", firstName: "Luis", lastName: "Mendoza Paz" }).nombre, "Luis Mendoza Paz");
 });
