@@ -26,6 +26,7 @@ export type CodigoProblema =
   | "not_connected"
   | "cursor_reset"
   | "rate_limited"
+  | "unavailable"
   | "internal";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -63,6 +64,24 @@ export function validarPagina(v: unknown): { ok: true; pagina: PaginaSync } | { 
 
 /** Lee el `code` de un Problem Details (RFC 9457); si no es uno, `internal`. */
 export function codigoProblema(v: unknown): CodigoProblema {
-  const codigos: CodigoProblema[] = ["invalid_request", "unauthorized", "not_connected", "cursor_reset", "rate_limited", "internal"];
+  const codigos: CodigoProblema[] = ["invalid_request", "unauthorized", "not_connected", "cursor_reset", "rate_limited", "unavailable", "internal"];
   return esObjeto(v) && codigos.includes(v.code as CodigoProblema) ? (v.code as CodigoProblema) : "internal";
+}
+
+/**
+ * Qué significa un fallo del token endpoint de Bernie (OAuth de Supabase, que
+ * responde { error_code, msg }):
+ * - "red": caída o límite (5xx, 429) → reintentar más tarde, la conexión sigue;
+ * - "internal": credenciales del cliente (secreto mal configurado) → error de
+ *   configuración, no culpa del usuario;
+ * - "invalid_grant": el refresh token ya no sirve (revocado, vencido o rotado).
+ */
+export function clasificarErrorToken(
+  status: number,
+  cuerpo: Record<string, unknown> | null,
+): "red" | "internal" | "invalid_grant" {
+  if (status >= 500 || status === 429) return "red";
+  const codigo = cuerpo?.error_code ?? cuerpo?.error;
+  if (codigo === "invalid_credentials" || codigo === "invalid_client") return "internal";
+  return "invalid_grant";
 }

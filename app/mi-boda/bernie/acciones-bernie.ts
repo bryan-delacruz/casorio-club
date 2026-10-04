@@ -88,25 +88,26 @@ export async function desconectar() {
  */
 async function asignar(bodaId: string, gastoId: string, accionId: string) {
   const db = getDb();
-  const [accion] = await db
-    .select({ moneda: acciones.moneda })
-    .from(acciones)
-    .where(and(eq(acciones.id, accionId), eq(acciones.bodaId, bodaId)));
+  // Tres lecturas independientes: en paralelo, no en cascada.
+  const [[accion], [gasto], [conexion]] = await Promise.all([
+    db
+      .select({ moneda: acciones.moneda })
+      .from(acciones)
+      .where(and(eq(acciones.id, accionId), eq(acciones.bodaId, bodaId))),
+    db
+      .select({ moneda: gastosBernie.moneda })
+      .from(gastosBernie)
+      .where(and(eq(gastosBernie.id, gastoId), eq(gastosBernie.bodaId, bodaId))),
+    db
+      .select({ conectadaPorId: conexionesBernie.conectadaPorId })
+      .from(conexionesBernie)
+      .where(eq(conexionesBernie.bodaId, bodaId)),
+  ]);
   if (!accion) throw new Error("Esa acción no es de esta boda");
-
-  const [gasto] = await db
-    .select({ moneda: gastosBernie.moneda })
-    .from(gastosBernie)
-    .where(and(eq(gastosBernie.id, gastoId), eq(gastosBernie.bodaId, bodaId)));
   if (!gasto) throw new Error("Ese gasto no es de esta boda");
   if (gasto.moneda !== accion.moneda) {
     throw new Error(`El gasto está en ${gasto.moneda} y la acción en ${accion.moneda}`);
   }
-
-  const [conexion] = await db
-    .select({ conectadaPorId: conexionesBernie.conectadaPorId })
-    .from(conexionesBernie)
-    .where(eq(conexionesBernie.bodaId, bodaId));
 
   const pagoId = crypto.randomUUID();
   const resultado = await db.execute(sql`
@@ -158,7 +159,13 @@ export async function crearAccionConGasto(gastoId: string) {
     })
     .returning({ id: acciones.id });
 
-  await asignar(bodaId, gastoId, accion.id);
+  try {
+    await asignar(bodaId, gastoId, accion.id);
+  } catch (error) {
+    // Otra persona asignó el gasto entre medio: la acción recién creada sobra.
+    await db.delete(acciones).where(and(eq(acciones.id, accion.id), eq(acciones.bodaId, bodaId)));
+    throw error;
+  }
   refrescar();
 }
 

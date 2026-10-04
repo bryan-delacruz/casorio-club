@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { challengeS256, mismoState, nuevoState, nuevoVerificador } from "./pkce.ts";
 import { verificarWebhook } from "./firma.ts";
-import { codigoProblema, validarPagina, type PaginaSync } from "./contrato.ts";
+import { clasificarErrorToken, codigoProblema, validarPagina, type PaginaSync } from "./contrato.ts";
 import { fechaLima, planificar } from "./plan.ts";
 
 process.env.BERNIE_TOKEN_ENCRYPTION_KEY = Buffer.alloc(32, 7).toString("base64");
@@ -130,4 +130,21 @@ test("plan: un gasto repetido en la página cuenta una vez y gana el último", (
   const plan = planificar(pagina({ added: [gasto(1, "1.00")], modified: [gasto(1, "2.00")] }), new Map());
   assert.equal(plan.guardar.length, 1);
   assert.equal(plan.guardar[0].monto, "2.00");
+});
+
+// ---------- errores del token endpoint ----------
+
+test("token: una caída no se confunde con una revocación", () => {
+  assert.equal(clasificarErrorToken(503, null), "red");
+  assert.equal(clasificarErrorToken(429, { error_code: "over_request_rate_limit" }), "red");
+});
+
+test("token: secreto mal configurado es error de configuración, no revocación", () => {
+  // Formato real de Supabase, visto en producción.
+  assert.equal(clasificarErrorToken(400, { code: 400, error_code: "invalid_credentials", msg: "invalid client credentials" }), "internal");
+});
+
+test("token: refresh token inválido o revocado → invalid_grant", () => {
+  assert.equal(clasificarErrorToken(400, { error_code: "refresh_token_not_found" }), "invalid_grant");
+  assert.equal(clasificarErrorToken(400, { error: "invalid_grant" }), "invalid_grant");
 });
