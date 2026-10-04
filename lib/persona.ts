@@ -35,3 +35,25 @@ export function colorDe(id: string) {
   for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
   return (h % COLORES_PERSONA) + 1;
 }
+
+/**
+ * Nombre visible e iniciales a partir de lo que da Clerk. Sin nombre puesto,
+ * Clerk devuelve el correo: mostrarlo entero desborda la tarjeta, así que se
+ * usa la parte de antes de la arroba.
+ */
+export function personaDe(u: {
+  id: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  identifier?: string | null;
+}) {
+  const propio = [u.firstName, u.lastName].filter(Boolean).join(" ");
+  const deCorreo = u.identifier?.includes("@")
+    ? u.identifier.split("@")[0].replace(/[._-]+/g, " ")
+    : (u.identifier ?? "");
+  return {
+    id: u.id,
+    nombre: propio || deCorreo || "Alguien",
+    iniciales: inicialesDe(u.firstName, u.lastName, deCorreo),
+  };
+}

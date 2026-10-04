@@ -5,7 +5,7 @@ import { auth, clerkClient } from "@clerk/nextjs/server";
 import { getDb } from "@/db";
 import { acciones, bodas, dependencias, gastosBernie, metas, pagos, type Pago } from "@/db/schema";
 import { integracionDisponible } from "@/lib/bernie/config";
-import { inicialesDe } from "@/lib/persona";
+import { personaDe } from "@/lib/persona";
 
 /**
  * Lecturas de la boda activa para los Server Components.
@@ -62,20 +62,9 @@ export const listarMiembros = cache(async () => {
     organizationId: bodaId,
     limit: 20,
   });
-  return data.map((m) => {
-    const u = m.publicUserData;
-    const propio = [u?.firstName, u?.lastName].filter(Boolean).join(" ");
-    // Sin nombre puesto, Clerk devuelve el correo. Mostrarlo entero desborda
-    // la tarjeta, así que se usa la parte de antes de la arroba.
-    const deCorreo = u?.identifier?.includes("@")
-      ? u.identifier.split("@")[0].replace(/[._-]+/g, " ")
-      : u?.identifier;
-    return {
-      id: u?.userId ?? "",
-      nombre: propio || deCorreo || "Alguien",
-      iniciales: inicialesDe(u?.firstName, u?.lastName, deCorreo ?? ""),
-    };
-  });
+  return data.map(({ publicUserData: u }) =>
+    personaDe({ id: u?.userId ?? "", firstName: u?.firstName, lastName: u?.lastName, identifier: u?.identifier }),
+  );
 });
 
 /** Todos los pagos de la boda. La página los reparte por acción. */
