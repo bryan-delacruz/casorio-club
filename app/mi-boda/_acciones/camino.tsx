@@ -122,7 +122,13 @@ export function Camino({
   const hoy = semanasHastaLaBoda(fechaBoda);
   const columnaHoy = hoy !== null && hoy <= primera && hoy >= ultima ? columnaDe(hoy) : null;
 
-  const rejilla = { gridTemplateColumns: `11rem repeat(${columnas}, minmax(2.25rem, 1fr))` };
+  // En el celular el nombre va en su propia línea encima de la barra y la
+  // meta entera cabe a lo ancho (columna de nombres en 0 y semanas sin mínimo);
+  // desde `sm` vuelve la columna de nombres a la izquierda. Las variables las
+  // define el contenedor de abajo.
+  const rejilla = {
+    gridTemplateColumns: `var(--col-nombre) repeat(${columnas}, minmax(var(--col-semana), 1fr))`,
+  };
 
   /** Las líneas verticales de fondo, iguales en cada fila. */
   const lineas = Array.from({ length: columnas }, (_, i) => {
@@ -134,10 +140,10 @@ export function Camino({
       <div
         key={`linea-${i}`}
         aria-hidden
-        style={{ gridColumn: i + 2, gridRow: 1 }}
+        style={{ gridColumn: i + 2, gridRow: "var(--fila-barra)" }}
         className={`h-full ${
           esBoda
-            ? "border-primary/40 border-l"
+            ? "border-primary/70 border-l-2"
             : esHoy
               ? "border-foreground/30 border-l border-dashed"
               : "border-border/60 border-l"
@@ -197,8 +203,8 @@ export function Camino({
         ))}
       </nav>
 
-      <div className="overflow-x-auto pb-2">
-        <div style={{ minWidth: `${11 + columnas * 2.25}rem` }}>
+      <div className="overflow-x-auto pb-2 [--col-nombre:0px] [--col-semana:0px] [--fila-barra:2] [--nombre:1/-1] sm:[--col-nombre:11rem] sm:[--col-semana:2.25rem] sm:[--fila-barra:1] sm:[--nombre:1]">
+        <div style={{ minWidth: `calc(var(--col-nombre) + ${columnas} * var(--col-semana))` }}>
           {/* Eje */}
           <div className="border-border text-muted-foreground grid items-end border-b pb-1.5 text-xs" style={rejilla}>
             <span className="bg-background sticky left-0 z-20" />
@@ -210,11 +216,11 @@ export function Camino({
                   // Colocada a mano en su semana: dejar que el grid las fuera
                   // acomodando solas las apilaba todas a la izquierda.
                   style={{ gridColumn: `${columnaDe(semanas) + 1} / span 4` }}
-                  className={`pl-1 whitespace-nowrap ${semanas === 0 ? "text-foreground" : ""}`}
+                  className={`pl-1 whitespace-nowrap ${semanas === 0 ? "text-primary font-medium" : ""}`}
                 >
                   {semanas === 0 ? "la boda" : semanas > 0 ? `${semanas} sem` : `+${-semanas}`}
                   {diaDeSemana(fechaBoda, semanas) && (
-                    <span className="text-muted-foreground/70"> · {diaDeSemana(fechaBoda, semanas)}</span>
+                    <span className="text-muted-foreground/70 max-sm:hidden"> · {diaDeSemana(fechaBoda, semanas)}</span>
                   )}
                 </span>
               ))}
@@ -381,19 +387,19 @@ function Seccion({
 
   return (
     <section className="mt-5">
-      <div ref={contenedor} className="relative space-y-1">
+      <div ref={contenedor} className="relative space-y-2.5 sm:space-y-1">
         {resumen && resumen.inicio !== null && resumen.fin !== null ? (
           // Barra resumen de la meta: su rango completo y cuánto va hecho.
-          <div className="grid items-center" style={rejilla}>
+          <div className="grid items-center gap-y-1" style={rejilla}>
             {lineas}
-            <div style={{ gridColumn: 1, gridRow: 1 }} className="bg-background sticky left-0 z-20 flex min-w-0 items-center gap-1.5 pr-3">
+            <div style={{ gridColumn: "var(--nombre)", gridRow: 1 }} className="sm:bg-background sticky left-0 z-20 flex min-w-0 items-center gap-1.5 pr-3">
               <Flag className="text-primary size-3.5 shrink-0" aria-hidden />
               <h3 className="font-display truncate text-base">{grupo.titulo}</h3>
             </div>
             <div
               style={{
                 gridColumn: `${columnaDe(resumen.inicio) + 1} / span ${Math.min(resumen.inicio - resumen.fin + 1, columnas)}`,
-                gridRow: 1,
+                gridRow: "var(--fila-barra)",
               }}
               className="bg-primary/10 ring-primary/30 relative z-10 flex h-6 items-center overflow-hidden rounded ring-1"
               title={`${grupo.titulo}: ${hechas} de ${resumen.total} hechas`}
@@ -427,19 +433,23 @@ function Seccion({
           const choques = necesita.filter((r) => r.momento !== "idea" && r.estado !== "hecho" && finDe(r) < inicioDe(a));
 
           return (
-            <div key={a.id} className="grid items-center" style={rejilla}>
+            <div key={a.id} className="grid items-center gap-y-0.5" style={rejilla}>
               {lineas}
 
-              <div style={{ gridColumn: 1, gridRow: 1 }} className="bg-background sticky left-0 z-20 min-w-0 pr-3">
-                <p className={`truncate text-sm ${hecha ? "text-muted-foreground line-through" : ""}`}>
+              {/* En el celular el fondo cubre solo el texto: las flechas pasan
+                  por detrás de las palabras sin cortarse en toda la fila. */}
+              <div style={{ gridColumn: "var(--nombre)", gridRow: 1 }} className="sm:bg-background sticky left-0 z-20 min-w-0 pr-3">
+                <p className={`max-sm:bg-background truncate text-sm max-sm:w-fit max-sm:max-w-full ${hecha ? "text-muted-foreground line-through" : ""}`}>
                   {listas.has(a.id) && (
                     <Sparkles className="text-primary mr-1 inline size-3.5" aria-label="Lista para empezar" />
                   )}
                   {a.titulo}
+                  {/* En el celular la barra es corta: el monto viaja con el nombre. */}
+                  {a.monto && <span className="text-muted-foreground sm:hidden"> · {soles(Number(a.monto))}</span>}
                 </p>
                 {(fuera.length > 0 || choques.length > 0) && (
                   <p
-                    className={`truncate text-xs ${choques.length > 0 ? "text-destructive" : "text-muted-foreground"}`}
+                    className={`max-sm:bg-background truncate text-xs max-sm:w-fit max-sm:max-w-full ${choques.length > 0 ? "text-destructive" : "text-muted-foreground"}`}
                     title={necesita.map((r) => r.titulo).join(", ")}
                   >
                     {choques.length > 0 && <TriangleAlert className="mr-1 inline size-3" />}
@@ -452,12 +462,12 @@ function Seccion({
                 // Hito: un día, no un periodo.
                 <div
                   data-barra={a.id}
-                  style={{ gridColumn: `${inicio + 1} / span 1`, gridRow: 1 }}
-                  className="z-10 flex h-7 items-center justify-center"
+                  style={{ gridColumn: `${inicio + 1} / span 1`, gridRow: "var(--fila-barra)" }}
+                  className="z-10 flex h-5 items-center justify-center sm:h-7"
                   title={`${a.titulo} (hito)`}
                 >
                   <span
-                    className={`size-3.5 rotate-45 rounded-[2px] ${
+                    className={`size-3 rotate-45 sm:size-3.5 rounded-[2px] ${
                       hecha ? "bg-primary/40" : "bg-foreground/80"
                     } ${enCadena ? "ring-primary ring-2 ring-offset-1 ring-offset-background" : ""}`}
                   />
@@ -465,11 +475,11 @@ function Seccion({
               ) : (
                 <div
                   data-barra={a.id}
-                  style={{ gridColumn: `${inicio + 1} / span ${span}`, gridRow: 1 }}
+                  style={{ gridColumn: `${inicio + 1} / span ${span}`, gridRow: "var(--fila-barra)" }}
                   title={`${a.titulo} · ${duracionDe(a)} ${duracionDe(a) === 1 ? "semana" : "semanas"}${
                     supuesta ? " (supuesto)" : ""
                   }`}
-                  className={`z-10 flex h-7 min-w-0 items-center gap-1.5 rounded px-2 ${
+                  className={`z-10 flex h-5 min-w-0 items-center gap-1.5 rounded px-1 sm:h-7 sm:px-2 ${
                     supuesta
                       ? "border-muted-foreground/40 text-muted-foreground border border-dashed"
                       : hecha
@@ -487,9 +497,9 @@ function Seccion({
                       <AvatarFallback className="text-[0.5rem]">{quien.nombre.slice(0, 2).toUpperCase()}</AvatarFallback>
                     </Avatar>
                   )}
-                  {span >= 3 && <span className="truncate text-xs">{a.titulo}</span>}
+                  {span >= 3 && <span className="truncate text-xs max-sm:hidden">{a.titulo}</span>}
                   {a.monto && span >= 2 && (
-                    <span className="ml-auto shrink-0 text-xs tabular-nums">{soles(Number(a.monto))}</span>
+                    <span className="ml-auto shrink-0 text-xs tabular-nums max-sm:hidden">{soles(Number(a.monto))}</span>
                   )}
                 </div>
               )}
