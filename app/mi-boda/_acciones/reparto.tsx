@@ -1,7 +1,7 @@
 "use client";
 
 import type { Accion, Pago } from "@/db/schema";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { AvatarPersona } from "@/components/avatar-persona";
 import { soles, type Miembro } from "./tipos";
 
 const POR_REPARTIR = "por-repartir";
@@ -9,7 +9,7 @@ const POR_REPARTIR = "por-repartir";
 type Cuenta = {
   id: string;
   nombre: string;
-  imagen: string | null;
+  iniciales: string;
   total: number;
   hecho: number;
 };
@@ -65,7 +65,7 @@ export function Reparto({
     const cuenta = cuentas.get(id) ?? {
       id,
       nombre: quien?.nombre ?? "Por repartir",
-      imagen: quien?.imagen ?? null,
+      iniciales: quien?.iniciales ?? "",
       total: 0,
       hecho: 0,
     };
@@ -132,12 +132,7 @@ export function Reparto({
             {f.id === POR_REPARTIR ? (
               <span className="bg-muted-foreground/20 size-2 rounded-full" />
             ) : (
-              <Avatar className="size-5">
-                {f.imagen && <AvatarImage src={f.imagen} alt="" />}
-                <AvatarFallback className="text-[0.5rem]">
-                  {f.nombre.slice(0, 2).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
+              <AvatarPersona persona={f} className="size-6" />
             )}
             {/* capitalize solo en personas: el correo llega en minúsculas,
                 pero "Por Repartir" con las dos mayúsculas se lee mal. */}

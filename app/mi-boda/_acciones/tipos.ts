@@ -1,6 +1,6 @@
 import type { Estado, Momento } from "./acciones-servidor";
 
-export type Miembro = { id: string; nombre: string; imagen: string | null };
+export type Miembro = { id: string; nombre: string; iniciales: string };
 
 export const DESTINOS: { id: Momento; nombre: string }[] = [
   { id: "antes", nombre: "Antes" },

@@ -74,6 +74,19 @@
   --sidebar-border: #c8c2b7;
   --sidebar-ring: #49110b;
 
+  /* Avatares (lib/persona.ts): cinco pares fondo/texto de la misma paleta.
+     A cada persona le toca uno fijo según su id. */
+  --persona-1-fondo: #49110b;
+  --persona-1-texto: #e7e5db;
+  --persona-2-fondo: #ad9e89;
+  --persona-2-texto: #191a1e;
+  --persona-3-fondo: #56483b;
+  --persona-3-texto: #e7e5db;
+  --persona-4-fondo: #c8c2b7;
+  --persona-4-texto: #49110b;
+  --persona-5-fondo: #191a1e;
+  --persona-5-texto: #ad9e89;
+
   /* 4px: la marca es de cantos casi rectos, como cartulina cortada. */
   --radius: 0.25rem;
 }
@@ -121,6 +134,10 @@
   --sidebar-accent-foreground: #e7e5db;
   --sidebar-border: #ffffff1f;
   --sidebar-ring: #ad9e89;
+
+  /* El charcoal se pierde sobre charcoal: en oscuro ese par se invierte. */
+  --persona-5-fondo: #e7e5db;
+  --persona-5-texto: #191a1e;
 }
 
 @theme inline {

@@ -5,6 +5,7 @@ import { auth, clerkClient } from "@clerk/nextjs/server";
 import { getDb } from "@/db";
 import { acciones, bodas, dependencias, gastosBernie, metas, pagos, type Pago } from "@/db/schema";
 import { integracionDisponible } from "@/lib/bernie/config";
+import { inicialesDe } from "@/lib/persona";
 
 /**
  * Lecturas de la boda activa para los Server Components.
@@ -72,7 +73,7 @@ export const listarMiembros = cache(async () => {
     return {
       id: u?.userId ?? "",
       nombre: propio || deCorreo || "Alguien",
-      imagen: u?.imageUrl ?? null,
+      iniciales: inicialesDe(u?.firstName, u?.lastName, deCorreo ?? ""),
     };
   });
 });

@@ -5,7 +5,7 @@ import { useLayoutEffect, useRef, useState, useTransition } from "react";
 import { Flag, Sparkles, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 import type { Accion, Dependencia } from "@/db/schema";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { AvatarPersona } from "@/components/avatar-persona";
 import { Button } from "@/components/ui/button";
 import {
   cadenaPrincipal,
@@ -18,6 +18,7 @@ import {
   resumenMeta,
 } from "@/lib/metas";
 import { empezarRegistroCivil, type Momento } from "./acciones-servidor";
+import { CompartirHistoria } from "./compartir-historia";
 import { FechaBoda } from "./fecha-boda";
 import { soles, type MetaLite, type Miembro } from "./tipos";
 
@@ -86,6 +87,7 @@ export function Camino({
       </div>
       <div className="flex flex-wrap items-center gap-2">
         {!tieneRegistro && <EmpezarRegistroCivil />}
+        <CompartirHistoria />
         <FechaBoda fecha={fechaBoda} />
       </div>
     </div>
@@ -492,10 +494,7 @@ function Seccion({
                   {/* En una barra corta no cabe todo: el nombre ya está a la
                       izquierda, así que se cae primero el monto y luego el título. */}
                   {quien && (
-                    <Avatar className="size-4 shrink-0">
-                      {quien.imagen && <AvatarImage src={quien.imagen} alt="" />}
-                      <AvatarFallback className="text-[0.5rem]">{quien.nombre.slice(0, 2).toUpperCase()}</AvatarFallback>
-                    </Avatar>
+                    <AvatarPersona persona={quien} className="size-4" />
                   )}
                   {span >= 3 && <span className="truncate text-xs max-sm:hidden">{a.titulo}</span>}
                   {a.monto && span >= 2 && (
