@@ -12,7 +12,7 @@ const VISTAS = [
 export function Vistas() {
   const donde = usePathname();
   return (
-    <nav className="border-border hidden rounded-md border p-0.5 sm:inline-flex">
+    <nav className="border-border inline-flex rounded-md border p-0.5">
       {VISTAS.map((v) => {
         const activa = donde === v.href;
         return (

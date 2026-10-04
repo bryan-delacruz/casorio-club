@@ -11,7 +11,7 @@ export const metadata: Metadata = { title: "Quién está" };
  */
 export default function EquipoPage() {
   return (
-    <main className="mx-auto w-full max-w-3xl flex-1 px-5 py-14 sm:px-10">
+    <main className="mx-auto w-full max-w-3xl flex-1 px-5 py-10 sm:px-10 sm:py-14">
       <h1 className="font-display text-foreground text-[2rem] leading-tight">
         Quién está en la boda
       </h1>
@@ -20,7 +20,12 @@ export default function EquipoPage() {
         tú.
       </p>
 
-      <OrganizationProfile routing="hash" />
+      {/* Sin la silueta violeta de Clerk: no es de la paleta y en el celular
+          le roba ancho a la tabla. El nombre y el correo identifican igual. */}
+      <OrganizationProfile
+        routing="hash"
+        appearance={{ elements: { userPreviewAvatarContainer: { display: "none" } } }}
+      />
     </main>
   );
 }

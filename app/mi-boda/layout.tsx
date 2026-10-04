@@ -45,12 +45,15 @@ export default async function MiBodaLayout({
           <Wordmark />
         </Link>
 
-        {/* hidePersonal: aquí no existe la cuenta suelta, siempre hay una boda. */}
-        <OrganizationSwitcher
-          hidePersonal
-          afterCreateOrganizationUrl="/mi-boda"
-          afterSelectOrganizationUrl="/mi-boda"
-        />
+        {/* hidePersonal: aquí no existe la cuenta suelta, siempre hay una boda.
+            En el celular baja a su propia fila: arriba quedan marca y avatar. */}
+        <div className="max-sm:order-last max-sm:w-full">
+          <OrganizationSwitcher
+            hidePersonal
+            afterCreateOrganizationUrl="/mi-boda"
+            afterSelectOrganizationUrl="/mi-boda"
+          />
+        </div>
 
         <div className="ml-auto flex items-center gap-2">
           {/* En el celular estos dos viven en la barra de abajo. */}
@@ -67,7 +70,7 @@ export default async function MiBodaLayout({
             </Button>
           )}
           <Button variant="ghost" size="lg" className="max-sm:hidden" asChild>
-            <Link href="/mi-boda/equipo">Quién está</Link>
+            <Link href="/mi-boda/equipo#/organization-members">Quién está</Link>
           </Button>
           {yo && (
             <MenuPersona

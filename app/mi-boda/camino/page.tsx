@@ -31,8 +31,10 @@ export default async function CaminoPage({
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-5 py-10 sm:px-10">
-      <Vistas />
-      <div className="mt-8">
+      <div className="mb-8 max-sm:hidden">
+        <Vistas />
+      </div>
+      <div>
         <Camino
           acciones={acciones}
           miembros={miembros}

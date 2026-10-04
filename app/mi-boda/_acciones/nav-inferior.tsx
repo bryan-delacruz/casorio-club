@@ -17,7 +17,8 @@ export function NavInferior({ conBernie, porAsignar }: { conBernie: boolean; por
     { href: "/mi-boda", nombre: "Mapa", Icono: LayoutGrid },
     { href: "/mi-boda/camino", nombre: "Camino", Icono: CalendarRange },
     ...(conBernie ? [{ href: "/mi-boda/bernie", nombre: "Gastos", Icono: ReceiptText, aviso: porAsignar }] : []),
-    { href: "/mi-boda/equipo", nombre: "Quién está", Icono: Users },
+    // Clerk abre en "General"; quien toca "Quién está" quiere ver e invitar gente.
+    { href: "/mi-boda/equipo#/organization-members", nombre: "Quién está", Icono: Users },
   ];
 
   return (
@@ -27,7 +28,7 @@ export function NavInferior({ conBernie, porAsignar }: { conBernie: boolean; por
     >
       <ul className="flex">
         {destinos.map(({ href, nombre, Icono, aviso }) => {
-          const activo = donde === href;
+          const activo = donde === href.split("#")[0];
           return (
             <li key={href} className="flex-1">
               <Link

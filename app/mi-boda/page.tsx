@@ -60,12 +60,12 @@ export default async function MiBodaPage() {
 
         {solo && (
           <Button variant="outline" size="lg" asChild>
-            <Link href="/mi-boda/equipo">Invitar a alguien</Link>
+            <Link href="/mi-boda/equipo#/organization-members">Invitar a alguien</Link>
           </Button>
         )}
       </div>
 
-      <div className="mt-7">
+      <div className="mt-7 max-sm:hidden">
         <Vistas />
       </div>
 
