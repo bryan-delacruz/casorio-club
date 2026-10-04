@@ -264,13 +264,16 @@ function FilaGasto({ gasto, acciones }: { gasto: Gasto; acciones: Accion[] }) {
   const [pendiente, startTransition] = useTransition();
   const compatibles = acciones.filter((a) => a.moneda === gasto.moneda);
 
-  function correr(fn: () => Promise<void>, ok: string) {
+  // Las acciones devuelven { error } con un mensaje para el usuario; si algo
+  // lanza, es un fallo inesperado y el mensaje es genérico.
+  function correr(fn: () => Promise<{ error?: string } | void>, ok: string) {
     startTransition(async () => {
       try {
-        await fn();
-        toast.success(ok);
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "No se pudo. Intenta otra vez.");
+        const r = await fn();
+        if (r?.error) toast.error(r.error);
+        else toast.success(ok);
+      } catch {
+        toast.error("No se pudo. Intenta otra vez.");
       }
     });
   }

@@ -22,19 +22,33 @@ import {
   Select,
   SelectContent,
   SelectItem,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
 import {
+  borrarMeta,
   crearAccion,
+  crearMeta,
   editarAccion,
   guardarDependencias,
   type Momento,
 } from "./acciones-servidor";
 import { Checkbox } from "@/components/ui/checkbox";
-import type { Miembro } from "./tipos";
+import type { MetaLite, Miembro } from "./tipos";
 
 const SIN_RESPONSABLE = "sin-responsable";
+const SIN_META = "sin-meta";
+const NUEVA_META = "nueva-meta";
+
+/**
+ * Más ancho que el diálogo por defecto: los campos cortos van de a dos y el
+ * formulario no se estira hacia abajo. La altura máxima y el scroll los pone
+ * el propio DialogContent; el pie queda pegado abajo para que "Guardar" esté
+ * siempre a la vista, aunque la lista de dependencias sea larga.
+ */
+const DIALOGO = "sm:max-w-lg";
+const PIE = "bg-popover sticky -bottom-4 -mx-4 mt-6 border-t px-4 pt-3 pb-4";
 
 /**
  * Un solo formulario para anotar y para corregir.
@@ -46,18 +60,28 @@ function Campos({
   accion,
   momento,
   miembros,
+  metas,
+  meta,
+  setMeta,
   cuestaTiempo,
   setCuestaTiempo,
   cuestaDinero,
   setCuestaDinero,
+  esHito,
+  setEsHito,
 }: {
   accion?: Accion;
   momento: Momento;
   miembros: Miembro[];
+  metas: MetaLite[];
+  meta: string;
+  setMeta: (v: string) => void;
   cuestaTiempo: boolean;
   setCuestaTiempo: (v: boolean) => void;
   cuestaDinero: boolean;
   setCuestaDinero: (v: boolean) => void;
+  esHito: boolean;
+  setEsHito: (v: boolean) => void;
 }) {
   // Una idea suelta todavía no tiene sitio en el calendario, y el mismo día
   // de la boda no se cuenta en semanas.
@@ -65,7 +89,7 @@ function Campos({
   const cuando = momento === "antes" ? "antes de la boda" : "después de la boda";
 
   return (
-    <div className="mt-6 space-y-5">
+    <div className="mt-5 space-y-4">
       <div className="space-y-2">
         <Label htmlFor="titulo">Qué hay que hacer</Label>
         <Input
@@ -73,98 +97,130 @@ function Campos({
           name="titulo"
           placeholder="Sacar la partida de nacimiento"
           defaultValue={accion?.titulo ?? ""}
-          autoFocus
+          // Solo al anotar algo nuevo: al editar, en el celular abriría el
+          // teclado y taparía el formulario antes de que elijas qué cambiar.
+          autoFocus={!accion}
           required
         />
       </div>
 
-      <div className="space-y-3">
-        <div className="flex items-center justify-between gap-4">
-          <Label htmlFor="tiempo" className="font-normal">
-            Cuesta tiempo
-          </Label>
-          <Switch
-            id="tiempo"
-            checked={cuestaTiempo}
-            onCheckedChange={setCuestaTiempo}
-          />
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="min-w-0 space-y-2">
+          <Label htmlFor="meta">Meta</Label>
+          <Select name="meta" value={meta} onValueChange={setMeta}>
+            <SelectTrigger id="meta" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={SIN_META}>Sin meta</SelectItem>
+              {metas.map((m) => (
+                <SelectItem key={m.id} value={m.id}>
+                  {m.titulo}
+                </SelectItem>
+              ))}
+              <SelectSeparator />
+              <SelectItem value={NUEVA_META}>+ Nueva meta…</SelectItem>
+            </SelectContent>
+          </Select>
+          {meta === NUEVA_META && (
+            <Input
+              name="metaNueva"
+              placeholder="Registro civil"
+              maxLength={60}
+              aria-label="Nombre de la meta nueva"
+              required
+            />
+          )}
         </div>
-        <div className="flex items-center justify-between gap-4">
-          <Label htmlFor="dinero" className="font-normal">
-            Cuesta dinero
-          </Label>
-          <Switch
-            id="dinero"
-            checked={cuestaDinero}
-            onCheckedChange={setCuestaDinero}
-          />
+
+        <div className="min-w-0 space-y-2">
+          <Label htmlFor="responsable">Quién responde</Label>
+          <Select name="responsable" defaultValue={accion?.responsableId ?? SIN_RESPONSABLE}>
+            <SelectTrigger id="responsable" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={SIN_RESPONSABLE}>Todavía nadie</SelectItem>
+              {miembros.map((m) => (
+                <SelectItem key={m.id} value={m.id}>
+                  {m.nombre}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-        {cuestaDinero && (
-          <Input
-            name="monto"
-            type="number"
-            step="0.01"
-            min="0"
-            inputMode="decimal"
-            placeholder="Cuánto, en soles"
-            defaultValue={accion?.monto ?? ""}
-          />
-        )}
       </div>
 
-      {enCalendario && (
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="min-w-20 flex-1 space-y-2">
-            <Label htmlFor="semanas">Semanas {cuando}</Label>
-            <Input
-              id="semanas"
-              name="semanas"
-              type="number"
-              min="0"
-              max="260"
-              inputMode="numeric"
-              placeholder="8"
-              defaultValue={
-                accion?.inicioSemanas === null || accion?.inicioSemanas === undefined
-                  ? ""
-                  : String(Math.abs(accion.inicioSemanas))
-              }
-            />
-          </div>
-          <div className="min-w-20 flex-1 space-y-2">
-            <Label htmlFor="dura">Cuántas dura</Label>
-            <Input
-              id="dura"
-              name="dura"
-              type="number"
-              min="1"
-              max="260"
-              inputMode="numeric"
-              defaultValue={String(accion?.duracionSemanas ?? 1)}
-            />
-          </div>
+      {/* Tres interruptores en una fila: antes eran tres renglones. */}
+      <div className="flex flex-wrap gap-x-6 gap-y-3">
+        <label className="flex cursor-pointer items-center gap-2 text-sm">
+          <Switch checked={cuestaTiempo} onCheckedChange={setCuestaTiempo} />
+          Cuesta tiempo
+        </label>
+        <label className="flex cursor-pointer items-center gap-2 text-sm">
+          <Switch checked={cuestaDinero} onCheckedChange={setCuestaDinero} />
+          Cuesta dinero
+        </label>
+        <label className="flex cursor-pointer items-center gap-2 text-sm">
+          <Switch checked={esHito} onCheckedChange={setEsHito} />
+          Es un hito
+        </label>
+      </div>
+
+      {(cuestaDinero || enCalendario) && (
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+          {enCalendario && (
+            <div className="min-w-0 space-y-2">
+              <Label htmlFor="semanas" title={`Semanas ${cuando}`}>
+                Semanas {momento === "antes" ? "antes" : "después"}
+              </Label>
+              <Input
+                id="semanas"
+                name="semanas"
+                type="number"
+                min="0"
+                max="260"
+                inputMode="numeric"
+                placeholder="8"
+                defaultValue={
+                  accion?.inicioSemanas === null || accion?.inicioSemanas === undefined
+                    ? ""
+                    : String(Math.abs(accion.inicioSemanas))
+                }
+              />
+            </div>
+          )}
+          {enCalendario && !esHito && (
+            <div className="min-w-0 space-y-2">
+              <Label htmlFor="dura">Cuántas dura</Label>
+              <Input
+                id="dura"
+                name="dura"
+                type="number"
+                min="1"
+                max="260"
+                inputMode="numeric"
+                defaultValue={String(accion?.duracionSemanas ?? 1)}
+              />
+            </div>
+          )}
+          {cuestaDinero && (
+            <div className="min-w-0 space-y-2">
+              <Label htmlFor="monto">Cuánto (S/)</Label>
+              <Input
+                id="monto"
+                name="monto"
+                type="number"
+                step="0.01"
+                min="0"
+                inputMode="decimal"
+                placeholder="250"
+                defaultValue={accion?.monto ?? ""}
+              />
+            </div>
+          )}
         </div>
       )}
-
-      <div className="space-y-2">
-        <Label htmlFor="responsable">Quién responde</Label>
-        <Select
-          name="responsable"
-          defaultValue={accion?.responsableId ?? SIN_RESPONSABLE}
-        >
-          <SelectTrigger id="responsable" className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={SIN_RESPONSABLE}>Todavía nadie</SelectItem>
-            {miembros.map((m) => (
-              <SelectItem key={m.id} value={m.id}>
-                {m.nombre}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
 
       <div className="space-y-2">
         <Label htmlFor="notas">Notas</Label>
@@ -192,6 +248,7 @@ function leer(
   momento: Momento,
   cuestaTiempo: boolean,
   cuestaDinero: boolean,
+  esHito: boolean,
 ) {
   const titulo = String(form.get("titulo") ?? "").trim();
   if (!titulo) return null;
@@ -200,7 +257,8 @@ function leer(
 
   const semanasCrudo = String(form.get("semanas") ?? "").trim();
   const semanas = semanasCrudo === "" ? null : Math.abs(Number(semanasCrudo));
-  const dura = Math.max(1, Number(form.get("dura") ?? 1) || 1);
+  // Un hito no dura: es un día.
+  const dura = esHito ? 1 : Math.max(1, Number(form.get("dura") ?? 1) || 1);
 
   const inicioSemanas =
     momento === "el_dia"
@@ -219,35 +277,75 @@ function leer(
     notas: String(form.get("notas") ?? "").trim() || null,
     inicioSemanas,
     duracionSemanas: dura,
+    esHito,
   };
 }
+
+class MetaInvalida extends Error {}
+
+/**
+ * La meta elegida. Si es nueva, se crea primero (la acción necesita su id) y
+ * se devuelve `creada` para poder borrarla si después falla guardar la acción:
+ * si no, quedaría una meta vacía y reintentar chocaría con su propio nombre.
+ */
+async function resolverMeta(meta: string, form: FormData): Promise<{ id: string | null; creada?: string }> {
+  if (meta === SIN_META) return { id: null };
+  if (meta !== NUEVA_META) return { id: meta };
+  const r = await crearMeta(String(form.get("metaNueva") ?? ""));
+  if (!r.id) throw new MetaInvalida(r.error ?? "No se pudo crear la meta.");
+  return { id: r.id, creada: r.id };
+}
+
+/** Guarda la acción y, si falla, deshace la meta que se acaba de crear. */
+async function guardarConMeta(meta: string, form: FormData, guardar: (metaId: string | null) => Promise<void>) {
+  const { id, creada } = await resolverMeta(meta, form);
+  try {
+    await guardar(id);
+  } catch (e) {
+    if (creada) await borrarMeta(creada).catch(() => null);
+    throw e;
+  }
+}
+
+/** Mensaje para el toast: el de la meta si fue eso, si no uno genérico. */
+const mensajeDe = (e: unknown, generico: string) => (e instanceof MetaInvalida ? e.message : generico);
 
 export function NuevaAccion({
   momento,
   miembros,
+  metas = [],
   etiqueta,
 }: {
   momento: Momento;
   miembros: Miembro[];
+  metas?: MetaLite[];
   etiqueta: string;
 }) {
   const [abierto, setAbierto] = useState(false);
   const [cuestaTiempo, setCuestaTiempo] = useState(false);
   const [cuestaDinero, setCuestaDinero] = useState(false);
+  const [esHito, setEsHito] = useState(false);
+  const [meta, setMeta] = useState(SIN_META);
   const [enviando, iniciar] = useTransition();
 
+  function reiniciar() {
+    setCuestaTiempo(false);
+    setCuestaDinero(false);
+    setEsHito(false);
+    setMeta(SIN_META);
+  }
+
   function enviar(form: FormData) {
-    const datos = leer(form, momento, cuestaTiempo, cuestaDinero);
+    const datos = leer(form, momento, cuestaTiempo, cuestaDinero, esHito);
     if (!datos) return;
     iniciar(async () => {
       try {
-        await crearAccion({ ...datos, momento });
+        await guardarConMeta(meta, form, (metaId) => crearAccion({ ...datos, momento, metaId }));
         setAbierto(false);
-        setCuestaTiempo(false);
-        setCuestaDinero(false);
+        reiniciar();
         toast.success("Anotado.");
-      } catch {
-        toast.error("No se pudo guardar. Intenta otra vez.");
+      } catch (e) {
+        toast.error(mensajeDe(e, "No se pudo guardar. Intenta otra vez."));
       }
     });
   }
@@ -264,27 +362,30 @@ export function NuevaAccion({
         </Button>
       </DialogTrigger>
 
-      <DialogContent>
+      <DialogContent className={DIALOGO}>
         {/* El formulario se rehace al abrir, así los campos no arrastran lo
             escrito en la vez anterior. */}
         <form action={enviar} key={abierto ? "abierto" : "cerrado"}>
           <DialogHeader>
-            <DialogTitle className="font-display text-xl font-normal">
-              Algo que hacer
-            </DialogTitle>
+            <DialogTitle className="font-display text-xl font-normal">Algo que hacer</DialogTitle>
             <DialogDescription>Va a {etiqueta}.</DialogDescription>
           </DialogHeader>
 
           <Campos
             momento={momento}
             miembros={miembros}
+            metas={metas}
+            meta={meta}
+            setMeta={setMeta}
             cuestaTiempo={cuestaTiempo}
             setCuestaTiempo={setCuestaTiempo}
             cuestaDinero={cuestaDinero}
             setCuestaDinero={setCuestaDinero}
+            esHito={esHito}
+            setEsHito={setEsHito}
           />
 
-          <DialogFooter className="mt-7">
+          <DialogFooter className={PIE}>
             <Button type="submit" disabled={enviando}>
               {enviando ? "Guardando…" : "Anotar"}
             </Button>
@@ -295,10 +396,6 @@ export function NuevaAccion({
   );
 }
 
-/**
- * Editar. Va controlado desde fuera porque lo abre el menú de la tarjeta, y
- * un diálogo dentro de un menú se desmonta cuando el menú se cierra.
- */
 /**
  * De qué depende esta acción.
  *
@@ -335,7 +432,7 @@ function Necesita({
   }
 
   return (
-    <div className="mt-5 space-y-2">
+    <div className="mt-4 space-y-2">
       <div className="flex items-baseline justify-between gap-3">
         <Label>Qué tiene que estar listo antes</Label>
         {marcadas.size > 0 && (
@@ -359,21 +456,19 @@ function Necesita({
         />
       )}
 
-      <div className="border-border max-h-44 overflow-y-auto rounded-md border">
+      {/* relative: el Checkbox de Radix deja un <input> oculto absolute junto a
+          la casilla. Sin un contenedor posicionado, ese input se ubica respecto
+          del diálogo, escapa de esta lista con scroll y estira el diálogo. */}
+      <div className="border-border relative max-h-40 overflow-y-auto rounded-md border">
         {vistas.length === 0 ? (
-          <p className="text-muted-foreground px-3 py-2 text-sm">
-            Ninguna se llama así.
-          </p>
+          <p className="text-muted-foreground px-3 py-2 text-sm">Ninguna se llama así.</p>
         ) : (
           vistas.map((o) => (
             <label
               key={o.id}
               className="hover:bg-muted/50 flex cursor-pointer items-center gap-2.5 px-3 py-2 text-sm"
             >
-              <Checkbox
-                checked={marcadas.has(o.id)}
-                onCheckedChange={() => alternar(o.id)}
-              />
+              <Checkbox checked={marcadas.has(o.id)} onCheckedChange={() => alternar(o.id)} />
               <span className="min-w-0 flex-1 truncate">{o.titulo}</span>
             </label>
           ))
@@ -383,9 +478,14 @@ function Necesita({
   );
 }
 
+/**
+ * Editar. Va controlado desde fuera porque lo abre el menú de la tarjeta, y
+ * un diálogo dentro de un menú se desmonta cuando el menú se cierra.
+ */
 export function EditarAccion({
   accion,
   miembros,
+  metas = [],
   otras,
   requiere,
   abierto,
@@ -393,6 +493,7 @@ export function EditarAccion({
 }: {
   accion: Accion;
   miembros: Miembro[];
+  metas?: MetaLite[];
   otras: Accion[];
   requiere: Set<string>;
   abierto: boolean;
@@ -400,15 +501,17 @@ export function EditarAccion({
 }) {
   const [cuestaTiempo, setCuestaTiempo] = useState(accion.cuestaTiempo);
   const [cuestaDinero, setCuestaDinero] = useState(accion.monto !== null);
+  const [esHito, setEsHito] = useState(accion.esHito);
+  const [meta, setMeta] = useState(accion.metaId ?? SIN_META);
   const [marcadas, setMarcadas] = useState(() => new Set(requiere));
   const [enviando, iniciar] = useTransition();
 
   function enviar(form: FormData) {
-    const datos = leer(form, accion.momento, cuestaTiempo, cuestaDinero);
+    const datos = leer(form, accion.momento, cuestaTiempo, cuestaDinero, esHito);
     if (!datos) return;
     iniciar(async () => {
       try {
-        await editarAccion(accion.id, datos);
+        await guardarConMeta(meta, form, (metaId) => editarAccion(accion.id, { ...datos, metaId }));
         await guardarDependencias(accion.id, [...marcadas]);
         onAbiertoChange(false);
         toast.success("Guardado.");
@@ -416,7 +519,7 @@ export function EditarAccion({
         toast.error(
           e instanceof Error && e.message === "Eso haría un círculo"
             ? "Alguna de esas ya te espera a ti. Lo demás quedó guardado."
-            : "No se pudo guardar. Intenta otra vez.",
+            : mensajeDe(e, "No se pudo guardar. Intenta otra vez."),
         );
       }
     });
@@ -424,30 +527,31 @@ export function EditarAccion({
 
   return (
     <Dialog open={abierto} onOpenChange={onAbiertoChange}>
-      <DialogContent>
+      <DialogContent className={DIALOGO}>
         <form action={enviar}>
           <DialogHeader>
-            <DialogTitle className="font-display text-xl font-normal">
-              Cambiar esto
-            </DialogTitle>
-            <DialogDescription>
-              Para moverla de sitio usa el menú de la tarjeta.
-            </DialogDescription>
+            <DialogTitle className="font-display text-xl font-normal">Cambiar esto</DialogTitle>
+            <DialogDescription>Para moverla de sitio usa el menú de la tarjeta.</DialogDescription>
           </DialogHeader>
 
           <Campos
             accion={accion}
             momento={accion.momento}
             miembros={miembros}
+            metas={metas}
+            meta={meta}
+            setMeta={setMeta}
             cuestaTiempo={cuestaTiempo}
             setCuestaTiempo={setCuestaTiempo}
             cuestaDinero={cuestaDinero}
             setCuestaDinero={setCuestaDinero}
+            esHito={esHito}
+            setEsHito={setEsHito}
           />
 
           <Necesita otras={otras} marcadas={marcadas} setMarcadas={setMarcadas} />
 
-          <DialogFooter className="mt-7">
+          <DialogFooter className={PIE}>
             <Button type="submit" disabled={enviando}>
               {enviando ? "Guardando…" : "Guardar"}
             </Button>

@@ -1,7 +1,7 @@
 import "server-only";
 import { eq, lt, and } from "drizzle-orm";
 import { getDb } from "@/db";
-import { acciones, bodas, dependencias, pagos } from "@/db/schema";
+import { acciones, bodas, dependencias, metas, pagos } from "@/db/schema";
 
 /**
  * La boda de ejemplo para "Probar la demo".
@@ -31,26 +31,29 @@ type Semilla = {
   inicio?: number;
   duracion?: number;
   requiere?: string[];
+  /** A qué meta de la demo va (docs/metas.md §7). */
+  meta?: "registro" | "almuerzo";
+  hito?: boolean;
   /** Pagos hechos, en días antes de hoy. */
   pagado?: { monto: string; haceDias: number; nota?: string }[];
 };
 
 const SEMILLA: Semilla[] = [
-  { clave: "partidas", titulo: "Partida de nacimiento de los dos", momento: "antes", estado: "hecho", quien: "ana", tiempo: true, monto: "40", inicio: 12, duracion: 2, pagado: [{ monto: "40", haceDias: 20 }] },
-  { clave: "dni", titulo: "Copia del DNI de los dos", momento: "antes", estado: "hecho", quien: "luis", tiempo: true, inicio: 12 },
-  { clave: "domicilio", titulo: "Certificado domiciliario", momento: "antes", estado: "hecho", quien: "luis", tiempo: true, monto: "30", inicio: 11, pagado: [{ monto: "30", haceDias: 12 }] },
-  { clave: "medico", titulo: "Certificado médico prenupcial", notas: "En el centro de salud del distrito. Pedir cita con anticipación.", momento: "antes", estado: "haciendo", quien: "ana", tiempo: true, monto: "120", inicio: 9, duracion: 2 },
-  { clave: "testigos", titulo: "Elegir a los dos testigos", notas: "Mayores de edad, con DNI vigente.", momento: "antes", estado: "hecho", quien: "ana", inicio: 10 },
-  { clave: "expediente", titulo: "Presentar el expediente en la municipalidad", momento: "antes", estado: "por_hacer", quien: "luis", tiempo: true, monto: "250", inicio: 7, requiere: ["partidas", "dni", "domicilio", "medico", "testigos"] },
-  { clave: "edicto", titulo: "Publicar el edicto matrimonial", momento: "antes", estado: "por_hacer", quien: "luis", tiempo: true, monto: "80", inicio: 6, duracion: 2, requiere: ["expediente"] },
+  { clave: "partidas", titulo: "Partida de nacimiento de los dos", momento: "antes", estado: "hecho", quien: "ana", tiempo: true, monto: "40", inicio: 12, duracion: 2, pagado: [{ monto: "40", haceDias: 20 }], meta: "registro" },
+  { clave: "dni", titulo: "Copia del DNI de los dos", momento: "antes", estado: "hecho", quien: "luis", tiempo: true, inicio: 12, meta: "registro" },
+  { clave: "domicilio", titulo: "Certificado domiciliario", momento: "antes", estado: "hecho", quien: "luis", tiempo: true, monto: "30", inicio: 11, pagado: [{ monto: "30", haceDias: 12 }], meta: "registro" },
+  { clave: "medico", titulo: "Certificado médico prenupcial", notas: "En el centro de salud del distrito. Pedir cita con anticipación.", momento: "antes", estado: "haciendo", quien: "ana", tiempo: true, monto: "120", inicio: 9, duracion: 2, meta: "registro" },
+  { clave: "testigos", titulo: "Elegir a los dos testigos", notas: "Mayores de edad, con DNI vigente.", momento: "antes", estado: "hecho", quien: "ana", inicio: 10, meta: "registro" },
+  { clave: "expediente", titulo: "Presentar el expediente en la municipalidad", momento: "antes", estado: "por_hacer", quien: "luis", tiempo: true, monto: "250", inicio: 7, requiere: ["partidas", "dni", "domicilio", "medico", "testigos"], meta: "registro" },
+  { clave: "edicto", titulo: "Publicar el edicto matrimonial", momento: "antes", estado: "por_hacer", quien: "luis", tiempo: true, monto: "80", inicio: 6, duracion: 2, requiere: ["expediente"], meta: "registro" },
   { clave: "fotografo", titulo: "Reservar el fotógrafo", momento: "antes", estado: "haciendo", quien: "ana", monto: "1800", inicio: 8, pagado: [{ monto: "500", haceDias: 9, nota: "Adelanto para separar la fecha" }] },
-  { clave: "almuerzo", titulo: "Reservar el restaurante para el almuerzo", notas: "Para 40 personas.", momento: "antes", estado: "haciendo", quien: "luis", monto: "3600", inicio: 8, pagado: [{ monto: "1000", haceDias: 15, nota: "Adelanto" }, { monto: "800", haceDias: 3 }] },
+  { clave: "almuerzo", titulo: "Reservar el restaurante para el almuerzo", notas: "Para 40 personas.", momento: "antes", estado: "haciendo", quien: "luis", monto: "3600", inicio: 8, pagado: [{ monto: "1000", haceDias: 15, nota: "Adelanto" }, { monto: "800", haceDias: 3 }], meta: "almuerzo" },
   { clave: "vestido", titulo: "Vestido", momento: "antes", estado: "haciendo", quien: "ana", tiempo: true, monto: "1500", inicio: 6, duracion: 4, pagado: [{ monto: "600", haceDias: 6 }] },
   { clave: "traje", titulo: "Traje", momento: "antes", estado: "por_hacer", quien: "luis", tiempo: true, monto: "900", inicio: 4, duracion: 2 },
   { clave: "anillos", titulo: "Comprar los anillos", momento: "antes", estado: "por_hacer", monto: "2400", inicio: 4, duracion: 2 },
-  { clave: "ceremonia", titulo: "Ceremonia civil en la municipalidad", momento: "el_dia", estado: "por_hacer", inicio: 0, requiere: ["edicto", "anillos"] },
-  { clave: "fiesta", titulo: "Almuerzo con la familia", momento: "el_dia", estado: "por_hacer", inicio: 0, requiere: ["almuerzo"] },
-  { clave: "acta", titulo: "Recoger el acta de matrimonio", momento: "despues", estado: "por_hacer", quien: "luis", tiempo: true, inicio: -2, requiere: ["ceremonia"] },
+  { clave: "ceremonia", titulo: "Ceremonia civil en la municipalidad", momento: "el_dia", estado: "por_hacer", inicio: 0, requiere: ["edicto", "anillos"], meta: "registro", hito: true },
+  { clave: "fiesta", titulo: "Almuerzo con la familia", momento: "el_dia", estado: "por_hacer", inicio: 0, requiere: ["almuerzo"], meta: "almuerzo" },
+  { clave: "acta", titulo: "Recoger el acta de matrimonio", momento: "despues", estado: "por_hacer", quien: "luis", tiempo: true, inicio: -2, requiere: ["ceremonia"], meta: "registro" },
   { clave: "estado-civil", titulo: "Actualizar el estado civil en el DNI", momento: "despues", estado: "por_hacer", quien: "ana", tiempo: true, monto: "30", inicio: -4, duracion: 2, requiere: ["acta"] },
   { clave: "video", titulo: "Video corto para compartir con la familia", momento: "idea", estado: "por_hacer" },
   { clave: "dulces", titulo: "Mesa de dulces", momento: "idea", estado: "por_hacer", monto: "400" },
@@ -83,6 +86,20 @@ export async function reiniciarDemoSiHaceFalta() {
   }
 
   await db.delete(acciones).where(eq(acciones.bodaId, DEMO.orgId)); // pagos y dependencias caen en cascada
+  await db.delete(metas).where(eq(metas.bodaId, DEMO.orgId));
+  const [metaRegistro, metaAlmuerzo] = await db
+    .insert(metas)
+    .values([
+      { bodaId: DEMO.orgId, titulo: "Registro civil", orden: 0 },
+      { bodaId: DEMO.orgId, titulo: "Almuerzo", orden: 1 },
+    ])
+    .returning({ id: metas.id, titulo: metas.titulo })
+    // RETURNING no garantiza el orden: se ordena por título conocido.
+    .then((filas) => [
+      filas.find((f) => f.titulo === "Registro civil")!,
+      filas.find((f) => f.titulo === "Almuerzo")!,
+    ]);
+  const metaDe = { registro: metaRegistro.id, almuerzo: metaAlmuerzo.id };
   await db
     .insert(bodas)
     .values({ id: DEMO.orgId, fecha: diasDesdeHoy(70), actualizadaEl: new Date() })
@@ -109,6 +126,8 @@ export async function reiniciarDemoSiHaceFalta() {
           monto: s.monto ?? null,
           inicioSemanas: s.inicio ?? null,
           duracionSemanas: s.duracion ?? 1,
+          metaId: s.meta ? metaDe[s.meta] : null,
+          esHito: s.hito ?? false,
           orden: orden[s.momento],
         };
       }),

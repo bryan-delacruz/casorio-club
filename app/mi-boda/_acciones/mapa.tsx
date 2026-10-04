@@ -26,7 +26,7 @@ import {
 import { NuevaAccion } from "./formulario-accion";
 import { Reparto } from "./reparto";
 import { TarjetaAccion } from "./tarjeta-accion";
-import type { Miembro } from "./tipos";
+import type { MetaLite, Miembro } from "./tipos";
 
 const CARRILES: { id: Momento; titulo: string; pie: string }[] = [
   { id: "antes", titulo: "Antes", pie: "todo lo que hay que tener listo" },
@@ -74,11 +74,13 @@ export function Mapa({
   miembros,
   pagos,
   dependencias,
+  metas = [],
 }: {
   iniciales: Accion[];
   miembros: Miembro[];
   pagos: Pago[];
   dependencias: Dependencia[];
+  metas?: MetaLite[];
 }) {
   const [, iniciar] = useTransition();
   const [arrastrando, setArrastrando] = useState<Accion | null>(null);
@@ -216,6 +218,7 @@ export function Mapa({
                 miembros={miembros}
                 pagos={pagosDe.get(a.id)}
                 otras={lista.filter((o) => o.id !== a.id)}
+                metas={metas}
                 requiere={requiereDe.get(a.id)}
                 titulos={titulos}
                 onAlternar={alAlternar}
@@ -226,7 +229,7 @@ export function Mapa({
           </div>
         </SortableContext>
         <div className="mt-2">
-          <NuevaAccion momento="idea" miembros={miembros} etiqueta="ideas sueltas" />
+          <NuevaAccion momento="idea" miembros={miembros} metas={metas} etiqueta="ideas sueltas" />
         </div>
       </Carril>
 
@@ -262,6 +265,7 @@ export function Mapa({
                       miembros={miembros}
                       pagos={pagosDe.get(a.id)}
                       otras={lista.filter((o) => o.id !== a.id)}
+                metas={metas}
                       requiere={requiereDe.get(a.id)}
                       titulos={titulos}
                       onAlternar={alAlternar}
@@ -276,6 +280,7 @@ export function Mapa({
                 <NuevaAccion
                   momento={c.id}
                   miembros={miembros}
+                  metas={metas}
                   etiqueta={c.titulo.toLowerCase()}
                 />
               </div>

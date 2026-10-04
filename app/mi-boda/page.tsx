@@ -7,6 +7,7 @@ import { Vistas } from "./_acciones/vistas";
 import {
   listarAcciones,
   listarDependencias,
+  listarMetas,
   listarMiembros,
   listarPagos,
 } from "./_acciones/acciones-servidor";
@@ -18,11 +19,12 @@ export default async function MiBodaPage() {
   const user = await currentUser();
   const nombre = user?.firstName ?? "";
 
-  const [acciones, miembros, pagos, dependencias] = await Promise.all([
+  const [acciones, miembros, pagos, dependencias, metas] = await Promise.all([
     listarAcciones(),
     listarMiembros(),
     listarPagos(),
     listarDependencias(),
+    listarMetas(),
   ]);
 
   let invitacionesPendientes = 0;
@@ -73,6 +75,7 @@ export default async function MiBodaPage() {
           miembros={miembros}
           pagos={pagos}
           dependencias={dependencias}
+          metas={metas.map((m) => ({ id: m.id, titulo: m.titulo }))}
         />
       </div>
     </main>
