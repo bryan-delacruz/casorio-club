@@ -4,6 +4,8 @@ import { auth, clerkClient, currentUser } from "@clerk/nextjs/server";
 import { Button } from "@/components/ui/button";
 import { Mapa } from "./_acciones/mapa";
 import { Vistas } from "./_acciones/vistas";
+import { RUTAS } from "./_acciones/rutas";
+import { BotonAnotar } from "./_acciones/boton-anotar";
 import {
   listarAcciones,
   listarDependencias,
@@ -42,6 +44,7 @@ export default async function MiBodaPage() {
   const hechas = acciones.filter((a) => a.estado === "hecho").length;
   const haciendo = acciones.filter((a) => a.estado === "haciendo").length;
 
+  const metasLite = metas.map((m) => ({ id: m.id, titulo: m.titulo }));
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-5 py-10 sm:px-10">
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
@@ -60,7 +63,7 @@ export default async function MiBodaPage() {
 
         {solo && (
           <Button variant="outline" size="lg" asChild>
-            <Link href="/mi-boda/equipo#/organization-members">Invitar a alguien</Link>
+            <Link href={RUTAS.equipo}>Invitar a alguien</Link>
           </Button>
         )}
       </div>
@@ -75,9 +78,10 @@ export default async function MiBodaPage() {
           miembros={miembros}
           pagos={pagos}
           dependencias={dependencias}
-          metas={metas.map((m) => ({ id: m.id, titulo: m.titulo }))}
+          metas={metasLite}
         />
       </div>
+      <BotonAnotar miembros={miembros} metas={metasLite} />
     </main>
   );
 }

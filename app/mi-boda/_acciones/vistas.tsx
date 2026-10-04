@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { RUTAS } from "./rutas";
 
 const VISTAS = [
-  { href: "/mi-boda", nombre: "Mapa" },
-  { href: "/mi-boda/camino", nombre: "Camino" },
+  { href: RUTAS.mapa, nombre: "Mapa" },
+  { href: RUTAS.camino, nombre: "Camino" },
 ];
 
 /** Las dos maneras de mirar lo mismo: por momento, o por calendario. En el celular las lleva la barra de abajo. */

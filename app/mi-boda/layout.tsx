@@ -4,6 +4,7 @@ import { OrganizationSwitcher } from "@clerk/nextjs";
 import { MenuPersona } from "@/components/menu-persona";
 import { personaDe } from "@/lib/persona";
 import { NavInferior } from "./_acciones/nav-inferior";
+import { RUTAS } from "./_acciones/rutas";
 import { Wordmark } from "@/components/wordmark";
 import { Button } from "@/components/ui/button";
 import { DEMO } from "@/lib/demo";
@@ -41,7 +42,7 @@ export default async function MiBodaLayout({
         </p>
       )}
       <header className="border-border flex flex-wrap items-center gap-x-4 gap-y-3 border-b px-5 py-4 sm:px-10">
-        <Link href="/mi-boda">
+        <Link href={RUTAS.mapa}>
           <Wordmark />
         </Link>
 
@@ -50,8 +51,8 @@ export default async function MiBodaLayout({
         <div className="max-sm:order-last max-sm:w-full">
           <OrganizationSwitcher
             hidePersonal
-            afterCreateOrganizationUrl="/mi-boda"
-            afterSelectOrganizationUrl="/mi-boda"
+            afterCreateOrganizationUrl={RUTAS.mapa}
+            afterSelectOrganizationUrl={RUTAS.mapa}
           />
         </div>
 
@@ -59,7 +60,7 @@ export default async function MiBodaLayout({
           {/* En el celular estos dos viven en la barra de abajo. */}
           {conBernie && (
             <Button variant="ghost" size="lg" className="max-sm:hidden" asChild>
-              <Link href="/mi-boda/bernie">
+              <Link href={RUTAS.gastos}>
                 Gastos de Bernie
                 {porAsignar > 0 && (
                   <span className="bg-primary text-primary-foreground ml-1.5 rounded-full px-1.5 text-xs tabular-nums">
@@ -70,7 +71,7 @@ export default async function MiBodaLayout({
             </Button>
           )}
           <Button variant="ghost" size="lg" className="max-sm:hidden" asChild>
-            <Link href="/mi-boda/equipo#/organization-members">Quién está</Link>
+            <Link href={RUTAS.equipo}>Quién está</Link>
           </Button>
           {yo && (
             <MenuPersona

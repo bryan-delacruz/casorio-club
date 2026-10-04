@@ -21,6 +21,7 @@ import { empezarRegistroCivil, type Momento } from "./acciones-servidor";
 import { CompartirHistoria } from "./compartir-historia";
 import { FechaBoda } from "./fecha-boda";
 import { soles, type MetaLite, type Miembro } from "./tipos";
+import { RUTAS } from "./rutas";
 
 export type Agrupar = "meta" | "momento";
 
@@ -100,7 +101,7 @@ export function Camino({
         <div className="border-border rounded-lg border border-dashed p-10 text-center">
           <p className="text-muted-foreground">
             Todavía no hay nada con fecha.{" "}
-            <Link href="/mi-boda" className="text-foreground underline">
+            <Link href={RUTAS.mapa} className="text-foreground underline">
               Manda algo a un carril
             </Link>{" "}
             {tieneRegistro ? "y aparecerá aquí." : "o empieza con la meta Registro civil."}

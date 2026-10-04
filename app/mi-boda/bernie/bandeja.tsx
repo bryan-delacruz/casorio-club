@@ -23,6 +23,7 @@ import {
   sincronizarAhora,
 } from "./acciones-bernie";
 import type { listarBandeja } from "./datos";
+import { RUTAS } from "../_acciones/rutas";
 
 type Datos = NonNullable<Awaited<ReturnType<typeof listarBandeja>>>;
 type Gasto = Datos["porAsignar"][number];
@@ -83,7 +84,7 @@ export function Bandeja({
     yaAviso.current = true;
     const a = AVISOS[aviso];
     if (a) (a.tipo === "ok" ? toast.success : toast.error)(a.texto);
-    window.history.replaceState(null, "", "/mi-boda/bernie");
+    window.history.replaceState(null, "", RUTAS.gastos);
   }, [aviso]);
 
   // Red de seguridad si se perdió un webhook: al abrir, si pasó más de una hora.
