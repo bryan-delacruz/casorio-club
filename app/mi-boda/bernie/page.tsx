@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { clerkClient } from "@clerk/nextjs/server";
 import { integracionDisponible } from "@/lib/bernie/config";
-import { listarBandeja } from "./acciones-bernie";
+import { listarBandeja } from "./datos";
 import { Bandeja } from "./bandeja";
 
 export const metadata: Metadata = { title: "Gastos de Bernie" };

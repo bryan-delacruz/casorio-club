@@ -21,8 +21,8 @@ import {
   desconectar,
   resolverFueraDeBernie,
   sincronizarAhora,
-  type listarBandeja,
 } from "./acciones-bernie";
+import type { listarBandeja } from "./datos";
 
 type Datos = NonNullable<Awaited<ReturnType<typeof listarBandeja>>>;
 type Gasto = Datos["porAsignar"][number];

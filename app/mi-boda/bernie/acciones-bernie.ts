@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, asc, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import { auth } from "@clerk/nextjs/server";
 import { getDb } from "@/db";
 import { acciones, conexionesBernie, gastosBernie, pagos } from "@/db/schema";
@@ -25,8 +25,6 @@ function refrescar() {
   revalidatePath("/mi-boda");
 }
 
-const UNA_HORA_MS = 60 * 60 * 1000;
-
 /**
  * Un error pensado para el usuario. En producción Next oculta el mensaje de
  * cualquier error que una server action lanza, así que estos no se lanzan al
@@ -46,44 +44,6 @@ async function comoResultado(fn: () => Promise<void>): Promise<Resultado> {
   }
 }
 
-/** Datos de la bandeja y de la conexión, para la página. */
-export async function listarBandeja() {
-  const { orgId } = await auth();
-  if (!orgId || orgId === DEMO.orgId) return null;
-  const db = getDb();
-  const [[conexion], gastos, accionesBoda] = await Promise.all([
-    db
-      .select({
-        estado: conexionesBernie.estado,
-        conectadaPorId: conexionesBernie.conectadaPorId,
-        ultimaSyncEl: conexionesBernie.ultimaSyncEl,
-        ultimoError: conexionesBernie.ultimoError,
-        creadaEl: conexionesBernie.creadaEl,
-      })
-      .from(conexionesBernie)
-      .where(eq(conexionesBernie.bodaId, orgId)),
-    db
-      .select()
-      .from(gastosBernie)
-      .where(eq(gastosBernie.bodaId, orgId))
-      .orderBy(desc(gastosBernie.fecha), asc(gastosBernie.comercio)),
-    db
-      .select({ id: acciones.id, titulo: acciones.titulo, moneda: acciones.moneda })
-      .from(acciones)
-      .where(eq(acciones.bodaId, orgId))
-      .orderBy(asc(acciones.titulo)),
-  ]);
-
-  return {
-    conexion: conexion ?? null,
-    porAsignar: gastos.filter((g) => !g.pagoId && !g.descartado),
-    fueraDeBernie: gastos.filter((g) => g.pagoId && g.fueraDeBernie),
-    descartados: gastos.filter((g) => !g.pagoId && g.descartado),
-    acciones: accionesBoda,
-    desactualizada:
-      !!conexion && (!conexion.ultimaSyncEl || Date.now() - conexion.ultimaSyncEl.getTime() > UNA_HORA_MS),
-  };
-}
 
 export async function sincronizarAhora(): Promise<ResultadoSync> {
   const { bodaId } = await bodaActiva();

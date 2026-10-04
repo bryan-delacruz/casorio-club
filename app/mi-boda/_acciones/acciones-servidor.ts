@@ -1,12 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, asc, eq, inArray, isNotNull, sql } from "drizzle-orm";
-import { auth, clerkClient } from "@clerk/nextjs/server";
+import { and, eq, inArray, sql } from "drizzle-orm";
+import { auth } from "@clerk/nextjs/server";
 import { getDb } from "@/db";
-import { acciones, bodas, dependencias, gastosBernie, metas, pagos, type Pago } from "@/db/schema";
+import { acciones, bodas, dependencias, metas, pagos } from "@/db/schema";
 import { momentoDe, planPlantilla, REGISTRO_CIVIL } from "@/lib/metas";
-import { integracionDisponible } from "@/lib/bernie/config";
 
 /**
  * Toda consulta y escritura se ata a la boda activa que Clerk reporta en la
@@ -23,14 +22,6 @@ async function bodaActiva() {
 export type Momento = "idea" | "antes" | "el_dia" | "despues";
 export type Estado = "por_hacer" | "haciendo" | "hecho";
 
-/** La fecha de la boda, si ya la decidieron. */
-export async function obtenerBoda() {
-  const { orgId } = await auth();
-  if (!orgId) return null;
-  const [fila] = await getDb().select().from(bodas).where(eq(bodas.id, orgId));
-  return fila ?? null;
-}
-
 export async function guardarFechaBoda(fecha: string | null) {
   const { bodaId } = await bodaActiva();
   await getDb()
@@ -41,15 +32,6 @@ export async function guardarFechaBoda(fecha: string | null) {
       set: { fecha, actualizadaEl: new Date() },
     });
   revalidatePath("/mi-boda");
-}
-
-export async function listarDependencias() {
-  const { orgId } = await auth();
-  if (!orgId) return [];
-  return getDb()
-    .select()
-    .from(dependencias)
-    .where(eq(dependencias.bodaId, orgId));
 }
 
 /**
@@ -112,76 +94,6 @@ export async function guardarDependencias(accionId: string, requiere: string[]) 
   }
 
   revalidatePath("/mi-boda");
-}
-
-/**
- * Las lecturas toleran no tener sesión y devuelven vacío; las escrituras no.
- *
- * Next renderiza el layout y la página en paralelo, así que esta consulta
- * puede ejecutarse antes de que `auth.protect()` del layout redirija. Lanzar
- * ahí producía un 500 en una petición que de todos modos se descarta. Una
- * escritura, en cambio, nunca debe pasar sin sesión.
- */
-export async function listarAcciones() {
-  const { orgId } = await auth();
-  if (!orgId) return [];
-  const bodaId = orgId;
-  return getDb()
-    .select()
-    .from(acciones)
-    .where(eq(acciones.bodaId, bodaId))
-    .orderBy(asc(acciones.momento), asc(acciones.orden), asc(acciones.creadaEl));
-}
-
-/** La gente de esta boda, para elegir responsable. */
-export async function listarMiembros() {
-  const { orgId } = await auth();
-  if (!orgId) return [];
-  const bodaId = orgId;
-  const clerk = await clerkClient();
-  const { data } = await clerk.organizations.getOrganizationMembershipList({
-    organizationId: bodaId,
-    limit: 20,
-  });
-  return data.map((m) => {
-    const u = m.publicUserData;
-    const propio = [u?.firstName, u?.lastName].filter(Boolean).join(" ");
-    // Sin nombre puesto, Clerk devuelve el correo. Mostrarlo entero desborda
-    // la tarjeta, así que se usa la parte de antes de la arroba.
-    const deCorreo = u?.identifier?.includes("@")
-      ? u.identifier.split("@")[0].replace(/[._-]+/g, " ")
-      : u?.identifier;
-    return {
-      id: u?.userId ?? "",
-      nombre: propio || deCorreo || "Alguien",
-      imagen: u?.imageUrl ?? null,
-    };
-  });
-}
-
-/** Todos los pagos de la boda. La página los reparte por acción. */
-export async function listarPagos(): Promise<Pago[]> {
-  const { orgId } = await auth();
-  if (!orgId) return [];
-  // Pagos que vinieron de Bernie, para el badge, en paralelo con los pagos. Si
-  // las tablas de la integración aún no existen, simplemente no hay badge.
-  const [filas, deBernie] = await Promise.all([
-    getDb()
-      .select()
-      .from(pagos)
-      .where(eq(pagos.bodaId, orgId))
-      .orderBy(asc(pagos.fecha), asc(pagos.creadoEl)),
-    integracionDisponible()
-      ? getDb()
-          .select({ pagoId: gastosBernie.pagoId })
-          .from(gastosBernie)
-          .where(and(eq(gastosBernie.bodaId, orgId), isNotNull(gastosBernie.pagoId)))
-          .then((r) => new Set(r.map((x) => x.pagoId)))
-          .catch(() => new Set<string | null>())
-      : null,
-  ]);
-  if (!deBernie) return filas;
-  return filas.map((p) => ({ ...p, deBernie: deBernie.has(p.id) }));
 }
 
 /**
@@ -356,16 +268,6 @@ async function exigirMetaDeLaBoda(bodaId: string, metaId: string | null) {
     .from(metas)
     .where(and(eq(metas.id, metaId), eq(metas.bodaId, bodaId)));
   if (!meta) throw new Error("Esa meta no es de esta boda");
-}
-
-export async function listarMetas() {
-  const { orgId } = await auth();
-  if (!orgId) return [];
-  return getDb()
-    .select()
-    .from(metas)
-    .where(eq(metas.bodaId, orgId))
-    .orderBy(asc(metas.orden), asc(metas.creadaEl));
 }
 
 const MAX_TITULO_META = 60;
