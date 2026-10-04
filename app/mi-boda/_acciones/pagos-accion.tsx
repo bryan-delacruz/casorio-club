@@ -126,6 +126,11 @@ export function PagosAccion({
                       · {nombre(p.pagadoPorId)}
                     </span>
                   )}
+                  {p.origen === "bernie" && (
+                    <span className="bg-secondary text-secondary-foreground ml-2 rounded-full px-2 py-0.5 text-xs">
+                      de Bernie
+                    </span>
+                  )}
                 </span>
                 <span className="tabular-nums">{soles(Number(p.monto))}</span>
                 <button

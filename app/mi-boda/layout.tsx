@@ -4,6 +4,10 @@ import { OrganizationSwitcher, UserButton } from "@clerk/nextjs";
 import { Wordmark } from "@/components/wordmark";
 import { Button } from "@/components/ui/button";
 import { DEMO } from "@/lib/demo";
+import { and, count, eq, isNull } from "drizzle-orm";
+import { getDb } from "@/db";
+import { gastosBernie } from "@/db/schema";
+import { integracionDisponible } from "@/lib/bernie/config";
 
 /**
  * Puerta de la zona privada. Al vivir en el layout, protege esta ruta y todo
@@ -15,6 +19,11 @@ export default async function MiBodaLayout({
   children: React.ReactNode;
 }) {
   const { orgId } = await auth.protect();
+
+  // La bandeja de Bernie se ofrece solo si la integración está configurada y
+  // no es la boda demo (docs/integracion-bernie.md §9).
+  const conBernie = !!orgId && orgId !== DEMO.orgId && integracionDisponible();
+  const porAsignar = conBernie ? await contarPorAsignar(orgId) : 0;
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -37,6 +46,18 @@ export default async function MiBodaLayout({
         />
 
         <div className="ml-auto flex items-center gap-2">
+          {conBernie && (
+            <Button variant="ghost" size="lg" asChild>
+              <Link href="/mi-boda/bernie">
+                Gastos de Bernie
+                {porAsignar > 0 && (
+                  <span className="bg-primary text-primary-foreground ml-1.5 rounded-full px-1.5 text-xs tabular-nums">
+                    {porAsignar}
+                  </span>
+                )}
+              </Link>
+            </Button>
+          )}
           <Button variant="ghost" size="lg" asChild>
             <Link href="/mi-boda/equipo">Quién está</Link>
           </Button>
@@ -47,4 +68,17 @@ export default async function MiBodaLayout({
       {children}
     </div>
   );
+}
+
+async function contarPorAsignar(bodaId: string) {
+  // Sin la tabla todavía (migración pendiente) la cabecera no debe romperse.
+  try {
+    const [fila] = await getDb()
+      .select({ n: count() })
+      .from(gastosBernie)
+      .where(and(eq(gastosBernie.bodaId, bodaId), isNull(gastosBernie.pagoId), eq(gastosBernie.descartado, false)));
+    return fila?.n ?? 0;
+  } catch {
+    return 0;
+  }
 }

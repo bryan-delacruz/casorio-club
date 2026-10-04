@@ -1,7 +1,7 @@
 # Integración con Bernie Wallet
 
 > **Spec (SDD).** Este documento manda sobre el código de la integración: si algo
-> cambia, primero se actualiza aquí. **Estado: propuesta, pendiente de aprobación.**
+> cambia, primero se actualiza aquí. **Estado: aprobada e implementada.**
 > Contrato del lado proveedor: `SPEC.md` §15 y `docs/api/openapi.json` en el repo
 > de Bernie Wallet. Diseñada lista para producción.
 
@@ -23,7 +23,7 @@ Solo lectura: Casorio nunca modifica nada en Bernie.
 | Sincronización | Cursor incremental (`added/modified/removed`) | Upserts idempotentes; maneja `cursor_reset` |
 | Webhooks | Standard Webhooks | Verifica firma y timestamp, deduplica por `webhook-id` |
 | Errores | RFC 9457 | Lee `code` del Problem Details; respeta `Retry-After` en `429` |
-| Contrato | OpenAPI 3.1 de Bernie | Esquema Zod validado contra los ejemplos del OpenAPI (test de contrato) |
+| Contrato | OpenAPI 3.1 de Bernie | Validador propio (`lib/bernie/contrato.ts`, sin dependencias) probado contra los ejemplos del OpenAPI (test de contrato) |
 
 ## 3. Cómo encaja con el modelo
 
@@ -45,6 +45,7 @@ el usuario los asigna, crea una acción con ellos o los descarta.
 - `refresh_token` text — cifrado AES-256-GCM (`node:crypto`), nunca en claro
 - `cursor` text null — último `nextCursor` de Bernie
 - `estado` enum `activa | revocada | error`
+- `sincronizando_hasta` timestamptz null — lease: una sola sync por boda a la vez (webhook, botón y bandeja pueden coincidir)
 - `ultima_sync_el`, `ultimo_error` text null, `creada_el`
 
 `gastos_bernie` — la bandeja.
@@ -123,7 +124,7 @@ que revise Apps conectadas en Bernie.
 
 ## 8. UI
 
-- **Bandeja "Por asignar"** en `mi-boda`: fecha, comercio, monto, subcategoría.
+- **Página `/mi-boda/bernie`** (enlace "Gastos de Bernie" con contador en la cabecera; oculto en la demo o sin configurar). **Bandeja "Por asignar"**: fecha, comercio, monto, subcategoría.
   Acciones: **Asignar a acción** (combobox; preselecciona la acción cuyo título
   coincida con la subcategoría, sin distinguir mayúsculas ni tildes), **Crear
   acción**, **Descartar**. Contador en la navegación.
@@ -144,7 +145,7 @@ que revise Apps conectadas en Bernie.
 
 ## 10. Pruebas
 
-- **Contrato:** esquema Zod de la respuesta de `sync` validado contra los ejemplos
+- **Contrato:** `validarPagina` validado contra los ejemplos
   del `openapi.json` de Bernie (copiados como fixtures, con su versión).
 - Verificación de webhooks contra los vectores de prueba de Standard Webhooks.
 - Aplicar cambios: `added/modified/removed`, asignados vs. sin asignar, `cursor_reset`.
@@ -174,3 +175,20 @@ que revise Apps conectadas en Bernie.
 7. **Casorio — sync:** `sincronizarBernie`, bandeja, ajustes.
 8. **Casorio — webhooks:** Bernie y Clerk.
 9. **Prueba de punta a punta** en local y producción.
+
+## 13. Pruebas automáticas
+
+`pnpm test` (node:test, sin dependencias): cifrado, PKCE (vector del RFC 7636),
+firma de webhooks (vector oficial de Standard Webhooks), contrato contra los
+ejemplos del OpenAPI de Bernie (`lib/bernie/fixtures/contrato-v1.json`) y el plan
+de cambios (`added/modified/removed`, asignados vs. sin asignar, fecha en Lima).
+
+## 14. Puesta en marcha
+
+1. Variables de §11 en Vercel y `.env.local`.
+2. Esquema: `pnpm dlx dotenv-cli -e .env.local -- pnpm drizzle-kit push` (tablas
+   `conexiones_bernie`, `gastos_bernie`, `webhooks_recibidos` y columna `pagos.origen`).
+3. Clerk → Webhooks: endpoint `https://casorio-club.vercel.app/api/webhooks/clerk` con
+   `organizationMembership.deleted` y `organization.deleted`; su signing secret en
+   `CLERK_WEBHOOK_SIGNING_SECRET`.
+4. En Bernie: SPEC §15.9.
