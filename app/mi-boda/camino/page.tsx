@@ -6,7 +6,7 @@ import {
   listarMetas,
   listarMiembros,
   obtenerBoda,
-} from "../_acciones/acciones-servidor";
+} from "../_acciones/datos";
 import { Vistas } from "../_acciones/vistas";
 
 export const metadata: Metadata = { title: "El camino" };

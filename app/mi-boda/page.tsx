@@ -10,7 +10,7 @@ import {
   listarMetas,
   listarMiembros,
   listarPagos,
-} from "./_acciones/acciones-servidor";
+} from "./_acciones/datos";
 
 export const metadata: Metadata = { title: "Mi boda" };
 
