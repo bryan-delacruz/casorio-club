@@ -25,7 +25,7 @@ export default async function BerniePage({
   }
 
   return (
-    <main className="mx-auto w-full max-w-3xl flex-1 px-5 py-14 sm:px-10">
+    <main className="mx-auto w-full max-w-3xl flex-1 px-5 py-10 sm:px-10 sm:py-14">
       <h1 className="font-display text-foreground text-[2rem] leading-tight">Gastos de Bernie</h1>
       <p className="text-muted-foreground mt-2 mb-8 max-w-[60ch] leading-6">
         Lo que ya pagaron y registraron en Bernie Wallet llega aquí. Asigna cada gasto a su

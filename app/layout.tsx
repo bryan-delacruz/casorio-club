@@ -92,8 +92,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             // 1. El tema usa --input (color de borde en shadcn) como relleno
             //    del campo, así que se le pasa el token propio --field.
             // 2. La flecha del botón no aporta nada: el texto ya dice qué pasa.
+            // 3. El ícono genérico de la boda (un edificio violeta) es lo
+            //    único fuera de paleta en la cabecera: el nombre basta.
             variables: { colorInput: "var(--field)" },
-            elements: { buttonArrowIcon: "hidden" },
+            elements: { buttonArrowIcon: "hidden", organizationPreviewAvatarContainer: { display: "none" } },
           }}
         >
           {children}
