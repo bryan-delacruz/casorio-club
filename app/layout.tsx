@@ -57,6 +57,8 @@ export const metadata: Metadata = {
 
 // Color de la barra del sistema, igual al fondo de cada tema.
 export const viewport: Viewport = {
+  // Deja que la barra de abajo use env(safe-area-inset-bottom) en el iPhone.
+  viewportFit: "cover",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#e7e5db" },
     { media: "(prefers-color-scheme: dark)", color: "#191a1e" },
@@ -95,7 +97,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           }}
         >
           {children}
-          <Toaster position="bottom-center" />
+          <Toaster position="bottom-center" mobileOffset={{ bottom: "calc(5rem + env(safe-area-inset-bottom))" }} />
         </ClerkProvider>
       </body>
     </html>
