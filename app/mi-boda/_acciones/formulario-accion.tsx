@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, type Dispatch, type SetStateAction } from "react";
+import { useState, useTransition, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import type { Accion } from "@/db/schema";
@@ -315,11 +315,14 @@ export function NuevaAccion({
   miembros,
   metas = [],
   etiqueta,
+  disparador,
 }: {
   momento: Momento;
   miembros: Miembro[];
   metas?: MetaLite[];
   etiqueta: string;
+  /** El botón que abre el formulario. Por defecto, "Añadir" al pie del carril. */
+  disparador?: ReactNode;
 }) {
   const [abierto, setAbierto] = useState(false);
   const [cuestaTiempo, setCuestaTiempo] = useState(false);
@@ -353,13 +356,15 @@ export function NuevaAccion({
   return (
     <Dialog open={abierto} onOpenChange={setAbierto}>
       <DialogTrigger asChild>
-        <Button
-          variant="ghost"
-          size="lg"
-          className="text-muted-foreground hover:text-foreground w-full justify-start"
-        >
-          <Plus className="size-4" /> Añadir
-        </Button>
+        {disparador ?? (
+          <Button
+            variant="ghost"
+            size="lg"
+            className="text-muted-foreground hover:text-foreground w-full justify-start"
+          >
+            <Plus className="size-4" /> Añadir
+          </Button>
+        )}
       </DialogTrigger>
 
       <DialogContent className={DIALOGO}>

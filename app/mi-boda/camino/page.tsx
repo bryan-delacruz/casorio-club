@@ -8,6 +8,7 @@ import {
   obtenerBoda,
 } from "../_acciones/datos";
 import { Vistas } from "../_acciones/vistas";
+import { BotonAnotar } from "../_acciones/boton-anotar";
 
 export const metadata: Metadata = { title: "El camino" };
 
@@ -29,6 +30,7 @@ export default async function CaminoPage({
   const agrupar: Agrupar =
     por === "momento" || por === "meta" ? por : metas.length > 0 ? "meta" : "momento";
 
+  const metasLite = metas.map((m) => ({ id: m.id, titulo: m.titulo }));
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-5 py-10 sm:px-10">
       <div className="mb-8 max-sm:hidden">
@@ -40,10 +42,11 @@ export default async function CaminoPage({
           miembros={miembros}
           dependencias={dependencias}
           fechaBoda={boda?.fecha ?? null}
-          metas={metas.map((m) => ({ id: m.id, titulo: m.titulo }))}
+          metas={metasLite}
           agrupar={agrupar}
         />
       </div>
+      <BotonAnotar miembros={miembros} metas={metasLite} />
     </main>
   );
 }

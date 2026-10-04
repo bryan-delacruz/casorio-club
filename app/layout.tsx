@@ -99,7 +99,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           }}
         >
           {children}
-          <Toaster position="bottom-center" mobileOffset={{ bottom: "calc(5rem + env(safe-area-inset-bottom))" }} />
+          <Toaster position="bottom-center" mobileOffset={{ bottom: "calc(8.5rem + env(safe-area-inset-bottom))" }} />
         </ClerkProvider>
       </body>
     </html>

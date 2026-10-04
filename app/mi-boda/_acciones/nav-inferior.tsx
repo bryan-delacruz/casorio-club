@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { CalendarRange, LayoutGrid, ReceiptText, Users, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { RUTAS, sinHash } from "./rutas";
 
 type Destino = { href: string; nombre: string; Icono: LucideIcon; aviso?: number };
 
@@ -14,11 +15,10 @@ type Destino = { href: string; nombre: string; Icono: LucideIcon; aviso?: number
 export function NavInferior({ conBernie, porAsignar }: { conBernie: boolean; porAsignar: number }) {
   const donde = usePathname();
   const destinos: Destino[] = [
-    { href: "/mi-boda", nombre: "Mapa", Icono: LayoutGrid },
-    { href: "/mi-boda/camino", nombre: "Camino", Icono: CalendarRange },
-    ...(conBernie ? [{ href: "/mi-boda/bernie", nombre: "Gastos", Icono: ReceiptText, aviso: porAsignar }] : []),
-    // Clerk abre en "General"; quien toca "Quién está" quiere ver e invitar gente.
-    { href: "/mi-boda/equipo#/organization-members", nombre: "Quién está", Icono: Users },
+    { href: RUTAS.mapa, nombre: "Mapa", Icono: LayoutGrid },
+    { href: RUTAS.camino, nombre: "Camino", Icono: CalendarRange },
+    ...(conBernie ? [{ href: RUTAS.gastos, nombre: "Gastos", Icono: ReceiptText, aviso: porAsignar }] : []),
+    { href: RUTAS.equipo, nombre: "Quién está", Icono: Users },
   ];
 
   return (
@@ -28,7 +28,7 @@ export function NavInferior({ conBernie, porAsignar }: { conBernie: boolean; por
     >
       <ul className="flex">
         {destinos.map(({ href, nombre, Icono, aviso }) => {
-          const activo = donde === href.split("#")[0];
+          const activo = donde === sinHash(href);
           return (
             <li key={href} className="flex-1">
               <Link
