@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Fraunces, Instrument_Sans } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import { shadcn } from "@clerk/ui/themes";
@@ -46,6 +46,21 @@ export const metadata: Metadata = {
     title: OG_TITLE,
     description: OG_DESCRIPTION,
   },
+  // iOS no lee el manifest para esto: sin appleWebApp, "Agregar a pantalla de
+  // inicio" abre una pestaña de Safari en vez de una app a pantalla completa.
+  appleWebApp: {
+    capable: true,
+    title: "Casorio",
+    statusBarStyle: "default",
+  },
+};
+
+// Color de la barra del sistema, igual al fondo de cada tema.
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#e7e5db" },
+    { media: "(prefers-color-scheme: dark)", color: "#191a1e" },
+  ],
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
