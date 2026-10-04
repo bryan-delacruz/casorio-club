@@ -3,6 +3,7 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { OrganizationSwitcher } from "@clerk/nextjs";
 import { MenuPersona } from "@/components/menu-persona";
 import { personaDe } from "@/lib/persona";
+import { NavInferior } from "./_acciones/nav-inferior";
 import { Wordmark } from "@/components/wordmark";
 import { Button } from "@/components/ui/button";
 import { DEMO } from "@/lib/demo";
@@ -32,7 +33,7 @@ export default async function MiBodaLayout({
   const correo = yo?.primaryEmailAddress?.emailAddress;
 
   return (
-    <div className="flex min-h-dvh flex-col">
+    <div className="flex min-h-dvh flex-col max-sm:pb-[calc(4rem+env(safe-area-inset-bottom))]">
       {orgId === DEMO.orgId && (
         <p className="bg-secondary text-secondary-foreground px-5 py-2 text-center text-sm">
           Estás en una boda de ejemplo. Puedes cambiar lo que quieras: se
@@ -52,8 +53,9 @@ export default async function MiBodaLayout({
         />
 
         <div className="ml-auto flex items-center gap-2">
+          {/* En el celular estos dos viven en la barra de abajo. */}
           {conBernie && (
-            <Button variant="ghost" size="lg" asChild>
+            <Button variant="ghost" size="lg" className="max-sm:hidden" asChild>
               <Link href="/mi-boda/bernie">
                 Gastos de Bernie
                 {porAsignar > 0 && (
@@ -64,7 +66,7 @@ export default async function MiBodaLayout({
               </Link>
             </Button>
           )}
-          <Button variant="ghost" size="lg" asChild>
+          <Button variant="ghost" size="lg" className="max-sm:hidden" asChild>
             <Link href="/mi-boda/equipo">Quién está</Link>
           </Button>
           {yo && (
@@ -84,6 +86,8 @@ export default async function MiBodaLayout({
       </header>
 
       {children}
+
+      <NavInferior conBernie={conBernie} porAsignar={porAsignar} />
     </div>
   );
 }

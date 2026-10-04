@@ -8,11 +8,11 @@ const VISTAS = [
   { href: "/mi-boda/camino", nombre: "Camino" },
 ];
 
-/** Las dos maneras de mirar lo mismo: por momento, o por calendario. */
+/** Las dos maneras de mirar lo mismo: por momento, o por calendario. En el celular las lleva la barra de abajo. */
 export function Vistas() {
   const donde = usePathname();
   return (
-    <nav className="border-border inline-flex rounded-md border p-0.5">
+    <nav className="border-border hidden rounded-md border p-0.5 sm:inline-flex">
       {VISTAS.map((v) => {
         const activa = donde === v.href;
         return (
