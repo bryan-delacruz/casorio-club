@@ -1,0 +1,40 @@
+{
+  "_fuente": "bernie-wallet docs/api/openapi.json — ejemplos de GET /api/v1/shared-expenses/sync",
+  "version": "1.0.0",
+  "ejemplos": {
+    "initial": {
+      "added": [
+        {
+          "id": "3f6c1a52-8a0e-4b1f-9d6a-2b7f0c9e4d11",
+          "occurredAt": "2026-09-12T15:04:05.000Z",
+          "amount": "800.00",
+          "currency": "PEN",
+          "merchant": "Estudio Foto Lima",
+          "subcategory": "Fotógrafo"
+        }
+      ],
+      "modified": [],
+      "removed": [],
+      "nextCursor": "eyJ2IjoxLCJ0cyI6IjIwMjYtMDktMTJUMTU6MDQ6MDUuMDAwWiIsImlkIjoiM2Y2YzFhNTItOGEwZS00YjFmLTlkNmEtMmI3ZjBjOWU0ZDExIiwic3YiOjEsImZpbmFsIjp0cnVlfQ",
+      "hasMore": false
+    },
+    "incremental": {
+      "added": [],
+      "modified": [
+        {
+          "id": "3f6c1a52-8a0e-4b1f-9d6a-2b7f0c9e4d11",
+          "occurredAt": "2026-09-12T15:04:05.000Z",
+          "amount": "850.00",
+          "currency": "PEN",
+          "merchant": "Estudio Foto Lima",
+          "subcategory": "Fotógrafo"
+        }
+      ],
+      "removed": [
+        "9b2d7e40-1c3a-4f5e-8a6b-0d1e2f3a4b5c"
+      ],
+      "nextCursor": "eyJ2IjoxLCJ0cyI6IjIwMjYtMDktMjBUMTA6MDA6MDAuMDAwWiIsImlkIjoiOWIyZDdlNDAtMWMzYS00ZjVlLThhNmItMGQxZTJmM2E0YjVjIiwic3YiOjEsImZpbmFsIjp0cnVlfQ",
+      "hasMore": false
+    }
+  }
+}

@@ -9,6 +9,7 @@ import {
   primaryKey,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 
@@ -163,7 +164,12 @@ export const pagos = pgTable(
   (t) => [index("pagos_boda_accion_idx").on(t.bodaId, t.accionId)],
 );
 
-export type Pago = typeof pagos.$inferSelect;
+/**
+ * `deBernie` no es columna: se deriva de gastos_bernie (un pago asignado desde
+ * Bernie tiene un gasto que lo apunta). Así `pagos` no cambia y la app se puede
+ * desplegar antes de crear las tablas de la integración.
+ */
+export type Pago = typeof pagos.$inferSelect & { deBernie?: boolean };
 
 /**
  * Qué tiene que estar listo antes de qué.
@@ -190,3 +196,94 @@ export const dependencias = pgTable(
 );
 
 export type Dependencia = typeof dependencias.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// Integración con Bernie Wallet (docs/integracion-bernie.md)
+// ---------------------------------------------------------------------------
+
+export const estadoConexion = pgEnum("estado_conexion", ["activa", "revocada", "error"]);
+
+/**
+ * La conexión de una boda con la cuenta de Bernie de quien la autorizó.
+ * Una por boda: los gastos que entran los ven todos sus miembros.
+ */
+export const conexionesBernie = pgTable(
+  "conexiones_bernie",
+  {
+    /** orgId de Clerk. */
+    bodaId: text("boda_id").primaryKey(),
+
+    /** userId de Clerk de quien conectó. Si sale de la boda, se desconecta. */
+    conectadaPorId: text("conectada_por_id").notNull(),
+
+    /** `sub` del token de Bernie: así un webhook encuentra su boda. */
+    bernieUserId: uuid("bernie_user_id").notNull(),
+
+    /** Cifrado AES-256-GCM. Nunca en claro: con él se leen gastos ajenos. */
+    refreshToken: text("refresh_token").notNull(),
+
+    /** Último nextCursor de Bernie. Null = la próxima sync empieza de cero. */
+    cursor: text("cursor"),
+
+    estado: estadoConexion("estado").notNull().default("activa"),
+
+    /**
+     * Lease de la sync en curso. Dos syncs a la vez (webhook + botón) gastarían
+     * el mismo refresh token, y Bernie lo rota: una de las dos lo perdería.
+     */
+    sincronizandoHasta: timestamp("sincronizando_hasta", { withTimezone: true }),
+
+    ultimaSyncEl: timestamp("ultima_sync_el", { withTimezone: true }),
+    ultimoError: text("ultimo_error"),
+
+    creadaEl: timestamp("creada_el", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("conexiones_bernie_usuario_idx").on(t.bernieUserId)],
+);
+
+export type ConexionBernie = typeof conexionesBernie.$inferSelect;
+
+/**
+ * La bandeja "Por asignar": gastos que llegaron de Bernie.
+ *
+ * No se convierten solos en pagos porque un gasto del banco no sabe a qué
+ * acción pertenece. Asignarlo crea el pago y lo enlaza aquí; borrar ese pago
+ * lo devuelve a la bandeja (on delete set null).
+ */
+export const gastosBernie = pgTable(
+  "gastos_bernie",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    bodaId: text("boda_id").notNull(),
+
+    /** id del gasto en Bernie. Único por boda: sincronizar dos veces no duplica. */
+    externoId: uuid("externo_id").notNull(),
+
+    fecha: date("fecha").notNull(),
+    monto: numeric("monto", { precision: 12, scale: 2 }).notNull(),
+    moneda: text("moneda").notNull(),
+    comercio: text("comercio").notNull(),
+    subcategoria: text("subcategoria"),
+
+    pagoId: uuid("pago_id").references(() => pagos.id, { onDelete: "set null" }),
+
+    descartado: boolean("descartado").notNull().default(false),
+
+    /** Ya no está en Bernie (borrado o des-compartido) pero se había asignado. */
+    fueraDeBernie: boolean("fuera_de_bernie").notNull().default(false),
+
+    actualizadoEl: timestamp("actualizado_el", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("gastos_bernie_boda_externo_idx").on(t.bodaId, t.externoId),
+    index("gastos_bernie_boda_pago_idx").on(t.bodaId, t.pagoId),
+  ],
+);
+
+export type GastoBernie = typeof gastosBernie.$inferSelect;
+
+/** Idempotencia de webhooks: el mismo webhook-id dos veces se procesa una. */
+export const webhooksRecibidos = pgTable("webhooks_recibidos", {
+  webhookId: text("webhook_id").primaryKey(),
+  recibidoEl: timestamp("recibido_el", { withTimezone: true }).notNull().defaultNow(),
+});
