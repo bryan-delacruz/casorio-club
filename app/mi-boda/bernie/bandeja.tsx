@@ -146,7 +146,7 @@ export function Bandeja({
           <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <h2 className="font-medium">Bernie Wallet</h2>
+                <h2 className="font-medium whitespace-nowrap">Bernie Wallet</h2>
                 {conexion.estado === "activa" && <Badge variant="secondary">Conectada</Badge>}
                 {conexion.estado === "error" && <Badge variant="destructive">Con problemas</Badge>}
                 {conexion.estado === "revocada" && <Badge variant="destructive">Sin acceso</Badge>}

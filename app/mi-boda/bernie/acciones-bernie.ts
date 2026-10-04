@@ -112,12 +112,13 @@ async function asignar(bodaId: string, gastoId: string, accionId: string) {
   const resultado = await db.execute(sql`
     with g as (
       update ${gastosBernie}
-      set pago_id = ${pagoId}, actualizado_el = now()
-      where id = ${gastoId} and boda_id = ${bodaId} and pago_id is null and not descartado
+      set pago_id = ${pagoId}::uuid, actualizado_el = now()
+      where id = ${gastoId}::uuid and boda_id = ${bodaId}::text and pago_id is null and not descartado
       returning monto, fecha, comercio
     )
     insert into ${pagos} (id, boda_id, accion_id, monto, pagado_por_id, fecha, nota, origen)
-    select ${pagoId}, ${bodaId}, ${accionId}, g.monto, ${conexion?.conectadaPorId ?? null}, g.fecha, g.comercio, 'bernie'
+    select ${pagoId}::uuid, ${bodaId}::text, ${accionId}::uuid, g.monto, ${conexion?.conectadaPorId ?? null}::text,
+           g.fecha, g.comercio, 'bernie'::origen_pago
     from g
     returning id
   `);
