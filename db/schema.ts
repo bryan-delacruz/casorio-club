@@ -68,6 +68,27 @@ export const estado = pgEnum("estado", ["por_hacer", "haciendo", "hecho"]);
  *   monto != null         → 💰
  * Puede ser una, las dos, o ninguna.
  */
+/**
+ * Una meta: algo que la pareja quiere lograr y que pide varias acciones
+ * encadenadas ("Registro civil"). Equivale a un entregable del PMBOK o a una
+ * épica en Scrum (docs/metas.md). Avance, rango y monto se derivan de sus
+ * acciones; aquí solo vive el nombre y el orden.
+ */
+export const metas = pgTable(
+  "metas",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** orgId de Clerk. */
+    bodaId: text("boda_id").notNull(),
+    titulo: text("titulo").notNull(),
+    orden: integer("orden").notNull().default(0),
+    creadaEl: timestamp("creada_el", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("metas_boda_orden_idx").on(t.bodaId, t.orden)],
+);
+
+export type Meta = typeof metas.$inferSelect;
+
 export const acciones = pgTable(
   "acciones",
   {
@@ -105,6 +126,15 @@ export const acciones = pgTable(
 
     /** Posición dentro de su carril, para ordenar a mano. */
     orden: integer("orden").notNull().default(0),
+
+    /**
+     * A qué meta pertenece, una o ninguna: así el total de una meta nunca
+     * cuenta dos veces el mismo gasto. Borrar la meta deja la acción suelta.
+     */
+    metaId: uuid("meta_id").references(() => metas.id, { onDelete: "set null" }),
+
+    /** Un momento y no un periodo (la ceremonia): en el Gantt es un rombo. */
+    esHito: boolean("es_hito").notNull().default(false),
 
     creadaEl: timestamp("creada_el", { withTimezone: true })
       .notNull()

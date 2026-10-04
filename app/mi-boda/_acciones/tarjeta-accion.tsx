@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Check, Clock, Coins, MoreHorizontal, Pencil, Trash2, Wallet } from "lucide-react";
+import { Check, Clock, Coins, Diamond, MoreHorizontal, Pencil, Trash2, Wallet } from "lucide-react";
 import type { Estado } from "./acciones-servidor";
 import type { Accion, Pago } from "@/db/schema";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -24,6 +24,7 @@ import {
   ESTADOS,
   siguienteEstado,
   soles,
+  type MetaLite,
   type Miembro,
 } from "./tipos";
 
@@ -43,6 +44,7 @@ export function TarjetaAccion({
   miembros = [],
   pagos = [],
   otras = [],
+  metas = [],
   requiere,
   titulos,
   onAlternar,
@@ -55,6 +57,7 @@ export function TarjetaAccion({
   miembros?: Miembro[];
   pagos?: Pago[];
   otras?: Accion[];
+  metas?: MetaLite[];
   requiere?: Set<string>;
   titulos?: Map<string, string>;
   onAlternar?: (id: string, estado: Estado) => void;
@@ -73,6 +76,7 @@ export function TarjetaAccion({
   const conMonto = accion.monto !== null;
   const otros = DESTINOS.filter((d) => d.id !== accion.momento);
   const conMenu = arrastrable && (onMover || onBorrar);
+  const meta = accion.metaId ? metas.find((m) => m.id === accion.metaId) : undefined;
 
   return (
     <div
@@ -167,8 +171,18 @@ export function TarjetaAccion({
         )}
       </div>
 
-      {(accion.cuestaTiempo || conMonto || miembro) && (
+      {(accion.cuestaTiempo || conMonto || miembro || meta || accion.esHito) && (
         <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 pl-6">
+          {meta && (
+            <span className="bg-secondary text-secondary-foreground max-w-full truncate rounded-full px-2 py-0.5 text-xs">
+              {meta.titulo}
+            </span>
+          )}
+          {accion.esHito && (
+            <span className="text-muted-foreground flex items-center gap-1 text-xs">
+              <Diamond className="size-3.5" /> hito
+            </span>
+          )}
           {accion.cuestaTiempo && (
             <span className="text-muted-foreground flex items-center gap-1 text-xs">
               <Clock className="size-3.5" /> tiempo
@@ -229,6 +243,7 @@ export function TarjetaAccion({
         <EditarAccion
           accion={accion}
           miembros={miembros}
+          metas={metas}
           otras={otras}
           requiere={requiere ?? new Set()}
           abierto={editando}

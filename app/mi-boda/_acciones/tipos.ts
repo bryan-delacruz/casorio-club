@@ -53,3 +53,6 @@ export function siguienteEstado(actual: Estado): Estado {
   const i = ESTADOS.findIndex((e) => e.id === actual);
   return ESTADOS[(i + 1) % ESTADOS.length].id;
 }
+
+/** Lo mínimo de una meta que necesitan el formulario y las tarjetas. */
+export type MetaLite = { id: string; titulo: string };
