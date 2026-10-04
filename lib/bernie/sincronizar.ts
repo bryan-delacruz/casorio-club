@@ -177,7 +177,10 @@ export async function sincronizarBernie(bodaId: string): Promise<ResultadoSync> 
     const accessToken = await accessTokenDe(conexion);
     let cursor = conexion.cursor;
     let nuevos = 0;
-    let reinicio: Set<string> | null = null;
+    // Sin cursor (primera sync o reconexión, quizá con otra cuenta de Bernie)
+    // la respuesta es la lista completa: lo que haya en la bandeja y no venga ya
+    // no se comparte. Se limpia igual que tras un cursor_reset.
+    let reinicio: Set<string> | null = cursor === null ? new Set() : null;
 
     for (let i = 0; i < MAX_PAGINAS; i++) {
       let pagina;
@@ -185,7 +188,7 @@ export async function sincronizarBernie(bodaId: string): Promise<ResultadoSync> 
         pagina = await pedirCambios(accessToken, cursor);
       } catch (error) {
         // El cursor ya no sirve (cambiaron las categorías compartidas): de cero, una vez.
-        if (error instanceof ErrorBernie && error.codigo === "cursor_reset" && !reinicio) {
+        if (error instanceof ErrorBernie && error.codigo === "cursor_reset" && cursor !== null) {
           cursor = null;
           reinicio = new Set();
           continue;
@@ -219,7 +222,7 @@ export async function sincronizarBernie(bodaId: string): Promise<ResultadoSync> 
     const mensaje =
       error instanceof ErrorBernie && error.codigo === "rate_limited"
         ? "Bernie pidió esperar un poco. Se reintentará en la próxima sincronización."
-        : error instanceof ErrorBernie && error.codigo === "red"
+        : error instanceof ErrorBernie && (error.codigo === "red" || error.codigo === "unavailable")
           ? "No se pudo contactar a Bernie."
           : "No se pudo sincronizar con Bernie.";
     console.error(JSON.stringify({ event: "bernie_sync_error", bodaId, error: error instanceof Error ? error.message : String(error) }));

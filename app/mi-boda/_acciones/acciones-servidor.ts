@@ -162,21 +162,24 @@ export async function listarMiembros() {
 export async function listarPagos(): Promise<Pago[]> {
   const { orgId } = await auth();
   if (!orgId) return [];
-  const filas = await getDb()
-    .select()
-    .from(pagos)
-    .where(eq(pagos.bodaId, orgId))
-    .orderBy(asc(pagos.fecha), asc(pagos.creadoEl));
-  if (!integracionDisponible()) return filas;
-
-  // Pagos que vinieron de Bernie, para el badge. Si las tablas de la
-  // integración aún no existen, simplemente no hay badge.
-  const deBernie = await getDb()
-    .select({ pagoId: gastosBernie.pagoId })
-    .from(gastosBernie)
-    .where(and(eq(gastosBernie.bodaId, orgId), isNotNull(gastosBernie.pagoId)))
-    .then((r) => new Set(r.map((x) => x.pagoId)))
-    .catch(() => new Set<string | null>());
+  // Pagos que vinieron de Bernie, para el badge, en paralelo con los pagos. Si
+  // las tablas de la integración aún no existen, simplemente no hay badge.
+  const [filas, deBernie] = await Promise.all([
+    getDb()
+      .select()
+      .from(pagos)
+      .where(eq(pagos.bodaId, orgId))
+      .orderBy(asc(pagos.fecha), asc(pagos.creadoEl)),
+    integracionDisponible()
+      ? getDb()
+          .select({ pagoId: gastosBernie.pagoId })
+          .from(gastosBernie)
+          .where(and(eq(gastosBernie.bodaId, orgId), isNotNull(gastosBernie.pagoId)))
+          .then((r) => new Set(r.map((x) => x.pagoId)))
+          .catch(() => new Set<string | null>())
+      : null,
+  ]);
+  if (!deBernie) return filas;
   return filas.map((p) => ({ ...p, deBernie: deBernie.has(p.id) }));
 }
 

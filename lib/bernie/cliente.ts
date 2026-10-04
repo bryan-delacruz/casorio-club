@@ -1,6 +1,6 @@
 import "server-only";
 import { configBernie } from "./config";
-import { codigoProblema, validarPagina, type CodigoProblema, type PaginaSync } from "./contrato";
+import { clasificarErrorToken, codigoProblema, validarPagina, type CodigoProblema, type PaginaSync } from "./contrato";
 
 /**
  * Llamadas HTTP a Bernie: el token endpoint de su OAuth 2.1 (Supabase) y su
@@ -45,8 +45,7 @@ async function pedirTokens(cuerpo: Record<string, string>): Promise<Tokens> {
   }
   const json = (await res.json().catch(() => null)) as Record<string, unknown> | null;
   if (!res.ok || typeof json?.access_token !== "string") {
-    // invalid_grant = el refresh token ya no sirve (revocado o rotado por otra sync).
-    const codigo = json?.error === "invalid_grant" ? "invalid_grant" : "unauthorized";
+    const codigo = clasificarErrorToken(res.status, json);
     // Solo el código y el mensaje de error de Supabase (p. ej. invalid_credentials),
     // nunca el cuerpo completo ni lo que se envió: así el log sirve sin filtrar secretos.
     const motivo = [json?.error_code ?? json?.error, json?.msg ?? json?.error_description]

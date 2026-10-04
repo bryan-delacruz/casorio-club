@@ -144,14 +144,15 @@ export function Bandeja({
           </div>
         ) : (
           <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-            <div className="min-w-0 flex-1">
+            {/* min-w: sin espacio para texto y botones juntos, los botones bajan. */}
+            <div className="min-w-64 flex-1">
               <div className="flex items-center gap-2">
                 <h2 className="font-medium whitespace-nowrap">Bernie Wallet</h2>
                 {conexion.estado === "activa" && <Badge variant="secondary">Conectada</Badge>}
                 {conexion.estado === "error" && <Badge variant="destructive">Con problemas</Badge>}
                 {conexion.estado === "revocada" && <Badge variant="destructive">Sin acceso</Badge>}
               </div>
-              <p className="text-muted-foreground mt-1 text-sm">
+              <p className="text-muted-foreground mt-1 text-sm break-words">
                 {conectadaPor ? `Conectó ${conectadaPor}` : "Conectada"}
                 {conexion.ultimaSyncEl ? ` · al día ${haceCuanto(conexion.ultimaSyncEl)}` : ""}
               </p>
@@ -256,7 +257,10 @@ export function Bandeja({
 }
 
 function FilaGasto({ gasto, acciones }: { gasto: Gasto; acciones: Accion[] }) {
-  const [accionId, setAccionId] = useState<string | undefined>(() => sugerida(gasto, acciones));
+  // Lo que elige el usuario manda; si no eligió, la sugerencia se recalcula en
+  // cada render (p. ej. al crear una acción que coincide desde otra fila).
+  const [elegida, setAccionId] = useState<string | undefined>();
+  const accionId = elegida ?? sugerida(gasto, acciones);
   const [pendiente, startTransition] = useTransition();
   const compatibles = acciones.filter((a) => a.moneda === gasto.moneda);
 
@@ -283,7 +287,8 @@ function FilaGasto({ gasto, acciones }: { gasto: Gasto; acciones: Accion[] }) {
             {gasto.subcategoria ? ` · ${gasto.subcategoria}` : ""}
           </p>
         </div>
-        <p className="shrink-0 font-medium tabular-nums">{monto(gasto.monto, gasto.moneda)}</p>
+        {/* El monto es lo que importa al asignar: lleva la tipografía display. */}
+        <p className="font-display shrink-0 text-xl tabular-nums">{monto(gasto.monto, gasto.moneda)}</p>
       </div>
       <div className="flex flex-wrap items-center gap-2">
         {compatibles.length > 0 && (
@@ -303,7 +308,10 @@ function FilaGasto({ gasto, acciones }: { gasto: Gasto; acciones: Accion[] }) {
         <Button
           size="sm"
           disabled={!accionId || pendiente}
-          onClick={() => correr(() => asignarGasto(gasto.id, accionId!), "Sumado como pago.")}
+          onClick={() => {
+            const destino = acciones.find((a) => a.id === accionId)?.titulo;
+            correr(() => asignarGasto(gasto.id, accionId!), destino ? `Sumado a ${destino}.` : "Sumado como pago.");
+          }}
         >
           Asignar
         </Button>
@@ -315,11 +323,13 @@ function FilaGasto({ gasto, acciones }: { gasto: Gasto; acciones: Accion[] }) {
         >
           Crear acción
         </Button>
+        {/* Descartar es la salida, no una opción al mismo nivel: va aparte. */}
         <Button
           size="sm"
-          variant="ghost"
+          variant="link"
+          className="text-muted-foreground hover:text-foreground ml-auto px-1"
           disabled={pendiente}
-          onClick={() => correr(() => descartarGasto(gasto.id, true), "Descartado.")}
+          onClick={() => correr(() => descartarGasto(gasto.id, true), "Descartado. Puedes recuperarlo abajo.")}
         >
           Descartar
         </Button>
