@@ -8,7 +8,7 @@ import type { ReactElement } from "react";
 const ANILLOS =
   "<circle cx='12.5' cy='16' r='7' stroke='#ad9e89'/><circle cx='19.5' cy='16' r='7' stroke='#e7e5db'/>";
 
-const anillosUri = `data:image/svg+xml;utf8,${encodeURIComponent(
+export const anillosUri = `data:image/svg+xml;utf8,${encodeURIComponent(
   `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32' fill='none' stroke-width='2.2'>${ANILLOS}</svg>`,
 )}`;
 

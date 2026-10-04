@@ -6,7 +6,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { Check, Clock, Coins, Diamond, MoreHorizontal, Pencil, Trash2, Wallet } from "lucide-react";
 import type { Estado } from "./acciones-servidor";
 import type { Accion, Pago } from "@/db/schema";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { AvatarPersona } from "@/components/avatar-persona";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -212,12 +212,7 @@ export function TarjetaAccion({
           )}
           {miembro && (
             <span className="text-muted-foreground ml-auto flex min-w-0 items-center gap-1.5 text-xs">
-              <Avatar className="size-4">
-                {miembro.imagen && <AvatarImage src={miembro.imagen} alt="" />}
-                <AvatarFallback className="text-[0.5rem]">
-                  {miembro.nombre.slice(0, 2).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
+              <AvatarPersona persona={miembro} className="size-5" />
               <span className="truncate capitalize">
                 {miembro.nombre.split(" ")[0]}
               </span>
