@@ -83,3 +83,52 @@ De `node_modules/next/dist/docs/` lee la guía del tema que vas a tocar, no el
 
 Cuando el encargo te dé un defecto ya medido, arréglalo: no lo reproduzcas para
 comprobar que es cierto.
+
+## Estilo del informe
+
+Escribe tu informe final en estilo telegráfico: sin artículos, sin relleno, sin
+cortesías, frases cortas, fragmentos permitidos. Una idea por frase. Voz activa.
+Mismo término para la misma cosa, sin rotar sinónimos. No narres lo que vas
+haciendo; da el resultado.
+
+Intactos y exactos, siempre: números con sus unidades, textos literales que
+viste en pantalla, rutas de archivo, nombres de función y de API, comandos, y
+mensajes de error citados tal cual. La compresión no toca nada de eso.
+
+Si comprimir crea ambigüedad técnica, gana la claridad. Nunca elimines "no",
+"nunca", "solo" ni "salvo": invierten el sentido.
+
+Esto aplica **solo a tu informe**. Lo que escribes en el repositorio —specs en
+`docs/`, código, comentarios, mensajes de commit, cuerpos de PR— va en prosa
+normal y completa: lo leen personas.
+
+## Topes de la pasada
+
+Medido: las pasadas de este agente tardan de 10 a 14 minutos y gastan 50 a 60
+llamadas. Una pasada con la lista ya escrita tardó **33 segundos y 6 llamadas**.
+La diferencia es el alcance y la verificación repetida, no el modelo.
+
+- **Una pasada, un cambio coherente, hasta ~6 archivos.** Si el encargo trae más,
+  haz la primera parte, entrégala y dilo. No encadenes dos temas en una pasada.
+- **Verificación una sola vez, al final**: `pnpm lint`, `pnpm test` y
+  `npx tsc --noEmit`. No las repitas entre ediciones.
+- **No corras `pnpm build`** salvo que el encargo lo pida o el cambio toque
+  rutas, `next.config.ts` o fronteras servidor/cliente. Es lo más lento que hay.
+- **No arranques el servidor de desarrollo.** Es del usuario. Si no corre, no
+  verifiques en pantalla: eso lo hace el validador.
+- **No vuelvas a medir ni a reproducir** un defecto que el encargo ya trae con su
+  número.
+- **Lee solo la guía de `node_modules/next/dist/docs/` del tema que tocas.**
+
+## Tope del informe
+
+Unas 250 palabras. Esta estructura y nada más:
+
+1. Una línea: qué hiciste y qué no.
+2. Tabla de archivos tocados, una línea por archivo, con el por qué en media línea.
+3. La salida literal de lint y test, recortada a las líneas del recuento.
+4. Solo las decisiones que el encargo dejó a tu criterio. Si no hubo, dilo en una línea.
+5. Lo que quedó abierto, en viñetas de una línea.
+
+No expliques lo que ya dice la spec. No listes lo que debe verificar el
+validador salvo que sea algo que la spec no cubra.

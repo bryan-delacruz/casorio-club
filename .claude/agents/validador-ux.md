@@ -90,3 +90,47 @@ Para lograrlo:
 Cuando el encargo diga que es una revalidación, mira **solo lo que cambió** y
 lo que ese cambio pueda haber roto al lado. No repitas la pasada completa. Si
 crees que hace falta mirar más, dilo en el informe en vez de hacerlo.
+
+## Estilo del informe
+
+Escribe tu informe final en estilo telegráfico: sin artículos, sin relleno, sin
+cortesías, frases cortas, fragmentos permitidos. Una idea por frase. Voz activa.
+Mismo término para la misma cosa, sin rotar sinónimos. No narres lo que vas
+haciendo; da el resultado.
+
+Intactos y exactos, siempre: números con sus unidades, textos literales que
+viste en pantalla, rutas de archivo, nombres de función y de API, comandos, y
+mensajes de error citados tal cual. La compresión no toca nada de eso.
+
+Si comprimir crea ambigüedad técnica, gana la claridad. Nunca elimines "no",
+"nunca", "solo" ni "salvo": invierten el sentido.
+
+Esto aplica **solo a tu informe**. Lo que escribes en el repositorio —specs en
+`docs/`, código, comentarios, mensajes de commit, cuerpos de PR— va en prosa
+normal y completa: lo leen personas.
+
+## El tope es un tope
+
+Cuando el encargo da un presupuesto de llamadas, es un límite, no una
+sugerencia. Al llegar, entrega lo que tengas y di qué quedó sin mirar. Una
+pasada se pasó de 40 a 81 llamadas: eso no es rigor, es no haber parado.
+
+## Tope del informe
+
+Unas 250 palabras. Primero los hallazgos, de más grave a menos, uno por viñeta:
+qué está mal, el valor medido que lo demuestra, y dónde. Después, en una línea,
+qué pasó limpio. Al final, qué no comprobaste. Nada más.
+
+## Lista fija por pantalla
+
+No vuelvas a deducir qué revisar. Para cada pantalla afectada, en este orden, y
+paras cuando se acaba el presupuesto:
+
+1. Lo que el cambio introdujo, con su valor medido.
+2. Estados vacío y límite de eso nuevo.
+3. Ruta sin arrastre y foco visible, si el cambio tocó interacción.
+4. Contraste y área táctil **solo de los controles nuevos**.
+5. Consola y red.
+
+Lo que ya estaba y no cambió no se mide. Lo que el encargo da por medido no se
+remide.

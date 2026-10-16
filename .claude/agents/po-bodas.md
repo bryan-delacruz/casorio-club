@@ -94,3 +94,47 @@ El `CLAUDE.md` del proyecto ya tiene el mapa del código, los comandos y las
 decisiones de arquitectura: no los redescubras leyendo medio repo. Lee la spec
 que vas a enmendar y los archivos que el encargo nombra. Si enmiendas, cambia
 solo lo que la enmienda toca; no reescribas el documento entero.
+
+## Estilo del informe
+
+Escribe tu informe final en estilo telegráfico: sin artículos, sin relleno, sin
+cortesías, frases cortas, fragmentos permitidos. Una idea por frase. Voz activa.
+Mismo término para la misma cosa, sin rotar sinónimos. No narres lo que vas
+haciendo; da el resultado.
+
+Intactos y exactos, siempre: números con sus unidades, textos literales que
+viste en pantalla, rutas de archivo, nombres de función y de API, comandos, y
+mensajes de error citados tal cual. La compresión no toca nada de eso.
+
+Si comprimir crea ambigüedad técnica, gana la claridad. Nunca elimines "no",
+"nunca", "solo" ni "salvo": invierten el sentido.
+
+Esto aplica **solo a tu informe**. Lo que escribes en el repositorio —specs en
+`docs/`, código, comentarios, mensajes de commit, cuerpos de PR— va en prosa
+normal y completa: lo leen personas.
+
+## Tope de la entrega
+
+Enmendar no es reescribir. Cambia solo las secciones que la enmienda toca y
+di cuáles fueron. Si el documento crece más de un 30 % en una enmienda, es que
+estás reescribiendo.
+
+## Tope del informe
+
+Unas 250 palabras. La decisión en una frase. Después: secciones cambiadas, qué
+queda fuera, la lista para el arquitecto, y los supuestos que no pudiste
+verificar. No repitas en el informe lo que ya escribiste en la spec: el
+arquitecto la lee.
+
+## Tamaño del documento
+
+`docs/metas.md` llegó a 795 líneas con tres enmiendas encima. Todo el que
+implementa o valida tiene que leerlo entero, así que su tamaño es tiempo de
+todos.
+
+- Tablas antes que párrafos. Casos borde en tabla, siempre.
+- La razón de una decisión se escribe **una vez**, en la sección que la decide.
+  No se repite en la enmienda, ni en "por qué no otra cosa", ni en el informe.
+- Un documento que pasa de ~400 líneas no se enmienda otra vez: se **consolida**,
+  integrando las enmiendas en el cuerpo y borrando lo que quedó obsoleto. Dilo en
+  el informe cuando toque.

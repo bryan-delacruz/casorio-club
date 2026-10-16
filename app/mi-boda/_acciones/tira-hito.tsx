@@ -1,9 +1,9 @@
 "use client";
 
-import { Diamond } from "lucide-react";
+import { Check, Diamond } from "lucide-react";
 import type { Accion, Dependencia } from "@/db/schema";
-import { faltanAntesDe, faltanSemanas, nombreDeHitos, proximoHito } from "@/lib/metas";
-import { INVITA_HITO, type MetaLite } from "./tipos";
+import { estadoDeHitos, faltanAntesDe, faltanSemanas, nombreDeHitos } from "@/lib/metas";
+import { HITO_SIN_SEMANA, INVITA_HITO, type MetaLite } from "./tipos";
 
 /**
  * Cuánto falta para el hito, en palabras.
@@ -29,12 +29,16 @@ function antes(cuantas: number) {
 }
 
 /**
- * La tira del próximo hito (docs/metas.md §5.3): una línea sobria con el
- * nombre del hito más temprano que queda por hacer, su cuenta regresiva y
- * cuántas cosas hay que terminar antes.
+ * La tira de hitos (docs/metas.md §5.3, §5.3.1): una línea sobria que cuenta
+ * una de cuatro cosas, según por qué no hay un próximo hito.
  *
- * Sin ningún hito no se dibuja. Solo el Mapa pone en su lugar la invitación a
- * marcar uno, y una sola vez: en el Camino el rombo ya lo explica.
+ * - hay uno por hacer → su nombre, su cuenta regresiva y cuántas cosas faltan;
+ * - están todos hechos → la tira de cierre, con un check y el último que pasó;
+ * - no hay ningún hito → la invitación a marcar uno;
+ * - hay hitos pero son ideas sueltas → que les falta la semana.
+ *
+ * Los dos últimos solo los pone el Mapa (`invita`), y una sola vez: en el
+ * Camino el rombo ya lo explica y un hito sin semana no está dibujado.
  */
 export function TiraProximoHito({
   acciones,
@@ -49,21 +53,43 @@ export function TiraProximoHito({
   semanasHastaLaBoda: number | null;
   invita?: boolean;
 }) {
-  const hito = proximoHito(acciones, metas);
-  if (!hito) {
+  const estado = estadoDeHitos(acciones, metas);
+
+  if (estado.tipo === "ninguno" || estado.tipo === "sin-semana") {
     if (!invita) return null;
-    return <p className="text-muted-foreground text-sm">{INVITA_HITO}</p>;
+    return (
+      <p className="text-muted-foreground text-sm">
+        {estado.tipo === "ninguno" ? INVITA_HITO : HITO_SIN_SEMANA}
+      </p>
+    );
   }
 
-  const nombre = nombreDeHitos(acciones, hito.inicioSemanas, metas);
-  const faltan = faltanAntesDe(hito, acciones, dependencias, metas);
+  const nombre = nombreDeHitos(acciones, estado.hito.inicioSemanas, metas);
+
+  // Misma forma que la tira normal para que se lea como la misma cosa, con un
+  // check en lugar del rombo. No cuenta nada más: contar lo que quedó sin
+  // hacer sería un aviso de retraso, que está fuera de alcance (§13).
+  if (estado.tipo === "cierre") {
+    return (
+      <p className="text-muted-foreground flex flex-wrap items-center gap-x-2 text-sm">
+        <Check className="size-3.5 shrink-0" aria-hidden />
+        <span className="text-foreground font-medium">{nombre}</span>
+        <span aria-hidden>·</span>
+        <span>hecho</span>
+        <span aria-hidden>·</span>
+        <span>no queda ningún hito por delante</span>
+      </p>
+    );
+  }
+
+  const faltan = faltanAntesDe(estado.hito, acciones, dependencias, metas);
 
   return (
     <p className="text-muted-foreground flex flex-wrap items-center gap-x-2 text-sm">
       <Diamond className="size-3.5 shrink-0" aria-hidden />
       <span className="text-foreground font-medium">{nombre}</span>
       <span aria-hidden>·</span>
-      <span>{cuando(hito.inicioSemanas, semanasHastaLaBoda)}</span>
+      <span>{cuando(estado.hito.inicioSemanas, semanasHastaLaBoda)}</span>
       <span aria-hidden>·</span>
       <span>{antes(faltan)}</span>
     </p>
