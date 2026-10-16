@@ -12,6 +12,8 @@ import {
   semanaPorDefecto,
   semanasHastaLaBoda,
 } from "@/lib/metas";
+import { partes } from "@/lib/pagos";
+import { listarMiembros } from "./datos";
 import { IDEAS, SIN_META, type Destino } from "./tipos";
 
 /**
@@ -105,18 +107,24 @@ export async function guardarDependencias(accionId: string, requiere: string[]) 
 /**
  * Anota que salió plata por una acción.
  *
- * Quien paga se copia del responsable en este momento. Leerlo en vivo haría
- * que cambiar de dueño reescribiera quién pagó el mes pasado.
+ * `pagadoPorId` lo elige la pareja (docs/pagos.md §3.1): responsable y
+ * pagador son dos cosas distintas, y una acción la gestiona uno y la paga
+ * otro. Cuando no llega nada se copia el responsable, que es el valor por
+ * defecto de siempre y una comodidad, no una regla. Null = "Por repartir".
+ *
+ * Quien paga queda grabado en este momento. Leerlo en vivo haría que cambiar
+ * de dueño reescribiera quién pagó el mes pasado.
  */
 export async function registrarPago(datos: {
   accionId: string;
   monto: string;
   fecha: string;
   nota: string | null;
-}) {
+  pagadoPorId?: string | null;
+}): Promise<{ error?: string }> {
   const { bodaId } = await bodaActiva();
   const monto = Number(datos.monto);
-  if (!Number.isFinite(monto) || monto <= 0) throw new Error("Monto inválido");
+  if (!Number.isFinite(monto) || monto <= 0) return { error: "Ese monto no se entiende." };
 
   // La acción tiene que ser de esta boda: sin esto, un accionId ajeno colaría
   // un pago en otra boda.
@@ -124,18 +132,90 @@ export async function registrarPago(datos: {
     .select({ responsableId: acciones.responsableId })
     .from(acciones)
     .where(and(eq(acciones.id, datos.accionId), eq(acciones.bodaId, bodaId)));
-  if (!accion) throw new Error("Esa acción no es de esta boda");
+  if (!accion) return { error: "Esa acción ya no está." };
+
+  const pagadoPorId =
+    datos.pagadoPorId === undefined ? accion.responsableId : datos.pagadoPorId;
+  if (pagadoPorId && !(await esDeLaBoda(pagadoPorId))) {
+    return { error: "Esa persona no es de esta boda." };
+  }
 
   await getDb().insert(pagos).values({
     bodaId,
     accionId: datos.accionId,
     monto: monto.toFixed(2),
-    pagadoPorId: accion.responsableId,
+    pagadoPorId,
     fecha: datos.fecha,
     nota: datos.nota,
   });
 
   revalidatePath("/mi-boda");
+  return {};
+}
+
+/**
+ * Comprueba que un userId sea miembro de esta boda antes de escribirlo.
+ *
+ * No es una fuga entre bodas —el `boda_id` lo pone el servidor—, pero sin
+ * esto un POST a esta acción podría dejar en la fila un userId cualquiera, y
+ * el Reparto lo mostraría como "Por repartir" sin que nadie entienda por
+ * qué. La lista viene de Clerk y está en `cache` (docs/pagos.md §10.1).
+ */
+async function esDeLaBoda(userId: string) {
+  const miembros = await listarMiembros();
+  return miembros.some((m) => m.id === userId);
+}
+
+/**
+ * El atajo "Repartir": una fila por persona elegida, en un solo viaje y una
+ * sola revalidación (docs/pagos.md §3.2).
+ *
+ * El reparto de los céntimos corre aquí y no en el cliente para que la misma
+ * operación dé siempre el mismo resultado: el sobrante va de uno en uno a
+ * los primeros, en el orden de miembros que ya usa el Reparto. La nota va
+ * igual en todas las filas; las distingue el nombre de quien pagó.
+ */
+export async function registrarPagoRepartido(
+  accionId: string,
+  pagadorIds: string[],
+  monto: string,
+  fecha: string,
+  nota: string | null,
+): Promise<{ error?: string }> {
+  const { bodaId } = await bodaActiva();
+  const total = Number(monto);
+  if (!Number.isFinite(total) || total <= 0) return { error: "Ese monto no se entiende." };
+
+  const [accion] = await getDb()
+    .select({ id: acciones.id })
+    .from(acciones)
+    .where(and(eq(acciones.id, accionId), eq(acciones.bodaId, bodaId)));
+  if (!accion) return { error: "Esa acción ya no está." };
+
+  // El orden lo decide el servidor, no el cliente: así los céntimos de más
+  // caen siempre en la misma persona.
+  const miembros = await listarMiembros();
+  const pedidos = new Set(pagadorIds);
+  const elegidos = miembros.filter((m) => pedidos.has(m.id)).map((m) => m.id);
+  if (elegidos.length !== pedidos.size) return { error: "Esa persona no es de esta boda." };
+  if (elegidos.length < 2) return { error: "Elige al menos dos personas para repartir." };
+
+  const trozos = partes(total.toFixed(2), elegidos.length);
+  await getDb()
+    .insert(pagos)
+    .values(
+      elegidos.map((pagadoPorId, i) => ({
+        bodaId,
+        accionId,
+        monto: trozos[i],
+        pagadoPorId,
+        fecha,
+        nota,
+      })),
+    );
+
+  revalidatePath("/mi-boda");
+  return {};
 }
 
 export async function borrarPago(id: string) {

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   cadenaPrincipal,
   enCamino,
+  estadoDeHitos,
   faltanAntesDe,
   faltanSemanas,
   etapas,
@@ -13,11 +14,13 @@ import {
   ordenPorSemana,
   planPlantilla,
   proximoHito,
+  motivoBandaVacia,
   queTocaAhora,
   REGISTRO_CIVIL,
   resumenMeta,
   semanaPorDefecto,
   semanasHastaLaBoda,
+  ultimoHitoHecho,
   type AccionCamino,
   type AccionEnCamino,
   type Requisito,
@@ -253,6 +256,12 @@ test("qué toca ahora: por semana descendente, haciendo antes que por hacer, y e
   assert.deepEqual(queTocaAhora(acciones, [], null, 2).map((a) => a.id), ["atrasada", "zeta"]);
 });
 
+test("banda vacía: bloqueadas si quedan acciones, todo_hecho si no queda ninguna", () => {
+  const acciones = [accion("a", 8), accion("b", 6, 1, { estado: "hecho" })];
+  assert.equal(motivoBandaVacia(acciones), "bloqueadas");
+  assert.equal(motivoBandaVacia([accion("a", 8, 1, { estado: "hecho" })]), "todo_hecho");
+});
+
 // ---------------------------------------------------------------------------
 // El próximo hito y su cuenta regresiva (docs/metas.md §5.3)
 // ---------------------------------------------------------------------------
@@ -299,6 +308,97 @@ test("faltan antes del hito: las no hechas de su etapa, sin contar el hito", () 
   // Todo hecho: la tira dice que ya está listo.
   const todas = acciones.map((a) => (a.esHito ? a : { ...a, estado: "hecho" as const }));
   assert.equal(faltanAntesDe(proximoHito(todas)!, todas, []), 0);
+});
+
+// ---------------------------------------------------------------------------
+// El cierre de los hitos (docs/metas.md §5.3.1)
+// ---------------------------------------------------------------------------
+
+test("último hito hecho: el del camino, hecho, con la semana más baja", () => {
+  const acciones: AccionCamino[] = [
+    accion("edicto", 6, 1, { esHito: true, estado: "hecho" }),
+    accion("ceremonia", 0, 1, { esHito: true, estado: "hecho" }),
+    accion("cualquiera", 9, 1, { estado: "hecho" }),
+  ];
+  assert.equal(ultimoHitoHecho(acciones)?.id, "ceremonia");
+});
+
+test("último hito hecho: null sin ninguno hecho, y la idea suelta no cuenta", () => {
+  assert.equal(ultimoHitoHecho([accion("hito", 4, 1, { esHito: true })]), null);
+  assert.equal(
+    ultimoHitoHecho([idea("hito-suelto", { esHito: true, estado: "hecho" })]),
+    null,
+  );
+});
+
+test("último hito hecho: ignora los hitos sin hacer, aunque sean más tardíos", () => {
+  // No es "el último que toqué": el pendiente de la semana 0 no pasó todavía.
+  const acciones: AccionCamino[] = [
+    accion("edicto", 6, 1, { esHito: true, estado: "hecho" }),
+    accion("ceremonia", 0, 1, { esHito: true }),
+  ];
+  assert.equal(ultimoHitoHecho(acciones)?.id, "edicto");
+});
+
+test("con un hito pendiente y otro hecho, la pantalla dibuja la tira normal", () => {
+  const acciones: AccionCamino[] = [
+    accion("edicto", 6, 1, { esHito: true, estado: "hecho" }),
+    accion("ceremonia", 0, 1, { esHito: true }),
+  ];
+  assert.equal(proximoHito(acciones)?.id, "ceremonia");
+  assert.equal(ultimoHitoHecho(acciones)?.id, "edicto");
+  assert.equal(estadoDeHitos(acciones).tipo, "proximo");
+});
+
+test("todos los hitos hechos: no hay próximo y sí último, que es el cierre", () => {
+  const acciones: AccionCamino[] = [
+    accion("edicto", 6, 1, { esHito: true, estado: "hecho" }),
+    accion("ceremonia", 0, 1, { esHito: true, estado: "hecho" }),
+    accion("pendiente", 2),
+  ];
+  assert.equal(proximoHito(acciones), null);
+  const estado = estadoDeHitos(acciones);
+  assert.equal(estado.tipo, "cierre");
+  assert.equal(estado.tipo === "cierre" && estado.hito.id, "ceremonia");
+});
+
+test("dos hitos hechos empatados en la semana más baja se nombran unidos por «y»", () => {
+  const acciones = [
+    accion("Ceremonia civil", 0, 1, { esHito: true, estado: "hecho", metaId: "m1" }),
+    accion("Edicto matrimonial", 0, 1, { esHito: true, estado: "hecho", metaId: "m2" }),
+  ];
+  const metas = [{ id: "m2" }, { id: "m1" }];
+  const hito = ultimoHitoHecho(acciones, metas)!;
+  assert.equal(hito.titulo, "Edicto matrimonial");
+  assert.equal(
+    nombreDeHitos(acciones, hito.inicioSemanas, metas),
+    "Edicto matrimonial y Ceremonia civil",
+  );
+});
+
+test("ningún hito en toda la boda: las dos funciones dan null y toca invitar", () => {
+  const acciones: AccionCamino[] = [accion("a", 5), idea("b")];
+  assert.equal(proximoHito(acciones), null);
+  assert.equal(ultimoHitoHecho(acciones), null);
+  assert.equal(estadoDeHitos(acciones).tipo, "ninguno");
+});
+
+test("hitos que existen pero son todos ideas sueltas: null, y falta la semana", () => {
+  const acciones: AccionCamino[] = [idea("hito-suelto", { esHito: true })];
+  assert.equal(proximoHito(acciones), null);
+  assert.equal(ultimoHitoHecho(acciones), null);
+  assert.equal(estadoDeHitos(acciones).tipo, "sin-semana");
+});
+
+test("estado de hitos: un hito hecho que es idea suelta no da cierre", () => {
+  const acciones: AccionCamino[] = [idea("hito-suelto", { esHito: true, estado: "hecho" })];
+  assert.equal(estadoDeHitos(acciones).tipo, "sin-semana");
+});
+
+test("estado de hitos: el caso próximo trae el hito que la tira nombra", () => {
+  const acciones: AccionCamino[] = [accion("ceremonia", 0, 1, { esHito: true })];
+  const estado = estadoDeHitos(acciones);
+  assert.equal(estado.tipo === "proximo" && estado.hito.id, "ceremonia");
 });
 
 test("cuenta regresiva: semanas hasta la boda menos la semana del hito; sin fecha no hay", () => {

@@ -1,0 +1,190 @@
+/**
+ * Aritmética de los pagos (docs/pagos.md). Todo puro: recibe pagos y
+ * miembros y devuelve números y textos cortos, para probarlo sin base ni
+ * React.
+ *
+ * Lo que sale de un bolsillo se compara en céntimos enteros: sumar y restar
+ * `numeric` en coma flotante arrastra medio céntimo, y medio céntimo dispara
+ * el umbral del desbalance por error (§4.2).
+ */
+
+/** Lo que necesita esta lógica de una fila de `pagos`. */
+export type PagoLite = {
+  id: string;
+  monto: string;
+  pagadoPorId: string | null;
+  fecha: string;
+  nota?: string | null;
+  creadoEl?: Date | string | null;
+};
+
+/**
+ * La clave del grupo sin pagador conocido, la misma que el Reparto ya
+ * mostraba: un pago con `pagado_por_id = null` y uno de alguien que ya no es
+ * miembro caen aquí (docs/pagos.md §7).
+ */
+export const POR_REPARTIR = "por-repartir";
+
+/**
+ * A partir de cuánto por debajo de su parte se nombra a alguien en la línea
+ * del desbalance, en soles (docs/pagos.md §4.2).
+ *
+ * Es un juicio de producto, no un dato: vive aquí y no dentro del componente
+ * para poder probarlo con otro valor y subirlo en un solo sitio.
+ */
+export const UMBRAL_DESBALANCE = 50;
+
+/** "123.45" → 12345. Redondea porque el `numeric` llega como texto. */
+export const aCentimos = (monto: string) => Math.round(Number(monto) * 100);
+
+/**
+ * Cuánto se ha pagado de una acción y cuánto falta.
+ *
+ * `falta` nunca baja de cero: si pagaste de más, el saldo es cero y la
+ * diferencia se ve en la lista de pagos, no como un número negativo.
+ */
+export function cuentaDe(monto: string | null, pagos: { monto: string }[]) {
+  const total = monto ? Number(monto) : 0;
+  const pagado = pagos.reduce((s, p) => s + Number(p.monto), 0);
+  return { total, pagado, falta: Math.max(total - pagado, 0) };
+}
+
+/**
+ * Reparte un entero entre varias partes sin perder ni inventar unidades.
+ *
+ * Redondear cada parte por su cuenta no cuadra: los porcentajes suman 99 o
+ * 101, y S/ 567.57 más S/ 247.57 se muestran como 568 y 248 bajo un total de
+ * 815. Se reparte el sobrante por resto mayor.
+ */
+export function reparte(partes: number[], objetivo: number) {
+  const total = partes.reduce((s, n) => s + n, 0);
+  if (total <= 0) return partes.map(() => 0);
+  const exactos = partes.map((n) => (n / total) * objetivo);
+  const enteros = exactos.map(Math.floor);
+  let sobra = objetivo - enteros.reduce((s, n) => s + n, 0);
+  const orden = exactos
+    .map((n, i) => ({ i, resto: n - Math.floor(n) }))
+    .sort((a, b) => b.resto - a.resto);
+  for (const { i } of orden) {
+    if (sobra <= 0) break;
+    enteros[i] += 1;
+    sobra -= 1;
+  }
+  return enteros;
+}
+
+/**
+ * Un monto partido en `n` partes iguales, como montos de `numeric(12,2)`.
+ *
+ * Los céntimos que no dividen van de uno en uno a los primeros, así que la
+ * suma de las partes es **exactamente** el monto y la misma operación da
+ * siempre el mismo resultado (docs/pagos.md §3.2). Corre en el servidor: los
+ * céntimos no pueden depender de quién sumó.
+ */
+export function partes(monto: string, n: number): string[] {
+  if (n <= 0) return [];
+  const total = aCentimos(monto);
+  const base = Math.floor(total / n);
+  const sobra = total - base * n;
+  return Array.from({ length: n }, (_, i) =>
+    ((base + (i < sobra ? 1 : 0)) / 100).toFixed(2),
+  );
+}
+
+/**
+ * Cuántos céntimos puso cada persona, en céntimos enteros.
+ *
+ * Se calcula sobre **todos** los pagos y no sobre los responsables: quien
+ * puso plata sin responder por ninguna acción también cuenta, y antes su
+ * pago desaparecía de la cuenta (docs/pagos.md §2). Lo anónimo y lo de quien
+ * ya no es miembro se agrupa en `POR_REPARTIR`.
+ */
+export function repartoDePagos(
+  pagos: PagoLite[],
+  miembros: { id: string }[],
+): Map<string, number> {
+  const conocidos = new Set(miembros.map((m) => m.id));
+  const puesto = new Map<string, number>();
+  for (const p of pagos) {
+    const id = p.pagadoPorId && conocidos.has(p.pagadoPorId) ? p.pagadoPorId : POR_REPARTIR;
+    puesto.set(id, (puesto.get(id) ?? 0) + aCentimos(p.monto));
+  }
+  return puesto;
+}
+
+/**
+ * Quién va por delante y quién por detrás de su parte de lo ya pagado.
+ *
+ * Con dos miembros la lectura natural es la resta directa ("puso S/ 401
+ * más"); con tres o más se nombra solo a quienes van por debajo y cuánto les
+ * falta (docs/pagos.md §4.2). Montos en soles, derivados de céntimos
+ * enteros.
+ */
+export type Desbalance =
+  | { tipo: "dos"; porDelante: string; porDetras: string; diferencia: number }
+  | { tipo: "varios"; faltan: { id: string; falta: number }[] };
+
+export function desbalance(
+  puesto: Map<string, number>,
+  miembros: { id: string }[],
+  umbral = UMBRAL_DESBALANCE,
+): Desbalance | null {
+  const n = miembros.length;
+  if (n < 2) return null;
+
+  // Lo anónimo no se reparte entre nadie: adivinar quién lo puso inventaría
+  // el número que la línea vende como exacto, y subiría la parte de todos.
+  const centimos = miembros.map((m) => puesto.get(m.id) ?? 0);
+  const conocido = centimos.reduce((s, c) => s + c, 0);
+  if (conocido <= 0) return null;
+
+  // La falta de cada uno es `(conocido - n · puesto) / n`. Se compara sin
+  // dividir, en enteros, para que la parte con céntimos no cuadrados no
+  // mueva el umbral.
+  const escalada = centimos.map((c) => conocido - n * c);
+  const minimo = Math.round(umbral * 100) * n;
+  if (!escalada.some((e) => e >= minimo)) return null;
+
+  if (n === 2) {
+    const [a, b] = centimos;
+    const delante = a >= b ? 0 : 1;
+    return {
+      tipo: "dos",
+      porDelante: miembros[delante].id,
+      porDetras: miembros[1 - delante].id,
+      diferencia: Math.abs(a - b) / 100,
+    };
+  }
+
+  const faltan = miembros
+    .map((m, i) => ({ id: m.id, escalada: escalada[i] }))
+    .filter((f) => f.escalada >= minimo)
+    .sort((x, y) => y.escalada - x.escalada)
+    .map((f) => ({ id: f.id, falta: f.escalada / n / 100 }));
+  return { tipo: "varios", faltan };
+}
+
+/** Orden de la lista de pagos de una acción: por día y, a igualdad, por llegada. */
+const porDia = (a: PagoLite, b: PagoLite) =>
+  a.fecha.localeCompare(b.fecha) ||
+  new Date(a.creadoEl ?? 0).getTime() - new Date(b.creadoEl ?? 0).getTime();
+
+/** "1.er pago", "2.º pago": el ordinal como lo escribe el español. */
+const ordinal = (n: number) => (n === 1 ? "1.er" : `${n}.º`);
+
+/**
+ * Cómo se llama un pago en la lista (docs/pagos.md §3.3).
+ *
+ * La nota manda siempre: si la pareja escribió "Adelanto", se lee
+ * "Adelanto". Sin nota, el número sale de la posición en el tiempo y no de
+ * una columna: borrar el primero renumera los demás, que es correcto porque
+ * el número solo describe el orden de lo que se ve. Con un solo pago no hay
+ * número que informe.
+ */
+export function etiquetaDePago(pagos: PagoLite[], pago: PagoLite): string {
+  if (pago.nota?.trim()) return pago.nota.trim();
+  if (pagos.length <= 1) return "Pago";
+  const i = [...pagos].sort(porDia).findIndex((p) => p.id === pago.id);
+  if (i === -1) return "Pago";
+  return `${ordinal(i + 1)} pago`;
+}

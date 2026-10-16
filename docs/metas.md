@@ -19,6 +19,11 @@
 >   pero **no mergeado**: parte de §5–§7 y §10–§12 hay que deshacerla.
 >   Qué **no** se reabre: la eliminación de `momento` (§2), el edicto como hito
 >   en la demo (§10) y la enmienda 1.
+> - **Enmienda 3 — la app explica qué es un hito (§8.1), y la tira cubre el
+>   caso "todos los hitos hechos" (§5.3).** Escrita contra la enmienda 2 ya
+>   mergeada. No toca el modelo de datos: **cero columnas nuevas**. Qué **no**
+>   se reabre: que el hito sea una acción con `es_hito` (§13), que la
+>   agrupación sea una sola (§5.1) y el edicto como hito en la demo (§10).
 
 ## 1. Qué es una meta
 
@@ -238,6 +243,14 @@ Con esta plantilla la boda queda con **una** meta ("Registro civil") y **un**
 hito, la ceremonia civil, que es el que verá la pareja en la tira con su cuenta
 regresiva (§5.3).
 
+> **Enmienda 3.** Ese único hito **se queda y es deliberadamente uno solo**: es
+> la forma de enseñar el concepto sin texto. La pareja aplica la plantilla, ve
+> la tira "Ceremonia civil · faltan 12 semanas · te faltan 8 cosas antes", y
+> entiende qué hace un hito antes de leer ninguna explicación. Dos hitos en la
+> plantilla difuminarían cuál es el día que importa; cero hitos dejaría la tira
+> vacía justo cuando la pareja acaba de poblar su boda. **No se marca ningún
+> hito más**: ni el expediente ni el edicto ni el acta (el por qué, en §8.1).
+
 ### 4.1 Títulos en sustantivo, y el alias de los viejos
 
 > **Enmienda 2.** Esta sección se queda entera, con menos motivo pero con
@@ -384,9 +397,8 @@ regresiva**. Se queda en tres sitios y en ninguno más:
    ahora" en el Mapa y arriba del todo en el Camino:
    > **Ceremonia civil** · faltan 8 semanas · te faltan 3 cosas antes
    - El **próximo hito** es el que está en el camino, no `hecho`, con la semana
-     más alta (el más temprano). Si no hay ninguno, la tira no se dibuja y en su
-     lugar va, una sola vez y solo en el Mapa, la invitación:
-     *"Marca lo importante como hito y verás cuánto falta."*
+     más alta (el más temprano). Si no hay ninguno, lo que se dibuja depende de
+     por qué no hay: ver §5.3.1.
    - "Faltan N semanas" = `semanasHastaLaBoda − semanaDelHito`. Si sale ≤ 0,
      dice **"es esta semana"**; si la boda no tiene fecha, se sustituye por
      "N semanas antes de la boda" (o "el día de la boda" / "N semanas después").
@@ -398,6 +410,56 @@ regresiva**. Se queda en tres sitios y en ninguno más:
 
 La palabra "etapa" **nunca** aparece en pantalla, y tampoco los títulos
 "Hasta …" / "Después de …": son internos (§6).
+
+### 5.3.1 Cuando no hay próximo hito (enmienda 3)
+
+**El defecto.** Marcar un hito como `hecho` lo saca de `proximoHito`, que es
+correcto, pero hoy el Mapa interpreta "no hay próximo hito" como "esta pareja
+nunca marcó uno" y vuelve a mostrar *"Marca lo importante como hito y verás
+cuánto falta."* La pareja que ya se casó lee una invitación a hacer lo que ya
+hizo. Son **tres situaciones distintas** y hasta ahora compartían un mensaje.
+
+Lo que se dibuja, según el caso:
+
+| Situación | Qué se dibuja | Dónde |
+|---|---|---|
+| Hay un hito en el camino sin hacer | La tira normal: rombo, nombre, cuenta regresiva, cuántas cosas faltan antes | Mapa y Camino |
+| Hay hitos en el camino y **todos** están `hecho` | La **tira de cierre** (abajo) | Mapa y Camino |
+| La boda no tiene **ninguna** acción con `es_hito` | La invitación de §8.1 | Solo Mapa |
+| Hay acciones con `es_hito` pero **ninguna en el camino** (todas son ideas sueltas) | *"Ponle una semana a tu hito y verás cuánto falta."* | Solo Mapa |
+
+**La tira de cierre.** Misma forma que la tira normal para que se lea como la
+misma cosa, con un **check** en lugar del rombo y el nombre del **último hito
+hecho**:
+
+> ✓ **Ceremonia civil** · hecho · no queda ningún hito por delante
+
+- El **último hito hecho** es el que está en el camino, `hecho`, con la semana
+  **más baja** (el más tardío en el tiempo, porque las semanas se cuentan hacia
+  atrás). Desempata por orden de meta y luego por título, igual que
+  `proximoHito`. Función pura nueva: `ultimoHitoHecho(acciones, metas)`.
+- **No cuenta nada más.** Nada de "te quedan N cosas sin hacer": eso sería un
+  aviso de retraso, que sigue fuera de alcance (§13). Si quedan pendientes de
+  esa etapa, salen donde ya salían, en "Qué toca ahora".
+- Si dos hitos empatan en la semana más baja, se nombran unidos por " y " con
+  `nombreDeHitos`, como ya hace la tira normal (§6.1).
+- El verbo es **"hecho"** y no "cumplido" ni "logrado": es la misma palabra del
+  estado `hecho` que la pareja ya toca en el círculo de la tarjeta.
+
+**Quién decide el caso.** La tabla entera es una función pura,
+`estadoDeHitos(acciones, metas)`, que devuelve uno de cuatro:
+`{ tipo: "proximo", hito }`, `{ tipo: "cierre", hito }`, `{ tipo: "sin-semana" }`
+o `{ tipo: "ninguno" }`. Compone `proximoHito` y `ultimoHitoHecho`, que se
+quedan como están y siguen usándose por separado. Se hace así y no con tres
+condiciones dentro de `tira-hito.tsx` porque la distinción entre "ninguno" y
+"sin-semana" es la que el componente se equivocaría en reproducir, y porque es
+lo que se prueba de una vez (§11).
+
+La cuarta situación (hitos que son ideas sueltas) es un callejón real: la pareja
+marcó la casilla, no vio nada y no tiene cómo saber que falta la semana. Se
+resuelve con una frase, no con un aviso: la invitación cambia de texto, no de
+sitio ni de estilo. Se descarta mostrarla también en el Camino: ahí el hito sin
+semana no está dibujado y la frase no tendría a qué referirse.
 
 ### 5.4 Antes / El día / Después no se pierden
 
@@ -474,6 +536,8 @@ después cae en la etapa siguiente, que es la verdad incómoda que hay que ver.
 | **Un hito que es idea suelta** | No corta nada: no tiene semana. Queda en "Todavía sin sitio" como cualquier idea. Marcar algo como hito no lo pone en el camino. |
 | **Un hito con duración > 1** | Un hito no dura: `duracionDe` ya lo fuerza a 1 y la etapa se corta en su semana. |
 | **Dos acciones con la misma semana** | Desempatan por dependencia y, a igualdad, por título, como ya hace `ordenPorDependencia`. |
+| **Todos los hitos del camino están `hecho`** (enmienda 3) | Tira de cierre con el último hito hecho (§5.3.1). Ya no se muestra la invitación. |
+| **El único hito está `hecho` y es idea suelta** (enmienda 3) | `estadoDeHitos` da `"sin-semana"`, así que el Mapa dice *"Ponle una semana a tu hito y verás cuánto falta."* Es raro y es inofensivo: un hito sin semana no pasó por ninguna parte del camino, y se prefiere eso a abrir un quinto mensaje. |
 
 ## 7. Mapa (el tablero): los carriles son las metas
 
@@ -483,7 +547,8 @@ agruparse por etapa, el Mapa se queda sin eje: los carriles arrastraban por
 
 - La portada del Mapa, de arriba abajo: **1)** banda "Qué toca ahora" (§5.2),
   **2)** tira del próximo hito (§5.3), **3)** los carriles de meta, **4)** la
-  bandeja "Ideas sueltas", **5)** el Reparto.
+  bandeja "Ideas sueltas", **5)** el Reparto (lo que muestra y la línea del
+  desbalance, en `docs/pagos.md`).
 - **El Reparto y la bandeja de ideas bajan**. Hoy van encima de los carriles y
   empujan el primer carril a `y = 807` en un celular de 375 px: la estructura
   del tablero no se ve de un vistazo. Un carril vacío mide 140 px (168 con
@@ -553,7 +618,9 @@ agruparse por etapa, el Mapa se queda sin eje: los carriles arrastraban por
 
 ## 8. Formulario de acción
 
-- Campos **Meta** ("+ Nueva meta…") y casilla **"Es un hito"**: sin cambios.
+- Campo **Meta** ("+ Nueva meta…"): sin cambios.
+- Casilla **"Es un hito"**: el interruptor y su etiqueta no cambian, pero deja
+  de estar sola. Gana la ayuda de **§8.1** (enmienda 3).
 - Las semanas ya no sacan el signo del carril. El formulario gana un control
   **"Cuándo"** de tres opciones — **Antes · El día · Después** — junto al número
   de semanas:
@@ -576,6 +643,89 @@ agruparse por etapa, el Mapa se queda sin eje: los carriles arrastraban por
 - Lo demás igual: el diálogo nunca supera la pantalla, las acciones de servidor
   devuelven `{ error }` en vez de lanzar, y si guardar falla después de crear
   una meta nueva, esa meta se borra.
+
+### 8.1 La ayuda del hito (enmienda 3)
+
+**El problema.** Hoy el formulario tiene un interruptor que dice "Es un hito" y
+nada más: ni qué es, ni qué pasa al encenderlo. El dueño del producto, que
+conoce el trámite, no distinguía meta de hito hasta que se lo explicaron con una
+tabla; una pareja de 25 a 35 años que nunca gestionó un proyecto tiene menos
+contexto, no más. "Hito" es la única palabra del producto que **no** viene
+puesta: "meta", "acción", "camino" y "mapa" se entienden solas (§5.1); esta no.
+
+**La pregunta que contesta la ayuda** y que ninguna pantalla contesta: *"¿esto
+que estoy anotando es un hito, y qué me cambia marcarlo?"*. Se contesta en el
+único sitio donde se decide, el formulario. No hay pantalla nueva, ni página de
+ayuda, ni recorrido guiado.
+
+**Tres piezas, y ninguna más:**
+
+1. **Un disparador siempre visible, junto a la etiqueta.** Un icono `Info` de
+   3.5 (`size-3.5`) inmediatamente después de "Es un hito", con
+   `aria-label="Qué es un hito"`, que abre un **Popover** de shadcn. Popover y
+   no Tooltip: un tooltip no tiene ruta táctil y la puerta de calidad la exige.
+   El disparador va **fuera** del `<label>`: dentro, tocarlo cambiaría el
+   interruptor.
+2. **El contenido del popover.** Define, da ejemplos, da contraejemplos y dice
+   las consecuencias. Texto literal, en este orden:
+   > **Un hito es un día, no un trabajo.**
+   >
+   > El caso claro es la ceremonia civil: un día concreto que parte tu boda en
+   > antes y después.
+   >
+   > No son hitos las cosas que te toman tiempo: juntar las partidas, esperar el
+   > certificado médico, elegir a los testigos. Esas duran, y por eso llevan
+   > semanas.
+   >
+   > Si lo marcas:
+   > - aparece arriba con su cuenta regresiva;
+   > - en el camino se dibuja como un rombo;
+   > - desaparece "Cuántas dura", porque un hito no dura.
+3. **Una línea bajo la fila de interruptores, solo cuando está encendido.**
+   Quien enciende sin leer nada también se lleva la consecuencia:
+   *"Un hito no dura: marca el día. Lo verás arriba con su cuenta regresiva."*
+   Se oculta al apagarlo. Es la misma pieza que ya hace *"Sin semanas, queda en
+   ideas sueltas."*, y se escribe igual (`text-muted-foreground text-xs`).
+
+**Y la invitación del Mapa cambia de texto** (§5.3, §5.3.1). Era *"Marca lo
+importante como hito y verás cuánto falta."*; pasa a nombrar el ejemplo, porque
+es el primer sitio donde la pareja se encuentra la palabra:
+
+> **"Marca como hito el día que más importa, tu ceremonia civil, y verás cuánto
+> falta."**
+
+Lleva la palabra, su significado y un caso concreto en una frase. `INVITA_HITO`
+cambia de valor, no de nombre ni de sitio.
+
+#### Qué es hito de verdad en el trámite peruano, y qué no
+
+| Acción de la plantilla | ¿Hito? | Por qué |
+|---|---|---|
+| **Ceremonia civil** | **Sí**, y viene marcada (§4) | Día fijado por la municipalidad o la notaría. No dura. Parte la boda en antes y después. Es el hito de libro. |
+| **Expediente en la municipalidad** | Es un punto de paso real, pero **no viene marcado** | El día en que la municipalidad admite el expediente sí decide: hasta que no está admitido no hay aviso. Pero armarlo y presentarlo toma días, y nadie planifica una boda contando semanas hacia ese día. Queda como acción con duración; la pareja puede marcarlo si quiere. |
+| **Edicto matrimonial** | **No**, y es el que más se confunde | El aviso del matrimonio proyectado se fija **ocho días** en la municipalidad o notaría (Código Civil, art. 250) y en ese plazo cabe la oposición de quien tenga interés legítimo (art. 253): es una **espera**, no un día. Marcarlo como hito le fuerza la duración a 1 y le quita justo la espera, que es lo que hace esperar. |
+| **Acta de matrimonio** | **No** | Es recoger un papel, después del día que importa. Cierra el trámite pero no condiciona nada. |
+| Partidas, copia del DNI, certificado domiciliario, certificado médico prenupcial, elegir a los testigos | **No** | Son trabajos con duración, cada uno con su propia cola de espera. |
+
+**El edicto en la demo no se reabre** (§10): allí sigue marcado como hito para
+que la tira tenga algo que contar antes de la semana 0, y tiene defensa propia
+—el día en que el aviso sale publicado sí es un día— pero **la plantilla no lo
+marca** y la ayuda lo usa como contraejemplo. Es la única discrepancia
+deliberada entre la demo y la plantilla, y está aquí escrita para que nadie la
+"arregle" en la dirección contraria.
+
+**Contexto verificado que no entra en la plantilla:** la Ley 31643 (diciembre de
+2022) habilitó a los notarios a celebrar el matrimonio civil y permitió publicar
+el aviso por medios digitales; y, vencido el plazo sin oposición, la autoridad
+declara la capacidad de los contrayentes y el matrimonio puede celebrarse dentro
+de **cuatro meses** (art. 258). "Capacidad declarada" sería un hito impecable y
+aquí no se usa: nadie en una pareja llama así a nada. La plantilla sigue con
+"Ceremonia civil" como único hito.
+
+> **Supuesto marcado.** Las semanas de la plantilla (§4) siguen siendo
+> estimaciones de calendario real, no plazos de ley: la ley fija ocho días de
+> aviso, no las dos semanas que la plantilla da al edicto. Esas dos semanas
+> cubren el trámite más la cola de la municipalidad, y la pareja las edita.
 
 ## 9. Integración con Bernie
 
@@ -635,6 +785,27 @@ Se agrega para la enmienda 2:
   **antes**";
 - la cuenta regresiva: `semanasHastaLaBoda − semanaDelHito`, con ≤ 0 → "es esta
   semana", y sin fecha de boda no hay cuenta.
+
+Se agrega para la **enmienda 3**, todo sobre `lib/metas.ts`:
+
+- **`ultimoHitoHecho`**: devuelve el hito en el camino, `hecho`, con la semana
+  **más baja**; null si no hay ninguno hecho; **ignora** los hitos que son idea
+  suelta; **ignora** los hitos sin hacer (no es "el último que toqué", es "el
+  último que pasó").
+- `proximoHito` y `ultimoHitoHecho` sobre la misma lista: con un hito pendiente
+  y otro hecho, el primero devuelve el pendiente y el segundo el hecho, y la
+  pantalla dibuja la tira normal (§5.3.1).
+- **Todos los hitos hechos**: `proximoHito` null y `ultimoHitoHecho` no null, que
+  es la condición exacta de la tira de cierre.
+- **Dos hitos hechos empatados en la semana más baja**: `nombreDeHitos` los une
+  con " y ", en orden de meta y luego por título.
+- **Ningún hito en toda la boda**: las dos funciones devuelven null (condición
+  de la invitación).
+- **Hitos que existen pero todos son ideas sueltas**: las dos funciones
+  devuelven null.
+- **`estadoDeHitos`**: los cuatro `tipo` de §5.3.1, uno por prueba, incluida la
+  diferencia entre `"ninguno"` y `"sin-semana"`, que es la que el componente no
+  debe reproducir a mano. Un hito hecho que es idea suelta no da `"cierre"`.
 
 Y del plan original se mantiene:
 
@@ -711,6 +882,22 @@ opacado del origen, los anuncios de lector de pantalla, el interior de la
 tarjeta— **se conserva tal cual**: el componente sigue, solo cambia la lista
 que se le pasa.
 
+### 12.2 Orden de implementación de la enmienda 3
+
+Independiente de todo lo anterior y sin tocar la base de datos:
+
+1. `lib/metas.ts`: `ultimoHitoHecho` y `estadoDeHitos`, con sus pruebas (§11).
+2. `app/mi-boda/_acciones/tira-hito.tsx`: consumir `estadoDeHitos` y dibujar los
+   cuatro casos (tira normal, tira de cierre con `Check`, invitación,
+   "Ponle una semana…"). `app/mi-boda/_acciones/tipos.ts`: nuevo valor de
+   `INVITA_HITO` y la constante del cuarto mensaje.
+3. `app/mi-boda/_acciones/formulario-accion.tsx`: el `Popover`, su disparador
+   `Info` y la línea bajo la fila de interruptores (§8.1).
+
+Validación: la tira en sus **cuatro** estados, en móvil (375×812) y escritorio,
+claro y oscuro; y el popover abierto con toque, con teclado y con lector de
+pantalla, comprobando que no desborda el diálogo del formulario a 375 px.
+
 ## 13. Qué queda fuera
 
 - **Una tabla `hitos` aparte.** Un hito sigue siendo una acción con `es_hito`.
@@ -751,6 +938,29 @@ Lo que añade la **enmienda 2**:
   Mapa, con su botón por carril de meta (§7, §8), y el botón flotante del
   celular.
 - **Juntar el Mapa y el Camino** o renombrar las vistas.
+
+Lo que añade la **enmienda 3**:
+
+- **Renombrar "hito".** Se evaluó "fecha clave", "día señalado" y "momento".
+  "Momento" ya está ocupado por otra cosa en la historia del producto, y las
+  otras dos obligan a traducir el vocabulario en cinco sitios para ganar poco:
+  el problema no era la palabra, era que no venía explicada. La palabra se
+  queda y se explica (§8.1).
+- **Una pantalla o página de ayuda**, un recorrido guiado, un tour de bienvenida
+  o un "¿sabías que…?". La ayuda vive donde se decide: al lado del interruptor.
+- **Explicar también "meta", "acción" o "dependencia"** con el mismo popover.
+  Esas tres se entienden por el sitio donde están (§5.1). Si alguna resulta no
+  entenderse, se arregla cuando se vea, no por simetría.
+- **Marcar más hitos en la plantilla.** Uno, la ceremonia civil (§4).
+- **Sugerir o validar hitos** ("esto parece un hito, ¿lo marcas?"). La pareja
+  decide; la app no adivina.
+- **Contar lo que quedó sin hacer en la tira de cierre.** Sería un aviso de
+  retraso, que sigue fuera (arriba, enmienda 2).
+- **Una tira por cada hito pasado**, o un historial de hitos cumplidos. La tira
+  de cierre nombra uno: el último.
+- **Celebrar el cierre** con confeti, insignia o cambio de color. La tira de
+  cierre es una línea sobria como las otras tres. Si se quiere celebrar, eso es
+  materia de `docs/compartir.md`.
 
 ## 14. Preguntas abiertas para el arquitecto
 
@@ -793,3 +1003,17 @@ Lo que añade la **enmienda 2**:
 11. **Rendimiento**: la banda, la tira y los carriles recorren la misma lista
     tres veces por render. ¿Importa con 60 acciones? Probablemente no; dicho
     por si acaso.
+12. **El popover dentro del diálogo** (enmienda 3): el formulario de acción es
+    un `Dialog` de shadcn, y el popover abre dentro. ¿Hace falta ajustar
+    `modal`, el `z-index` o el foco para que cerrar el popover con `Esc` no
+    cierre también el diálogo? Es el riesgo técnico de §8.1 y no sé evaluarlo.
+13. **El disparador de la ayuda** (enmienda 3): se pide un icono `Info` con
+    `aria-label`. ¿Es suficientemente visible a 375 px, o conviene texto
+    ("¿qué es?") aunque alargue la fila de tres interruptores? Si el validador
+    mide que el icono queda por debajo del área de toque de 44 px, manda la
+    medición y se pasa a texto.
+14. **`estadoDeHitos` y el optimismo del Mapa** (enmienda 3): marcar hecho el
+    último hito pendiente cambia el estado de la tira de "proximo" a "cierre".
+    Con la tira dentro del componente cliente eso es instantáneo; fuera, espera
+    la revalidación. Es la misma decisión de la pregunta 10 y conviene que las
+    dos se resuelvan igual.

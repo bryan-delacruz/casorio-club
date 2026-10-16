@@ -236,6 +236,34 @@ construyó una agrupación entera y después se retiró.
 - **Presupuesto del validador**: ~60 llamadas en una pasada completa, ~25 en una
   revalidación. Al llegar al tope entrega lo que tiene y dice qué no miró.
   Censa por muestra: lo que el cambio tocó, más los peores casos que encuentre.
+- **Una pasada, un cambio coherente, hasta ~6 archivos.** El arquitecto tarda de
+  10 a 14 minutos cuando el encargo mete dos temas; con la lista ya escrita y en
+  Sonnet, 33 segundos. El alcance manda más que el modelo.
+- **Verificación una vez, al final**: `pnpm lint`, `pnpm test`, `npx tsc --noEmit`.
+  `pnpm build` solo si el cambio toca rutas, `next.config.ts` o fronteras
+  servidor/cliente: es lo más lento que hay.
+- **Informes de ~250 palabras**, con la estructura fija que cada agente lleva en
+  su archivo. Y al relevar un informe al usuario: los hallazgos y las decisiones,
+  no el informe entero.
+
+## Estilo telegráfico
+
+Todo lo que se escribe entre agentes va en estilo telegráfico: sin artículos,
+sin relleno, sin cortesías, frases cortas, una idea por frase, voz activa, mismo
+término para la misma cosa. Aplica a los **encargos** que el orquestador manda a
+un agente y a los **informes** que el agente devuelve.
+
+Intactos y exactos, siempre: números con unidades, textos literales vistos en
+pantalla, rutas, nombres de función y de API, comandos, y errores citados tal
+cual. Nunca se eliminan "no", "nunca", "solo" ni "salvo". Si comprimir crea
+ambigüedad técnica, gana la claridad.
+
+Aplica también a las **specs en `docs/`** y a los **mensajes de commit y cuerpos
+de PR**: frases cortas, tablas antes que párrafos, la razón de una decisión una
+sola vez y no repetida en tres secciones. Una spec es un contrato, así que la
+claridad gana siempre que choque con la brevedad: ante la duda, una frase más
+larga y sin ambigüedad. El código y sus comentarios no cambian de estilo: siguen
+el del repositorio, y el comentario explica el *por qué*.
 
 ## El servidor de desarrollo es del usuario
 

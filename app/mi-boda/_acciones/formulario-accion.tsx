@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition, type Dispatch, type ReactNode, type SetStateAction } from "react";
-import { Plus } from "lucide-react";
+import { Info, Plus } from "lucide-react";
 import { toast } from "sonner";
 import type { Accion } from "@/db/schema";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,11 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -48,6 +53,48 @@ const CUANDOS: { id: Cuando; nombre: string }[] = [
   { id: "el_dia", nombre: "El día" },
   { id: "despues", nombre: "Después" },
 ];
+
+/**
+ * Qué es un hito, donde se decide (docs/metas.md §8.1): define, da ejemplos,
+ * da contraejemplos y dice las consecuencias.
+ *
+ * Popover y no tooltip porque un tooltip no tiene ruta táctil. El icono lleva
+ * `aria-label` y su área de toque crece con el mismo pseudo-elemento que el
+ * control "Cuándo": 44 px de alto y 35 px de ancho, porque hacia la izquierda
+ * solo se come el hueco de 6 px — más invadiría la palabra "hito" y tocarla
+ * abriría la ayuda en vez de mover el interruptor.
+ */
+function AyudaHito() {
+  return (
+    <Popover>
+      <PopoverTrigger
+        aria-label="Qué es un hito"
+        className="text-muted-foreground hover:text-foreground focus-visible:ring-ring relative cursor-pointer rounded-full outline-none before:absolute before:-top-[0.9375rem] before:-right-[0.9375rem] before:-bottom-[0.9375rem] before:-left-1.5 before:content-[''] focus-visible:ring-2"
+      >
+        <Info className="size-3.5" aria-hidden />
+      </PopoverTrigger>
+      <PopoverContent align="start" collisionPadding={16} className="max-w-[calc(100vw-3rem)]">
+        <p className="font-medium">Un hito es un día, no un trabajo.</p>
+        <p className="text-muted-foreground">
+          El caso claro es la ceremonia civil: un día concreto que parte tu boda en antes y
+          después.
+        </p>
+        <p className="text-muted-foreground">
+          No son hitos las cosas que te toman tiempo: juntar las partidas, esperar el
+          certificado médico, elegir a los testigos. Esas duran, y por eso llevan semanas.
+        </p>
+        <div className="text-muted-foreground">
+          <p>Si lo marcas:</p>
+          <ul className="mt-1 list-disc space-y-0.5 pl-4">
+            <li>aparece arriba con su cuenta regresiva;</li>
+            <li>en el camino se dibuja como un rombo;</li>
+            <li>desaparece &ldquo;Cuántas dura&rdquo;, porque un hito no dura.</li>
+          </ul>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 /** Sin semanas no hay opción marcada: la acción es una idea suelta. */
 export const cuandoDe = (semanas: number | null | undefined): Cuando | null =>
@@ -205,11 +252,23 @@ function Campos({
           <Switch checked={cuestaDinero} onCheckedChange={setCuestaDinero} />
           Cuesta dinero
         </label>
-        <label className="flex cursor-pointer items-center gap-2 text-sm">
-          <Switch checked={esHito} onCheckedChange={setEsHito} />
-          Es un hito
-        </label>
+        {/* El disparador va fuera del <label>: dentro, tocarlo cambiaría el
+            interruptor (docs/metas.md §8.1). */}
+        <div className="flex items-center gap-1.5">
+          <label className="flex cursor-pointer items-center gap-2 text-sm">
+            <Switch checked={esHito} onCheckedChange={setEsHito} />
+            Es un hito
+          </label>
+          <AyudaHito />
+        </div>
       </div>
+
+      {/* Quien enciende sin leer nada también se lleva la consecuencia. */}
+      {esHito && (
+        <p className="text-muted-foreground text-xs">
+          Un hito no dura: marca el día. Lo verás arriba con su cuenta regresiva.
+        </p>
+      )}
 
       <div className="space-y-2">
         <Label htmlFor="semanas">Cuándo</Label>

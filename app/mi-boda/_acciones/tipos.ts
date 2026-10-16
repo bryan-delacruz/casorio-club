@@ -25,13 +25,28 @@ export const TODO_LO_ANOTADO = "Todo lo anotado";
  */
 export const INVITA_META = "Agrupa lo que va junto: crea una meta.";
 
-/** Solo en el Mapa, y una sola vez, cuando no hay ningún hito (§5.3). */
-export const INVITA_HITO = "Marca lo importante como hito y verás cuánto falta.";
+/**
+ * Solo en el Mapa, y una sola vez, cuando no hay ningún hito (§5.3, §8.1).
+ *
+ * Nombra el ejemplo porque es el primer sitio donde la pareja se encuentra la
+ * palabra: "hito" es la única del producto que no se entiende sola.
+ */
+export const INVITA_HITO =
+  "Marca como hito el día que más importa, tu ceremonia civil, y verás cuánto falta.";
+
+/**
+ * El callejón del hito que es idea suelta: la casilla está marcada, no se ve
+ * nada y nadie dice que falta la semana (docs/metas.md §5.3.1). Solo en el
+ * Mapa: en el Camino ese hito no está dibujado.
+ */
+export const HITO_SIN_SEMANA = "Ponle una semana a tu hito y verás cuánto falta.";
 
 /**
  * Cómo se nombra una dependencia que no se dibuja con flecha (docs/metas.md
  * §5). Una sola forma: el Mapa decía "necesita" y el Camino no decía nada.
  */
+// Banda vacía, caso "todo hecho": sin felicitación, solo dice cómo está el camino.
+export const BANDA_TODO_HECHO = "No queda nada por hacer en tu camino.";
 export const REQUIERE = "↳ requiere";
 
 /**
@@ -49,18 +64,6 @@ export function hoy() {
   const mes = String(d.getMonth() + 1).padStart(2, "0");
   const dia = String(d.getDate()).padStart(2, "0");
   return `${d.getFullYear()}-${mes}-${dia}`;
-}
-
-/**
- * Cuánto se ha pagado de una acción y cuánto falta.
- *
- * `falta` nunca baja de cero: si pagaste de más, el saldo es cero y la
- * diferencia se ve en la lista de pagos, no como un número negativo.
- */
-export function cuentaDe(monto: string | null, pagos: { monto: string }[]) {
-  const total = monto ? Number(monto) : 0;
-  const pagado = pagos.reduce((s, p) => s + Number(p.monto), 0);
-  return { total, pagado, falta: Math.max(total - pagado, 0) };
 }
 
 export const soles = (n: number) =>

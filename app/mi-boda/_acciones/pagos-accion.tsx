@@ -1,9 +1,10 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import type { Accion, Pago } from "@/db/schema";
+import { AvatarPersona } from "@/components/avatar-persona";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -15,8 +16,16 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { borrarPago, registrarPago } from "./acciones-servidor";
-import { cuentaDe, diaCorto, hoy, soles, type Miembro } from "./tipos";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { cuentaDe, etiquetaDePago, POR_REPARTIR } from "@/lib/pagos";
+import { borrarPago, registrarPago, registrarPagoRepartido } from "./acciones-servidor";
+import { diaCorto, hoy, soles, type Miembro } from "./tipos";
 
 /**
  * Los pagos de una acción.
@@ -24,6 +33,10 @@ import { cuentaDe, diaCorto, hoy, soles, type Miembro } from "./tipos";
  * Un adelanto no es un estado, es un hecho con fecha: al fotógrafo le dejas
  * algo al reservar y el resto después. Por eso aquí se anotan pagos sueltos
  * y el saldo sale de restarlos, en vez de editar un número "ya pagado".
+ *
+ * Quién gestiona y quién paga son dos cosas distintas (docs/pagos.md §1.0):
+ * "Quién puso" llega con el responsable ya elegido, pero es una pregunta
+ * abierta y se puede cambiar.
  */
 export function PagosAccion({
   accion,
@@ -39,27 +52,60 @@ export function PagosAccion({
   onAbiertoChange: (v: boolean) => void;
 }) {
   const [enviando, iniciar] = useTransition();
+  // Null = la fila de fichas está cerrada. Solo aparece con tres o más
+  // miembros: con dos no hay a quién elegir (docs/pagos.md §3.2).
+  const [elegidos, setElegidos] = useState<string[] | null>(null);
   const { total, pagado, falta } = cuentaDe(accion.monto, pagos);
-  const nombre = (id: string | null) =>
-    miembros.find((m) => m.id === id)?.nombre.split(" ")[0] ?? null;
+  // Sin pagador conocido se lee "Por repartir", la misma etiqueta del
+  // selector y del Reparto: quien salió de la boda deja su pago aquí
+  // (docs/pagos.md §7). El capitalize solo va en las personas, porque "Por
+  // Repartir" con las dos mayúsculas se lee mal.
+  const nombre = (id: string | null) => miembros.find((m) => m.id === id)?.nombre.split(" ")[0];
+  const hayVarios = miembros.length >= 3;
 
-  function anotar(form: FormData) {
+  function datosDelFormulario(form: FormData) {
     const monto = String(form.get("monto") ?? "").trim();
     const fecha = String(form.get("fecha") ?? "").trim();
-    if (!monto || Number(monto) <= 0 || !fecha) return;
+    const nota = String(form.get("nota") ?? "").trim() || null;
+    return { monto, fecha, nota, valido: !!monto && Number(monto) > 0 && !!fecha };
+  }
+
+  function anotar(form: FormData) {
+    const { monto, fecha, nota, valido } = datosDelFormulario(form);
+    if (!valido) return;
+    const quien = String(form.get("pagadoPor") ?? POR_REPARTIR);
 
     iniciar(async () => {
-      try {
-        await registrarPago({
-          accionId: accion.id,
-          monto,
-          fecha,
-          nota: String(form.get("nota") ?? "").trim() || null,
-        });
-        toast.success("Anotado.");
-      } catch {
-        toast.error("No se pudo anotar. Intenta otra vez.");
-      }
+      const r = await registrarPago({
+        accionId: accion.id,
+        monto,
+        fecha,
+        nota,
+        pagadoPorId: quien === POR_REPARTIR ? null : quien,
+      }).catch(() => ({ error: "No se pudo anotar. Intenta otra vez." }));
+      if (r?.error) return void toast.error(r.error);
+      toast.success("Anotado.");
+    });
+  }
+
+  /**
+   * El atajo: una fila por persona elegida. El selector "Quién puso" se
+   * ignora, y los céntimos los parte el servidor para que la misma operación
+   * dé siempre el mismo resultado (docs/pagos.md §3.2).
+   */
+  function repartir(form: FormData) {
+    const { monto, fecha, nota, valido } = datosDelFormulario(form);
+    if (!valido) return;
+    const ids = elegidos ?? miembros.map((m) => m.id);
+    if (ids.length < 2) return;
+
+    iniciar(async () => {
+      const r = await registrarPagoRepartido(accion.id, ids, monto, fecha, nota).catch(() => ({
+        error: "No se pudo repartir. Intenta otra vez.",
+      }));
+      if (r?.error) return void toast.error(r.error);
+      setElegidos(null);
+      toast.success("Repartido.");
     });
   }
 
@@ -119,13 +165,15 @@ export function PagosAccion({
                   {diaCorto(p.fecha)}
                 </span>
                 <span className="min-w-0 flex-1 truncate">
-                  {p.nota || "Pago"}
-                  {nombre(p.pagadoPorId) && (
-                    <span className="text-muted-foreground capitalize">
-                      {" "}
-                      · {nombre(p.pagadoPorId)}
-                    </span>
-                  )}
+                  {/* Sin nota, el número sale del orden; tres filas que dicen
+                      "Pago" no se distinguen (docs/pagos.md §3.3). */}
+                  {etiquetaDePago(pagos, p)}
+                  <span
+                    className={`text-muted-foreground ${nombre(p.pagadoPorId) ? "capitalize" : ""}`}
+                  >
+                    {" "}
+                    · {nombre(p.pagadoPorId) ?? "Por repartir"}
+                  </span>
                   {p.deBernie && (
                     <span className="bg-secondary text-secondary-foreground ml-2 rounded-full px-2 py-0.5 text-xs">
                       de Bernie
@@ -175,16 +223,96 @@ export function PagosAccion({
                 />
               </div>
             </div>
-            <div className="mt-3 space-y-2">
-              <Label htmlFor="nota">Qué fue</Label>
-              <Input
-                id="nota"
-                name="nota"
-                placeholder="Adelanto, saldo, la mitad…"
-              />
+            <div className="mt-3 flex flex-wrap items-end gap-3">
+              <div className="min-w-32 flex-1 space-y-2">
+                <Label htmlFor="pagadoPor">Quién puso</Label>
+                {/* "Por repartir" y no "Sin decidir": es la etiqueta que el
+                    Reparto ya usa para ese grupo (docs/pagos.md §3.1). */}
+                <Select
+                  name="pagadoPor"
+                  defaultValue={accion.responsableId ?? POR_REPARTIR}
+                >
+                  <SelectTrigger id="pagadoPor" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {miembros.map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.nombre}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value={POR_REPARTIR}>Por repartir</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="min-w-32 flex-1 space-y-2">
+                <Label htmlFor="nota">Qué fue</Label>
+                <Input
+                  id="nota"
+                  name="nota"
+                  placeholder="Adelanto, saldo, la mitad…"
+                />
+              </div>
             </div>
 
+            {/* A quiénes se reparte: fichas conmutables con el mismo avatar de
+                siempre. Envuelven a 375 px en vez de hacer scroll. */}
+            {elegidos && (
+              <div className="mt-4 flex flex-wrap gap-x-4 gap-y-3">
+                {miembros.map((m) => {
+                  const marcado = elegidos.includes(m.id);
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      aria-pressed={marcado}
+                      onClick={() =>
+                        setElegidos(
+                          marcado
+                            ? elegidos.filter((id) => id !== m.id)
+                            : [...elegidos, m.id],
+                        )
+                      }
+                      // El pseudo-elemento sube el área de toque a 44 px sin
+                      // separar las fichas, igual que en "Antes/El día/Después".
+                      className="focus-visible:ring-ring relative flex cursor-pointer items-center gap-2 rounded-full text-sm outline-none before:absolute before:inset-x-0 before:-top-1.5 before:-bottom-1.5 before:content-[''] focus-visible:ring-2"
+                    >
+                      <AvatarPersona
+                        persona={m}
+                        className={marcado ? "ring-primary size-8 ring-2" : "size-8 opacity-40"}
+                      />
+                      <span className={marcado ? "capitalize" : "text-muted-foreground capitalize"}>
+                        {m.nombre.split(" ")[0]}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
             <DialogFooter className="mt-6">
+              {/* Con dos miembros no hay nada que elegir: reparte y listo. Con
+                  tres o más, el primer toque abre las fichas. */}
+              {miembros.length >= 2 &&
+                (hayVarios && !elegidos ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setElegidos(miembros.map((m) => m.id))}
+                  >
+                    Repartir
+                  </Button>
+                ) : (
+                  <Button
+                    type="submit"
+                    variant="outline"
+                    className="relative before:absolute before:inset-x-0 before:-top-1.5 before:-bottom-1.5 before:content-['']"
+                    formAction={repartir}
+                    disabled={enviando || (elegidos !== null && elegidos.length < 2)}
+                  >
+                    {elegidos ? `Repartir entre ${elegidos.length}` : "Repartir"}
+                  </Button>
+                ))}
               <Button type="submit" disabled={enviando}>
                 {enviando ? "Anotando…" : "Anotar pago"}
               </Button>

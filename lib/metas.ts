@@ -378,6 +378,18 @@ export function queTocaAhora<T extends AccionCamino>(
 }
 
 /**
+ * Por qué la banda de "Qué toca ahora" salió vacía. Son dos casos con dos
+ * textos: quedan acciones pero todas esperan a otra ("bloqueadas"), o no
+ * queda ninguna por hacer ("todo_hecho"). Se decide aquí, junto a la
+ * selección, para que el componente no repita su criterio de "en camino".
+ */
+export function motivoBandaVacia<T extends AccionCamino>(
+  acciones: T[],
+): "bloqueadas" | "todo_hecho" {
+  return enCamino(acciones).some((a) => a.estado !== "hecho") ? "bloqueadas" : "todo_hecho";
+}
+
+/**
  * El próximo hito: el que está en el camino, no está hecho y tiene la semana
  * más alta, o sea el más temprano (docs/metas.md §5.3). Null si no hay.
  *
@@ -400,6 +412,59 @@ export function proximoHito<T extends AccionCamino>(
       ordenDeMeta(a) - ordenDeMeta(b) ||
       a.titulo.localeCompare(b.titulo, "es"),
   )[0];
+}
+
+/**
+ * El último hito que ya pasó: el que está en el camino, `hecho` y con la
+ * semana más baja, o sea el más tardío en el tiempo, porque las semanas se
+ * cuentan hacia atrás (docs/metas.md §5.3.1). Null si no hay ninguno.
+ *
+ * No es "el último que toqué": un hito sin hacer no cuenta, y un hito que es
+ * idea suelta tampoco, porque nunca estuvo en el camino.
+ */
+export function ultimoHitoHecho<T extends AccionCamino>(
+  acciones: T[],
+  metas: { id: string }[] = [],
+): (T & { inicioSemanas: number }) | null {
+  const ordenDeMeta = (a: T) => {
+    const i = metas.findIndex((m) => m.id === a.metaId);
+    return i === -1 ? metas.length : i;
+  };
+  const hitos = enCamino(acciones).filter((a) => a.esHito && a.estado === "hecho");
+  if (hitos.length === 0) return null;
+  return hitos.sort(
+    (a, b) =>
+      a.inicioSemanas - b.inicioSemanas ||
+      ordenDeMeta(a) - ordenDeMeta(b) ||
+      a.titulo.localeCompare(b.titulo, "es"),
+  )[0];
+}
+
+/**
+ * Qué cuenta la tira de hitos, en uno de cuatro casos (docs/metas.md §5.3.1).
+ *
+ * Compone `proximoHito` y `ultimoHitoHecho` en vez de dejar tres condiciones
+ * dentro del componente: la distinción entre "no hay ningún hito" y "hay
+ * hitos pero son ideas sueltas" es la que la pantalla se equivocaría en
+ * reproducir, y así se prueba de una vez.
+ */
+export type EstadoDeHitos<T extends AccionCamino> =
+  | { tipo: "proximo"; hito: T & { inicioSemanas: number } }
+  | { tipo: "cierre"; hito: T & { inicioSemanas: number } }
+  | { tipo: "sin-semana" }
+  | { tipo: "ninguno" };
+
+export function estadoDeHitos<T extends AccionCamino>(
+  acciones: T[],
+  metas: { id: string }[] = [],
+): EstadoDeHitos<T> {
+  const proximo = proximoHito(acciones, metas);
+  if (proximo) return { tipo: "proximo", hito: proximo };
+  const ultimo = ultimoHitoHecho(acciones, metas);
+  if (ultimo) return { tipo: "cierre", hito: ultimo };
+  // Quedan los hitos que nunca entraron al camino: la casilla está marcada y
+  // no se ve nada, así que hay que decir que falta la semana.
+  return acciones.some((a) => a.esHito) ? { tipo: "sin-semana" } : { tipo: "ninguno" };
 }
 
 /**

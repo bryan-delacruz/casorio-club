@@ -21,6 +21,7 @@ import {
   enCamino,
   faltanSemanas,
   ordenPorSemana,
+  motivoBandaVacia,
   queTocaAhora,
   REGISTRO_CIVIL,
   resumenMeta,
@@ -36,6 +37,7 @@ import {
   ESTADOS,
   IDEAS,
   INVITA_META,
+  BANDA_TODO_HECHO,
   NOMBRE_IDEAS,
   siguienteEstado,
   SIN_META,
@@ -414,7 +416,9 @@ export function Mapa({
           </div>
         ) : banda.length === 0 ? (
           <p className="text-muted-foreground mt-2 text-sm">
-            Nada urgente. Lo que sigue espera a otra cosa.
+            {motivoBandaVacia(lista) === "todo_hecho"
+              ? BANDA_TODO_HECHO
+              : "Nada urgente. Lo que sigue espera a otra cosa."}
           </p>
         ) : (
           <div className="divide-border/60 mt-1 divide-y">

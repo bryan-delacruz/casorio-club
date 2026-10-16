@@ -15,10 +15,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { cuentaDe } from "@/lib/pagos";
 import { EditarAccion } from "./formulario-accion";
 import { PagosAccion } from "./pagos-accion";
 import {
-  cuentaDe,
   ESTADOS,
   REQUIERE,
   siguienteEstado,
