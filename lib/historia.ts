@@ -11,15 +11,9 @@ export type Collar = { titulo: string; perlas: Perla[]; hechas: number };
 export const hoyEnLima = (ahora = new Date()) =>
   new Intl.DateTimeFormat("en-CA", { timeZone: "America/Lima" }).format(ahora);
 
-/** Días enteros entre hoy y la boda. Null sin fecha; negativo si ya pasó. */
-export function diasHasta(fecha: string | null, hoy: string) {
-  if (!fecha) return null;
-  const dia = (s: string) => {
-    const [a, m, d] = s.split("-").map(Number);
-    return Date.UTC(a, m - 1, d);
-  };
-  return Math.round((dia(fecha) - dia(hoy)) / 86_400_000);
-}
+// Los días hasta la boda viven con el resto de la fecha, en `lib/fecha-boda.ts`.
+// Se reexporta para no cambiar los imports de quien ya la pedía aquí.
+export { diasHasta } from "./fecha-boda.ts";
 
 const perlaDe = (a: AccionCamino): Perla =>
   a.esHito ? (a.estado === "hecho" ? "hito-hecho" : "hito") : a.estado === "hecho" ? "hecha" : a.estado === "haciendo" ? "haciendo" : "falta";

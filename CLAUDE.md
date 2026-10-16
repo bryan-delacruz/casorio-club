@@ -102,10 +102,8 @@ de verdad. `null` = sin decidir todavía.
 `inicioSemanas` es el **único** campo que dice si una acción está en el camino.
 Hubo un `momento` (`idea` | `antes` | `el_dia` | `despues`) que hacía además de
 carril del tablero: se retiró porque repetía lo que la fecha ya decía y había
-que mantener dos datos coherentes. La columna **sigue viva en Neon** con su
-`NOT NULL DEFAULT 'idea'` a propósito, y el código ya no la lee; su borrado es el
-paso 3 de `docs/metas.md` §3.1, después de verificar producción. Hasta entonces
-el `README.md` menciona un índice `(boda_id, momento, orden)` que ya no sirve.
+que mantener dos datos coherentes. La columna ya no existe: se borró de Neon con
+`drizzle-kit push` tras verificar producción (paso 3 de `docs/metas.md` §3.1).
 
 ### Marco de gestión (PMP traducido)
 

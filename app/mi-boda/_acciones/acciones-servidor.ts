@@ -6,6 +6,7 @@ import { auth } from "@clerk/nextjs/server";
 import { getDb } from "@/db";
 import { acciones, bodas, dependencias, metas, pagos } from "@/db/schema";
 import {
+  cuantasYaPasaron,
   duracionDe,
   planPlantilla,
   REGISTRO_CIVIL,
@@ -30,16 +31,42 @@ async function bodaActiva() {
 
 export type Estado = "por_hacer" | "haciendo" | "hecho";
 
-export async function guardarFechaBoda(fecha: string | null) {
+/**
+ * Pone o quita el día de la boda (docs/fecha-de-la-boda.md §4.4).
+ *
+ * Devuelve cuántas acciones quedaron en una semana que ya pasó para que el
+ * aviso lo cuente, pero no mueve ninguna: las semanas son relativas y las puso
+ * la pareja a mano. Se revalida el layout entero porque la cuenta regresiva
+ * vive en la cabecera y se ve en todas las rutas de /mi-boda.
+ */
+export async function guardarFechaBoda(
+  fecha: string | null,
+): Promise<{ error?: string; yaPasaron?: number }> {
   const { bodaId } = await bodaActiva();
+  const limpia = fecha?.trim() || null;
+  if (limpia !== null && !esFechaValida(limpia)) {
+    return { error: "Esa fecha no se entiende." };
+  }
+
   await getDb()
     .insert(bodas)
-    .values({ id: bodaId, fecha })
+    .values({ id: bodaId, fecha: limpia })
     .onConflictDoUpdate({
       target: bodas.id,
-      set: { fecha, actualizadaEl: new Date() },
+      set: { fecha: limpia, actualizadaEl: new Date() },
     });
-  revalidatePath("/mi-boda");
+
+  const suyas = await getDb().select().from(acciones).where(eq(acciones.bodaId, bodaId));
+  revalidatePath("/mi-boda", "layout");
+  return { yaPasaron: cuantasYaPasaron(suyas, semanasHastaLaBoda(limpia)) };
+}
+
+/** El input type="date" ya filtra, pero la acción es un POST abierto. */
+function esFechaValida(fecha: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return false;
+  const [a, m, d] = fecha.split("-").map(Number);
+  const dia = new Date(a, m - 1, d);
+  return dia.getFullYear() === a && dia.getMonth() === m - 1 && dia.getDate() === d;
 }
 
 /**

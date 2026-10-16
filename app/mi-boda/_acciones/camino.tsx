@@ -20,7 +20,6 @@ import {
 import { cuentaDe, pagosPorAccion } from "@/lib/pagos";
 import { CompartirHistoria } from "./compartir-historia";
 import { EmpezarRegistroCivil } from "./empezar-registro-civil";
-import { FechaBoda } from "./fecha-boda";
 import { TiraProximoHito } from "./tira-hito";
 import {
   INVITA_META,
@@ -99,7 +98,6 @@ export function Camino({
       <div className="flex flex-wrap items-center gap-2">
         {!tieneRegistro && <EmpezarRegistroCivil />}
         <CompartirHistoria />
-        <FechaBoda fecha={fechaBoda} />
       </div>
     </div>
   );
