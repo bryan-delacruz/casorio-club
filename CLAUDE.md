@@ -82,10 +82,13 @@ Dinero como `numeric(12, 2)`, nunca float.
 fecha absoluta porque **mover la boda mueve todo con ella**, que es lo que pasa
 de verdad. `null` = sin decidir todavía.
 
-`acciones.momento` (`idea` | `antes` | `el_dia` | `despues`) hace dos trabajos:
-es el carril del tablero y el valor por defecto de `inicioSemanas` cuando nadie
-puso semanas (`POR_DEFECTO` en `lib/metas.ts`). El índice compuesto
-`(boda_id, momento, orden)` depende de esa columna.
+`inicioSemanas` es el **único** campo que dice si una acción está en el camino.
+Hubo un `momento` (`idea` | `antes` | `el_dia` | `despues`) que hacía además de
+carril del tablero: se retiró porque repetía lo que la fecha ya decía y había
+que mantener dos datos coherentes. La columna **sigue viva en Neon** con su
+`NOT NULL DEFAULT 'idea'` a propósito, y el código ya no la lee; su borrado es el
+paso 3 de `docs/metas.md` §3.1, después de verificar producción. Hasta entonces
+el `README.md` menciona un índice `(boda_id, momento, orden)` que ya no sirve.
 
 ### Marco de gestión (PMP traducido)
 
@@ -93,7 +96,10 @@ puso semanas (`POR_DEFECTO` en `lib/metas.ts`). El índice compuesto
 lee jerga de PMP:
 - **Meta** = entregable / paquete de trabajo de la EDT. Una acción pertenece a
   una meta o a ninguna, nunca a dos, para que el monto no se cuente doble.
-- **Hito** (`esHito`) = checkpoint de duración cero; rombo en el Gantt.
+- **Hito** (`esHito`) = checkpoint de duración cero; rombo en el Gantt y la
+  tira de cuenta regresiva ("Edicto matrimonial · faltan 4 semanas"). Es una
+  marca, no una manera de agrupar: se probó agrupar por hito y se retiró porque
+  no contestaba ninguna pregunta que la meta no contestara ya.
 - **Dependencia** = precedencia fin-a-inicio, guardada como par
   `(accionId, requiereId)` para poder preguntar en los dos sentidos.
 - **Cadena principal** = ruta crítica.
@@ -134,11 +140,16 @@ sin error.
 
 Dos vistas sobre los mismos datos, enlazadas desde `_acciones/rutas.ts`
 (centralizado: cabecera, selector y barra del celular usan las mismas rutas):
-- **Mapa** (`/mi-boda`, `mapa.tsx`) — tablero con arrastre por `dnd-kit` entre
-  carriles de `momento`. Siempre debe existir una ruta sin arrastre para
-  teclado y táctil.
-- **Camino** (`/mi-boda/camino`, `camino.tsx`) — Gantt con flechas de
-  dependencia, cadena principal resaltada, choques en rojo y hitos como rombo.
+La meta es el **único** agrupador en las dos pantallas.
+
+- **Mapa** (`/mi-boda`, `mapa.tsx`) — de arriba abajo: banda "Qué toca ahora",
+  tira del próximo hito, un carril por meta (más "Sin meta"), bandeja de ideas
+  sueltas y Reparto. Arrastrar con `dnd-kit` escribe `meta_id`, nunca la semana;
+  la semana se corrige en el formulario. El menú ⋯ → "Mover a" es la ruta sin
+  arrastre, obligatoria para teclado y táctil, y la vía principal en el celular.
+- **Camino** (`/mi-boda/camino`, `camino.tsx`) — Gantt agrupado por meta, sin
+  selector (`?por=` se ignora), con flechas de dependencia, cadena principal
+  resaltada, choques en rojo y hitos como rombo.
 
 ### Demo
 
