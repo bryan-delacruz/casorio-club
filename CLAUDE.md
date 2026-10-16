@@ -9,6 +9,23 @@ Perú. Multi-tenant con registro abierto — cualquiera crea su boda. La interfa
 el código y los comentarios están en español; los comentarios explican el *por
 qué*, no el *qué*.
 
+## Quién la usa, y para qué
+
+Dos novios que quieren **el control de la gestión de su evento**. No son
+gestores de proyecto: nadie les va a enseñar vocabulario de gestión, y la app
+tiene que explicarse sola donde se decide algo.
+
+Dos verdades del dominio que no se deducen del código y que han costado una
+corrección cada una:
+
+- **El responsable gestiona; quien paga puede ser otro.** `responsable_id` vive
+  en la acción, `pagado_por_id` en cada pago, y ninguna regla los ata. Pagan dos
+  personas, a veces entre varias, y casi siempre en partes.
+- **Pagar y terminar son ejes independientes.** "Pagado del todo" significa que
+  se cubrió el 100 % del dinero. Del estado **hecho** no se deduce si queda
+  plata por salir, porque hay cosas que se pagan por adelantado. No trates uno
+  como señal del otro.
+
 ## Comandos
 
 ```bash

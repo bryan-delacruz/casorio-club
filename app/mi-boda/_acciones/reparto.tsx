@@ -2,7 +2,14 @@
 
 import type { Accion, Pago } from "@/db/schema";
 import { AvatarPersona } from "@/components/avatar-persona";
-import { desbalance, POR_REPARTIR, reparte, repartoDePagos } from "@/lib/pagos";
+import {
+  cuentaDe,
+  desbalance,
+  pagosPorAccion,
+  POR_REPARTIR,
+  reparte,
+  repartoDePagos,
+} from "@/lib/pagos";
 import { soles, type Miembro } from "./tipos";
 
 type Cuenta = {
@@ -25,7 +32,8 @@ const pila = (nombre: string) => nombre.split(" ")[0];
  * pagos por pagador). Son dos números distintos y no se mezclan en la misma
  * fila (docs/pagos.md §1.0).
  *
- * El número grande es el de los dos: esto lleva la cuenta de un bote común,
+ * El número grande suma lo que va costando cada acción (docs/pagos.md §4.3)
+ * y es el de los dos: esto lleva la cuenta de un bote común,
  * no una deuda entre ustedes. Por eso el orden sigue al de los miembros y no
  * al monto: ordenar de mayor a menor haría un podio.
  */
@@ -53,10 +61,14 @@ export function Reparto({
     return cuenta;
   };
 
+  // Lo que va costando cada acción, no su monto: `max(lo calculado, lo
+  // puesto)` (docs/pagos.md §4.3). Así una acción pagada sin monto deja de
+  // valer S/ 0, y "ya pagados" nunca sale mayor que el número grande.
+  const porAccion = pagosPorAccion(pagos);
   for (const a of lista) {
-    const monto = a.monto ? Number(a.monto) : 0;
-    if (monto <= 0) continue;
-    fila(a.responsableId ?? POR_REPARTIR).total += monto;
+    const { costando } = cuentaDe(a.monto, porAccion.get(a.id) ?? []);
+    if (costando <= 0) continue;
+    fila(a.responsableId ?? POR_REPARTIR).total += costando;
   }
 
   // Lo pagado va por su cuenta y se reparte sobre TODOS los pagos: quien puso

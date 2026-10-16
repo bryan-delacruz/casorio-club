@@ -3,6 +3,9 @@ import assert from "node:assert/strict";
 import {
   aCentimos,
   cuentaDe,
+  etiquetaDeDinero,
+  pagosPorAccion,
+  UMBRAL_DE_MAS,
   desbalance,
   etiquetaDePago,
   partes,
@@ -29,26 +32,147 @@ const miembros = (...ids: string[]) => ids.map((id) => ({ id }));
 // ---------------------------------------------------------------------------
 
 test("cuentaDe: sin monto no hay nada que pagar", () => {
-  assert.deepEqual(cuentaDe(null, []), { total: 0, pagado: 0, falta: 0 });
+  assert.deepEqual(cuentaDe(null, []), {
+    total: 0,
+    pagado: 0,
+    falta: 0,
+    deMas: 0,
+    sinTotal: true,
+    costando: 0,
+  });
 });
 
 test("cuentaDe: con monto y sin pagos falta todo", () => {
-  assert.deepEqual(cuentaDe("250.00", []), { total: 250, pagado: 0, falta: 250 });
+  assert.deepEqual(cuentaDe("250.00", []), {
+    total: 250,
+    pagado: 0,
+    falta: 250,
+    deMas: 0,
+    sinTotal: false,
+    costando: 250,
+  });
 });
 
 test("cuentaDe: pagado parcial", () => {
   const c = cuentaDe("250.00", [{ monto: "100.00" }, { monto: "50.50" }]);
-  assert.deepEqual(c, { total: 250, pagado: 150.5, falta: 99.5 });
+  assert.deepEqual(c, {
+    total: 250,
+    pagado: 150.5,
+    falta: 99.5,
+    deMas: 0,
+    sinTotal: false,
+    costando: 250,
+  });
 });
 
 test("cuentaDe: pagado exacto deja el saldo en cero", () => {
   assert.equal(cuentaDe("250.00", [{ monto: "250.00" }]).falta, 0);
+  assert.equal(cuentaDe("250.00", [{ monto: "250.00" }]).deMas, 0);
 });
 
 test("cuentaDe: pagado de más no baja de cero", () => {
   const c = cuentaDe("250.00", [{ monto: "300.00" }]);
   assert.equal(c.pagado, 300);
   assert.equal(c.falta, 0);
+  assert.equal(c.deMas, 50);
+});
+
+test("cuentaDe: sin monto, lo puesto no es exceso de nada", () => {
+  const c = cuentaDe(null, [{ monto: "450.00" }]);
+  assert.deepEqual([c.sinTotal, c.deMas, c.costando], [true, 0, 450]);
+});
+
+test("cuentaDe: costando = max(lo calculado, lo puesto) en los cuatro cruces", () => {
+  // Pagar más de lo calculado es el caso que motiva el max: esa plata ya
+  // salió, así que manda lo puesto.
+  assert.equal(cuentaDe("1200.00", [{ monto: "1380.00" }]).costando, 1380);
+  assert.equal(cuentaDe("1200.00", [{ monto: "450.00" }]).costando, 1200);
+  assert.equal(cuentaDe("1200.00", []).costando, 1200);
+  assert.equal(cuentaDe(null, [{ monto: "450.00" }]).costando, 450);
+  assert.equal(cuentaDe(null, []).costando, 0);
+});
+
+// ---------------------------------------------------------------------------
+// etiquetaDeDinero: las siete filas de docs/pagos.md §3.4
+// ---------------------------------------------------------------------------
+
+const accionDinero = (
+  monto: string | null,
+  estado: "por_hacer" | "haciendo" | "hecho" = "por_hacer",
+) => ({ monto, estado });
+
+test("etiquetaDeDinero: sin monto y sin pagos no dice nada y no hay 💰", () => {
+  assert.equal(etiquetaDeDinero(accionDinero(null), []), null);
+  assert.equal(etiquetaDeDinero(accionDinero(null, "hecho"), []), null);
+});
+
+test("etiquetaDeDinero: sin monto y con pagos, por hacer o haciendo, 'hasta ahora'", () => {
+  const pagados = [{ monto: "450.00" }];
+  assert.equal(etiquetaDeDinero(accionDinero(null), pagados), "S/ 450 hasta ahora");
+  assert.equal(
+    etiquetaDeDinero(accionDinero(null, "haciendo"), pagados),
+    "S/ 450 hasta ahora",
+  );
+});
+
+test("etiquetaDeDinero: sin monto y con pagos, hecha o por hacer dicen lo mismo", () => {
+  const pagados = [{ monto: "450.00" }];
+  const porHacer = etiquetaDeDinero(accionDinero(null, "por_hacer"), pagados);
+  const hecha = etiquetaDeDinero(accionDinero(null, "hecho"), pagados);
+  assert.equal(hecha, porHacer);
+  assert.equal(hecha, "S/ 450 hasta ahora");
+});
+
+test("etiquetaDeDinero: monto sin pagos, nada es real todavía", () => {
+  assert.equal(etiquetaDeDinero(accionDinero("1200.00"), []), "S/ 1,200 calculados");
+});
+
+test("etiquetaDeDinero: monto con pago parcial dice lo que falta", () => {
+  assert.equal(
+    etiquetaDeDinero(accionDinero("1200.00"), [{ monto: "450.00" }]),
+    "faltan S/ 750 de S/ 1,200",
+  );
+});
+
+test("etiquetaDeDinero: pagado exacto", () => {
+  assert.equal(
+    etiquetaDeDinero(accionDinero("1200.00"), [{ monto: "1200.00" }]),
+    "S/ 1,200 pagado",
+  );
+});
+
+test("etiquetaDeDinero: lo puesto pasa lo calculado desde el umbral", () => {
+  assert.equal(
+    etiquetaDeDinero(accionDinero("1200.00"), [{ monto: "1380.00" }]),
+    "S/ 180 más de lo calculado",
+  );
+  // Justo en el umbral avisa; justo por debajo, no: una línea que aparece y
+  // desaparece con cada adelanto es ruido.
+  assert.equal(
+    etiquetaDeDinero(accionDinero("1200.00"), [{ monto: String(1200 + UMBRAL_DE_MAS) }]),
+    "S/ 50 más de lo calculado",
+  );
+  assert.equal(
+    etiquetaDeDinero(accionDinero("1200.00"), [
+      { monto: String(1200 + UMBRAL_DE_MAS - 0.01) },
+    ]),
+    "S/ 1,200 pagado",
+  );
+});
+
+// ---------------------------------------------------------------------------
+// pagosPorAccion
+// ---------------------------------------------------------------------------
+
+test("pagosPorAccion: agrupa por acción y no inventa grupos vacíos", () => {
+  const porAccion = pagosPorAccion([
+    { accionId: "a", monto: "10.00" },
+    { accionId: "b", monto: "20.00" },
+    { accionId: "a", monto: "30.00" },
+  ]);
+  assert.deepEqual([...porAccion.keys()], ["a", "b"]);
+  assert.equal(porAccion.get("a")?.length, 2);
+  assert.equal(porAccion.get("c"), undefined);
 });
 
 // ---------------------------------------------------------------------------

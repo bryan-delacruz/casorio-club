@@ -3,6 +3,8 @@
  * dependencias y devuelve órdenes y conjuntos, para probarlo sin base ni React.
  */
 
+import { cuentaDe } from "./pagos.ts";
+
 export type AccionCamino = {
   id: string;
   titulo: string;
@@ -195,15 +197,26 @@ export function listasParaEmpezar(acciones: AccionCamino[], requisitos: Requisit
   return listas;
 }
 
-/** Avance, rango en semanas y monto de una meta, derivados de sus acciones. */
-export function resumenMeta(acciones: AccionCamino[]) {
+/**
+ * Avance, rango en semanas y monto de una meta, derivados de sus acciones.
+ *
+ * El monto suma lo que va **costando** cada acción, `max(lo calculado, lo
+ * puesto)` (docs/pagos.md §4.3): una acción pagada sin monto dejaría de
+ * valer S/ 0. Por eso recibe los pagos ya agrupados por acción, con
+ * `pagosPorAccion`: enriquecer las acciones con su pago se colaría en los
+ * sitios que no lo necesitan.
+ */
+export function resumenMeta(
+  acciones: AccionCamino[],
+  pagos: Map<string, { monto: string }[]> = new Map(),
+) {
   const conSemanas = enCamino(acciones);
   return {
     total: acciones.length,
     hechas: acciones.filter((a) => a.estado === "hecho").length,
     inicio: conSemanas.length ? Math.max(...conSemanas.map(inicioDe)) : null,
     fin: conSemanas.length ? Math.min(...conSemanas.map(finDe)) : null,
-    monto: acciones.reduce((s, a) => s + (a.monto ? Number(a.monto) : 0), 0),
+    monto: acciones.reduce((s, a) => s + cuentaDe(a.monto, pagos.get(a.id) ?? []).costando, 0),
   };
 }
 

@@ -114,6 +114,24 @@ test("resumen: avance, rango en semanas (hito incluido) y monto; la idea no da r
   assert.deepEqual([sinSemanas.inicio, sinSemanas.fin], [null, null]);
 });
 
+test("resumen: el monto suma lo que va costando, no el monto (docs/pagos.md §4.3)", () => {
+  const pagos = new Map([
+    // Pagada sin monto: antes valía S/ 0 en el total de la meta.
+    ["sinMonto", [{ monto: "450.00" }]],
+    // Pagada de más: manda lo puesto, porque esa plata ya salió.
+    ["deMas", [{ monto: "1380.00" }]],
+  ]);
+  const r = resumenMeta(
+    [
+      accion("sinMonto", 8, 1, { monto: null }),
+      accion("deMas", 6, 1, { monto: "1200.00" }),
+      accion("calculada", 4, 1, { monto: "100.00" }),
+    ],
+    pagos,
+  );
+  assert.equal(r.monto, 450 + 1380 + 100);
+});
+
 test("orden por semana: lo más temprano primero y, a igualdad, por título", () => {
   const lista = [accion("zeta", 4), accion("alfa", 4), accion("tarde", -2), accion("lejos", 12)];
   assert.deepEqual(ordenPorSemana(lista).map((a) => a.id), ["lejos", "alfa", "zeta", "tarde"]);

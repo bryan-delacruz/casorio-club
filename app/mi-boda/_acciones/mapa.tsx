@@ -27,6 +27,7 @@ import {
   resumenMeta,
   semanaPorDefecto,
 } from "@/lib/metas";
+import { pagosPorAccion } from "@/lib/pagos";
 import { borrarAccion, cambiarEstado, moverAccion, type Estado } from "./acciones-servidor";
 import { EmpezarRegistroCivil } from "./empezar-registro-civil";
 import { EditarAccion, NuevaAccion } from "./formulario-accion";
@@ -227,12 +228,15 @@ export function Mapa({
   /** En qué carril cae: la bandeja si es idea suelta, si no el de su meta. */
   const carrilDe = (a: Accion): Destino => (a.inicioSemanas === null ? IDEAS : metaDe(a));
 
+  const pagosDe = pagosPorAccion(pagos);
+
   const grupos = carriles.map((c) => ({
     ...c,
     acciones: ordenPorSemana(enCamino(lista).filter((a) => carrilDe(a) === c.id)),
     // El avance y el monto son de la meta entera, ideas sueltas incluidas: el
     // carril enseña lo que ya tiene cuándo, pero la meta es todo (§3, §7).
-    resumen: resumenMeta(lista.filter((a) => metaDe(a) === c.id)),
+    // El monto suma lo que va costando cada acción (docs/pagos.md §4.3).
+    resumen: resumenMeta(lista.filter((a) => metaDe(a) === c.id), pagosDe),
   }));
 
   const destinos: CarrilLista[] = [
@@ -249,13 +253,6 @@ export function Mapa({
     const suyas = requiereDe.get(d.accionId) ?? new Set<string>();
     suyas.add(d.requiereId);
     requiereDe.set(d.accionId, suyas);
-  }
-
-  const pagosDe = new Map<string, Pago[]>();
-  for (const p of pagos) {
-    const lote = pagosDe.get(p.accionId) ?? [];
-    lote.push(p);
-    pagosDe.set(p.accionId, lote);
   }
 
   const sensores = useSensors(

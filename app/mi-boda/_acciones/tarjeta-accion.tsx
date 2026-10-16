@@ -15,14 +15,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { cuentaDe } from "@/lib/pagos";
+import { cuentaDe, etiquetaDeDinero } from "@/lib/pagos";
 import { EditarAccion } from "./formulario-accion";
 import { PagosAccion } from "./pagos-accion";
 import {
   ESTADOS,
   REQUIERE,
   siguienteEstado,
-  soles,
   type Carril,
   type Destino,
   type MetaLite,
@@ -86,8 +85,11 @@ export function TarjetaAccion({
 
   const hecha = accion.estado === "hecho";
   const haciendo = accion.estado === "haciendo";
-  const { total, pagado, falta } = cuentaDe(accion.monto, pagos);
-  const conMonto = accion.monto !== null;
+  const { pagado, falta, sinTotal } = cuentaDe(accion.monto, pagos);
+  // Cuesta plata si tiene monto o tiene pagos: el pago es la prueba aunque
+  // todavía no se sepa el total (docs/pagos.md §3.4). El texto decide
+  // también si se dibuja la 💰: null es "no hay nada que decir".
+  const dinero = etiquetaDeDinero(accion, pagos);
   const otros = destinos.filter((d) => d.id !== destinoActual);
   const conMenu = arrastrable && Boolean(onMover || onBorrar);
   const meta = accion.metaId ? metas.find((m) => m.id === accion.metaId) : undefined;
@@ -148,11 +150,11 @@ export function TarjetaAccion({
               <DropdownMenuItem onSelect={() => setEditando(true)}>
                 <Pencil /> Cambiar
               </DropdownMenuItem>
-              {conMonto && (
-                <DropdownMenuItem onSelect={() => setViendoPagos(true)}>
-                  <Wallet /> Pagos
-                </DropdownMenuItem>
-              )}
+              {/* Siempre: es la única puerta para empezar a pagar algo cuyo
+                  total todavía no se sabe (docs/pagos.md §3.4). */}
+              <DropdownMenuItem onSelect={() => setViendoPagos(true)}>
+                <Wallet /> Pagos
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuLabel>Estado</DropdownMenuLabel>
               {ESTADOS.filter((e) => e.id !== accion.estado).map((e) => (
@@ -189,7 +191,7 @@ export function TarjetaAccion({
         )}
       </div>
 
-      {(accion.cuestaTiempo || conMonto || miembro || meta || accion.esHito) && (
+      {(accion.cuestaTiempo || dinero || miembro || meta || accion.esHito) && (
         <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 pl-6">
           {meta && (
             <span className="bg-secondary text-secondary-foreground max-w-full truncate rounded-full px-2 py-0.5 text-xs">
@@ -206,7 +208,7 @@ export function TarjetaAccion({
               <Clock className="size-3.5" /> tiempo
             </span>
           )}
-          {conMonto && (
+          {dinero && (
             <button
               type="button"
               onPointerDown={(e) => e.stopPropagation()}
@@ -215,17 +217,15 @@ export function TarjetaAccion({
               className={`focus-visible:ring-ring flex items-center gap-1 rounded-sm text-xs outline-none focus-visible:ring-2 ${
                 conMenu ? "cursor-pointer" : ""
               } ${
-                pagado > 0 && falta === 0
+                // Resaltado solo cuando la cuenta está cerrada contra un
+                // total: sin total, "hasta ahora" no es nada cerrado.
+                !sinTotal && pagado > 0 && falta === 0
                   ? "text-primary"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
               <Coins className="size-3.5" />
-              {pagado === 0
-                ? soles(total)
-                : falta === 0
-                  ? `${soles(total)} pagado`
-                  : `faltan ${soles(falta)} de ${soles(total)}`}
+              {dinero}
             </button>
           )}
           {miembro && (
