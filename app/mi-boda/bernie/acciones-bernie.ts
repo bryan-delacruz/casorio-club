@@ -4,8 +4,9 @@ import { revalidatePath } from "next/cache";
 import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import { auth } from "@clerk/nextjs/server";
 import { getDb } from "@/db";
-import { acciones, conexionesBernie, gastosBernie, pagos } from "@/db/schema";
+import { acciones, bodas, conexionesBernie, gastosBernie, pagos } from "@/db/schema";
 import { desconectarBernie, sincronizarBernie, type ResultadoSync } from "@/lib/bernie/sincronizar";
+import { semanaPorDefecto, semanasHastaLaBoda } from "@/lib/metas";
 import { DEMO } from "@/lib/demo";
 
 /**
@@ -126,17 +127,24 @@ async function crearAccionYAsignar(bodaId: string, gastoId: string) {
     .where(and(eq(gastosBernie.id, gastoId), eq(gastosBernie.bodaId, bodaId), isNull(gastosBernie.pagoId)));
   if (!gasto) throw new Aviso("Ese gasto ya no está por asignar.");
 
-  const [{ siguiente }] = await db
-    .select({ siguiente: sql<number>`coalesce(max(${acciones.orden}), -1) + 1` })
-    .from(acciones)
-    .where(and(eq(acciones.bodaId, bodaId), eq(acciones.momento, "antes")));
+  const [[{ siguiente }], [boda]] = await Promise.all([
+    db
+      .select({ siguiente: sql<number>`coalesce(max(${acciones.orden}), -1) + 1` })
+      .from(acciones)
+      .where(eq(acciones.bodaId, bodaId)),
+    db.select({ fecha: bodas.fecha }).from(bodas).where(eq(bodas.id, bodaId)),
+  ]);
 
   const [accion] = await db
     .insert(acciones)
     .values({
       bodaId,
       titulo: (gasto.subcategoria || gasto.comercio).slice(0, 120),
-      momento: "antes",
+      // Un gasto que ya existe no es una idea suelta: está pasando, así que
+      // nace en el camino con su semana escrita (docs/metas.md §9).
+      inicioSemanas: semanaPorDefecto({
+        semanasHastaLaBoda: semanasHastaLaBoda(boda?.fecha ?? null),
+      }),
       estado: "haciendo",
       moneda: gasto.moneda,
       orden: siguiente,

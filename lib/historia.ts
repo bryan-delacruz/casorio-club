@@ -2,7 +2,7 @@
  * Lo que cuenta la historia para compartir (docs/compartir.md): cuántos días
  * faltan y cómo va cada meta, perla por perla. Puro, para probarlo sin red.
  */
-import { ordenPorDependencia, type AccionCamino, type Requisito } from "./metas.ts";
+import { enCamino, ordenPorDependencia, type AccionCamino, type Requisito } from "./metas.ts";
 
 export type Perla = "hecha" | "haciendo" | "falta" | "hito" | "hito-hecho";
 export type Collar = { titulo: string; perlas: Perla[]; hechas: number };
@@ -25,8 +25,9 @@ const perlaDe = (a: AccionCamino): Perla =>
   a.esHito ? (a.estado === "hecho" ? "hito-hecho" : "hito") : a.estado === "hecho" ? "hecha" : a.estado === "haciendo" ? "haciendo" : "falta";
 
 /**
- * Un collar por meta, en orden de dependencia. Sin metas, uno solo con todo lo
- * que ya tiene fecha. Se cortan en `max` para que la imagen no se desborde.
+ * Un collar por meta, en orden de dependencia. Sin metas, uno solo con lo que
+ * ya está en el camino (con semana puesta). Se cortan en `max` para que la
+ * imagen no se desborde.
  */
 export function collares(
   acciones: AccionCamino[],
@@ -36,7 +37,7 @@ export function collares(
 ): Collar[] {
   const grupos = metas.length
     ? metas.map((m) => ({ titulo: m.titulo, acciones: acciones.filter((a) => a.metaId === m.id) }))
-    : [{ titulo: "Nuestro camino", acciones: acciones.filter((a) => a.momento !== "idea") }];
+    : [{ titulo: "Nuestro camino", acciones: enCamino(acciones) }];
   return grupos
     .filter((g) => g.acciones.length > 0)
     .slice(0, max)

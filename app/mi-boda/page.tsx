@@ -6,12 +6,20 @@ import { Mapa } from "./_acciones/mapa";
 import { Vistas } from "./_acciones/vistas";
 import { RUTAS } from "./_acciones/rutas";
 import { BotonAnotar } from "./_acciones/boton-anotar";
+import { semanasHastaLaBoda } from "@/lib/metas";
+import {
+  NOMBRE_SIN_META,
+  SIN_META,
+  TODO_LO_ANOTADO,
+  type Carril,
+} from "./_acciones/tipos";
 import {
   listarAcciones,
   listarDependencias,
   listarMetas,
   listarMiembros,
   listarPagos,
+  obtenerBoda,
 } from "./_acciones/datos";
 
 export const metadata: Metadata = { title: "Mi boda" };
@@ -21,12 +29,13 @@ export default async function MiBodaPage() {
   const user = await currentUser();
   const nombre = user?.firstName ?? "";
 
-  const [acciones, miembros, pagos, dependencias, metas] = await Promise.all([
+  const [acciones, miembros, pagos, dependencias, metas, boda] = await Promise.all([
     listarAcciones(),
     listarMiembros(),
     listarPagos(),
     listarDependencias(),
     listarMetas(),
+    obtenerBoda(),
   ]);
 
   let invitacionesPendientes = 0;
@@ -45,6 +54,21 @@ export default async function MiBodaPage() {
   const haciendo = acciones.filter((a) => a.estado === "haciendo").length;
 
   const metasLite = metas.map((m) => ({ id: m.id, titulo: m.titulo }));
+
+  /**
+   * Los carriles del Mapa (docs/metas.md §7): una meta cada uno, en el orden
+   * que la pareja les dio, y "Sin meta" al final. Sin ninguna meta queda un
+   * carril único, "Todo lo anotado". Lo resuelve el servidor, que ya sabe si
+   * la boda tiene metas, para que el cliente no decida la estructura.
+   */
+  const carriles: Carril[] =
+    metasLite.length > 0
+      ? [
+          ...metasLite.map((m) => ({ id: m.id, nombre: m.titulo, esMeta: true })),
+          { id: SIN_META, nombre: NOMBRE_SIN_META, esMeta: false },
+        ]
+      : [{ id: SIN_META, nombre: TODO_LO_ANOTADO, esMeta: false }];
+
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-5 py-10 sm:px-10">
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
@@ -79,6 +103,10 @@ export default async function MiBodaPage() {
           pagos={pagos}
           dependencias={dependencias}
           metas={metasLite}
+          carriles={carriles}
+          // Se cuenta en el servidor: en el cliente, "hoy" puede caer en otra
+          // semana que en el render del servidor y la hidratación avisaría.
+          semanasHastaLaBoda={semanasHastaLaBoda(boda?.fecha ?? null)}
         />
       </div>
       <BotonAnotar miembros={miembros} metas={metasLite} />

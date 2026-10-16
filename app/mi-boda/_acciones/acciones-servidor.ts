@@ -5,7 +5,14 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { auth } from "@clerk/nextjs/server";
 import { getDb } from "@/db";
 import { acciones, bodas, dependencias, metas, pagos } from "@/db/schema";
-import { momentoDe, planPlantilla, REGISTRO_CIVIL } from "@/lib/metas";
+import {
+  duracionDe,
+  planPlantilla,
+  REGISTRO_CIVIL,
+  semanaPorDefecto,
+  semanasHastaLaBoda,
+} from "@/lib/metas";
+import { IDEAS, SIN_META, type Destino } from "./tipos";
 
 /**
  * Toda consulta y escritura se ata a la boda activa que Clerk reporta en la
@@ -19,7 +26,6 @@ async function bodaActiva() {
   return { bodaId: orgId, userId };
 }
 
-export type Momento = "idea" | "antes" | "el_dia" | "despues";
 export type Estado = "por_hacer" | "haciendo" | "hecho";
 
 export async function guardarFechaBoda(fecha: string | null) {
@@ -142,7 +148,6 @@ export async function borrarPago(id: string) {
 
 export async function crearAccion(datos: {
   titulo: string;
-  momento: Momento;
   cuestaTiempo: boolean;
   monto: string | null;
   responsableId: string | null;
@@ -157,16 +162,16 @@ export async function crearAccion(datos: {
   if (!titulo) throw new Error("Falta el título");
   await exigirMetaDeLaBoda(bodaId, datos.metaId);
 
-  // Va al final de su carril.
+  // `orden` ya no es la posición en un carril: es el contador de llegada que
+  // desempata a las que caen en la misma semana (docs/metas.md §3).
   const [{ siguiente }] = await getDb()
     .select({ siguiente: sql<number>`coalesce(max(${acciones.orden}), -1) + 1` })
     .from(acciones)
-    .where(and(eq(acciones.bodaId, bodaId), eq(acciones.momento, datos.momento)));
+    .where(eq(acciones.bodaId, bodaId));
 
   await getDb().insert(acciones).values({
     bodaId,
     titulo,
-    momento: datos.momento,
     cuestaTiempo: datos.cuestaTiempo,
     monto: datos.monto,
     responsableId: datos.responsableId,
@@ -182,9 +187,8 @@ export async function crearAccion(datos: {
 }
 
 /**
- * Editar no toca `momento` ni `orden`: mover es cosa del menú y del arrastre.
- * Si el formulario también moviera, habría dos caminos que recalculan el orden
- * del carril y se pisarían.
+ * Editar sí escribe las semanas (es donde la pareja corrige el número), pero
+ * no toca `orden`: el contador de llegada no cambia porque algo se mueva.
  */
 export async function editarAccion(
   id: string,
@@ -224,19 +228,92 @@ export async function editarAccion(
   revalidatePath("/mi-boda");
 }
 
-export async function moverAccion(id: string, momento: Momento) {
+/**
+ * Escribir la semana de una acción, y nada más (docs/metas.md §7): null la
+ * devuelve a las ideas sueltas y conserva meta, dependencias, monto, pagos y
+ * responsable. No recalcula `orden` ni toca la duración.
+ *
+ * Queda para el formulario, que es el único sitio donde la semana se escribe
+ * a mano; arrastrar en el Mapa escribe la meta con `moverAccion`.
+ */
+export async function ponerEnSemana(id: string, inicioSemanas: number | null) {
   const { bodaId } = await bodaActiva();
-  const [{ siguiente }] = await getDb()
-    .select({ siguiente: sql<number>`coalesce(max(${acciones.orden}), -1) + 1` })
-    .from(acciones)
-    .where(and(eq(acciones.bodaId, bodaId), eq(acciones.momento, momento)));
+  const semana =
+    inicioSemanas === null ? null : Math.trunc(Math.max(-260, Math.min(260, inicioSemanas)));
 
   await getDb()
     .update(acciones)
-    .set({ momento, orden: siguiente, actualizadaEl: new Date() })
+    .set({ inicioSemanas: semana, actualizadaEl: new Date() })
     .where(and(eq(acciones.id, id), eq(acciones.bodaId, bodaId)));
 
   revalidatePath("/mi-boda");
+}
+
+/**
+ * Mover una tarjeta en el Mapa: escribe la meta (docs/metas.md §7).
+ *
+ * Una sola acción con la rama dentro y no dos encadenadas: un arrastre es un
+ * viaje y una revalidación. Dos haría dos `revalidatePath` seguidos y la
+ * tarjeta saltaría dos veces.
+ *
+ * - a un carril de meta → `meta_id` = esa meta;
+ * - al carril "Sin meta" → `meta_id = null`;
+ * - a "Ideas sueltas" → `inicio_semanas = null`, conservando meta,
+ *   dependencias, monto, pagos y responsable;
+ * - saliendo de "Ideas sueltas" → además se escribe la semana por defecto.
+ *   Es el único arrastre que toca la semana.
+ */
+export async function moverAccion(id: string, destino: Destino): Promise<{ error?: string }> {
+  const { bodaId } = await bodaActiva();
+  const db = getDb();
+
+  const [accion] = await db
+    .select({
+      inicioSemanas: acciones.inicioSemanas,
+      duracionSemanas: acciones.duracionSemanas,
+      esHito: acciones.esHito,
+    })
+    .from(acciones)
+    .where(and(eq(acciones.id, id), eq(acciones.bodaId, bodaId)));
+  if (!accion) return { error: "Esa acción ya no está." };
+
+  if (destino === IDEAS) {
+    await db
+      .update(acciones)
+      .set({ inicioSemanas: null, actualizadaEl: new Date() })
+      .where(and(eq(acciones.id, id), eq(acciones.bodaId, bodaId)));
+    revalidatePath("/mi-boda");
+    return {};
+  }
+
+  const metaId = destino === SIN_META ? null : destino;
+  if (metaId) {
+    const [meta] = await db
+      .select({ id: metas.id })
+      .from(metas)
+      .where(and(eq(metas.id, metaId), eq(metas.bodaId, bodaId)));
+    if (!meta) return { error: "Esa meta no es de esta boda." };
+  }
+
+  // Mover entre carriles nunca cambia la semana; solo la escribe lo que sale
+  // de las ideas sueltas, que hasta ahora no tenía ninguna.
+  let semana = accion.inicioSemanas;
+  if (semana === null) {
+    const [boda] = await db.select({ fecha: bodas.fecha }).from(bodas).where(eq(bodas.id, bodaId));
+    semana = semanaPorDefecto({
+      hitoSemana: null,
+      semanasHastaLaBoda: semanasHastaLaBoda(boda?.fecha ?? null),
+      duracion: duracionDe(accion),
+    });
+  }
+
+  await db
+    .update(acciones)
+    .set({ metaId, inicioSemanas: semana, actualizadaEl: new Date() })
+    .where(and(eq(acciones.id, id), eq(acciones.bodaId, bodaId)));
+
+  revalidatePath("/mi-boda");
+  return {};
 }
 
 export async function cambiarEstado(id: string, estado: Estado) {
@@ -342,7 +419,6 @@ export async function empezarRegistroCivil(): Promise<{ error?: string }> {
       .select({
         id: acciones.id,
         titulo: acciones.titulo,
-        momento: acciones.momento,
         inicioSemanas: acciones.inicioSemanas,
       })
       .from(acciones)
@@ -378,13 +454,12 @@ export async function empezarRegistroCivil(): Promise<{ error?: string }> {
               id: ids.get(p.clave)!,
               bodaId,
               titulo: p.titulo,
-              momento: momentoDe(p.inicio),
               cuestaTiempo: p.tiempo ?? false,
               inicioSemanas: p.inicio,
               duracionSemanas: p.dura,
               esHito: p.hito ?? false,
               metaId,
-              orden: 1000 + i, // al final de su carril
+              orden: 1000 + i, // al final del contador de llegada
             })),
           ),
         ]
@@ -392,17 +467,15 @@ export async function empezarRegistroCivil(): Promise<{ error?: string }> {
     ...[...reutilizar].map(([clave, id]) => {
       const paso = REGISTRO_CIVIL.pasos.find((p) => p.clave === clave)!;
       const actual = existentes.find((e) => e.id === id)!;
-      // Lo que la pareja ya decidió (semanas, carril) se respeta; lo que falta
-      // se completa con la plantilla, si no quedaría fuera del camino.
-      const sinFecha = actual.momento === "idea" || actual.inicioSemanas === null;
+      // Lo que la pareja ya decidió (las semanas) se respeta; lo que falta se
+      // completa con la plantilla, si no quedaría fuera del camino.
+      const sinFecha = actual.inicioSemanas === null;
       return db
         .update(acciones)
         .set({
           metaId,
           esHito: paso.hito ?? false,
-          ...(sinFecha
-            ? { momento: momentoDe(paso.inicio), inicioSemanas: paso.inicio, duracionSemanas: paso.dura }
-            : {}),
+          ...(sinFecha ? { inicioSemanas: paso.inicio, duracionSemanas: paso.dura } : {}),
           actualizadaEl: new Date(),
         })
         .where(and(eq(acciones.id, id), eq(acciones.bodaId, bodaId)));

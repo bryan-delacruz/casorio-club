@@ -1,35 +1,37 @@
 "use client";
 
 import Link from "next/link";
-import { useLayoutEffect, useRef, useState, useTransition } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { Flag, Sparkles, TriangleAlert } from "lucide-react";
-import { toast } from "sonner";
 import type { Accion, Dependencia } from "@/db/schema";
 import { AvatarPersona } from "@/components/avatar-persona";
-import { Button } from "@/components/ui/button";
 import {
   cadenaPrincipal,
   duracionDe,
+  enCamino,
   finDe,
   inicioDe,
   listasParaEmpezar,
   ordenPorDependencia,
   REGISTRO_CIVIL,
   resumenMeta,
+  semanasHastaLaBoda,
 } from "@/lib/metas";
-import { empezarRegistroCivil, type Momento } from "./acciones-servidor";
 import { CompartirHistoria } from "./compartir-historia";
+import { EmpezarRegistroCivil } from "./empezar-registro-civil";
 import { FechaBoda } from "./fecha-boda";
-import { soles, type MetaLite, type Miembro } from "./tipos";
+import { TiraProximoHito } from "./tira-hito";
+import {
+  INVITA_META,
+  NOMBRE_SIN_META,
+  REQUIERE,
+  SIN_META,
+  soles,
+  TODO_LO_ANOTADO,
+  type MetaLite,
+  type Miembro,
+} from "./tipos";
 import { RUTAS } from "./rutas";
-
-export type Agrupar = "meta" | "momento";
-
-const MOMENTOS: { id: Momento; titulo: string }[] = [
-  { id: "antes", titulo: "Antes" },
-  { id: "el_dia", titulo: "El día" },
-  { id: "despues", titulo: "Después" },
-];
 
 function diaDeSemana(boda: string | null, semanas: number) {
   if (!boda) return null;
@@ -39,15 +41,20 @@ function diaDeSemana(boda: string | null, semanas: number) {
   return dia.toLocaleDateString("es-PE", { day: "numeric", month: "short" });
 }
 
-/** A cuántas semanas de la boda estamos hoy. Null si no hay fecha. */
-function semanasHastaLaBoda(boda: string | null) {
-  if (!boda) return null;
-  const [a, m, d] = boda.split("-").map(Number);
-  const dias = (new Date(a, m - 1, d).getTime() - Date.now()) / 86_400_000;
-  return Math.round(dias / 7);
-}
+type EnCamino = Accion & { inicioSemanas: number };
 
-type Grupo = { clave: string; titulo: string; meta: boolean; acciones: Accion[] };
+/**
+ * Un grupo del camino: una meta, o lo que no es de ninguna. La barra resumen
+ * es solo de la meta: lo que no la tiene no es un entregable (§5).
+ */
+type Grupo = {
+  clave: string;
+  titulo: string;
+  meta: boolean;
+  acciones: EnCamino[];
+  /** Una línea debajo del título, cuando hay algo que explicar. */
+  nota?: string;
+};
 
 export function Camino({
   acciones,
@@ -55,17 +62,15 @@ export function Camino({
   dependencias,
   fechaBoda,
   metas,
-  agrupar,
 }: {
   acciones: Accion[];
   miembros: Miembro[];
   dependencias: Dependencia[];
   fechaBoda: string | null;
   metas: MetaLite[];
-  agrupar: Agrupar;
 }) {
-  const enCalendario = acciones.filter((a) => a.momento !== "idea");
-  const sueltas = acciones.filter((a) => a.momento === "idea");
+  const enCalendario: EnCamino[] = enCamino(acciones);
+  const sueltas = acciones.filter((a) => a.inicioSemanas === null);
   const porId = new Map(acciones.map((a) => [a.id, a]));
   const gente = new Map(miembros.map((m) => [m.id, m]));
   const listas = listasParaEmpezar(acciones, dependencias);
@@ -155,9 +160,15 @@ export function Camino({
     );
   });
 
-  // Grupos: por meta (en su orden, y "Sin meta" al final) o por momento.
+  // Una sola agrupación: por meta, en su orden, y lo que no tiene meta al
+  // final (docs/metas.md §5). Sin ninguna meta queda un solo grupo, con la
+  // invitación a crear la primera.
+  const sueltasDeMeta = ordenPorDependencia(
+    enCalendario.filter((a) => !a.metaId || !metas.some((m) => m.id === a.metaId)),
+    dependencias,
+  );
   const grupos: Grupo[] =
-    agrupar === "meta"
+    metas.length > 0
       ? [
           ...metas.map((m) => ({
             clave: m.id,
@@ -168,45 +179,30 @@ export function Camino({
               dependencias,
             ),
           })),
-          {
-            clave: "sin-meta",
-            titulo: "Sin meta",
-            meta: false,
-            acciones: ordenPorDependencia(
-              enCalendario.filter((a) => !a.metaId || !metas.some((m) => m.id === a.metaId)),
-              dependencias,
-            ),
-          },
+          { clave: SIN_META, titulo: NOMBRE_SIN_META, meta: false, acciones: sueltasDeMeta },
         ]
-      : MOMENTOS.map((g) => ({
-          clave: g.id,
-          titulo: g.titulo,
-          meta: false,
-          acciones: enCalendario
-            .filter((a) => a.momento === g.id)
-            .sort((a, b) => inicioDe(b) - inicioDe(a)),
-        }));
+      : [
+          {
+            clave: SIN_META,
+            titulo: TODO_LO_ANOTADO,
+            meta: false,
+            acciones: sueltasDeMeta,
+            nota: INVITA_META,
+          },
+        ];
 
   return (
     <div className="space-y-6">
+      <TiraProximoHito
+        acciones={acciones}
+        dependencias={dependencias}
+        metas={metas}
+        semanasHastaLaBoda={hoy}
+      />
+
       {cabecera}
 
-      <nav aria-label="Agrupar el camino" className="border-border inline-flex rounded-md border p-0.5 text-sm">
-        {(["meta", "momento"] as const).map((op) => (
-          <Link
-            key={op}
-            href={`/mi-boda/camino?por=${op}`}
-            aria-current={agrupar === op ? "page" : undefined}
-            className={`rounded-sm px-3 py-1 ${
-              agrupar === op ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Por {op}
-          </Link>
-        ))}
-      </nav>
-
-      <div className="overflow-x-auto pb-2 [--col-nombre:0px] [--col-semana:0px] [--fila-barra:2] [--nombre:1/-1] sm:[--col-nombre:11rem] sm:[--col-semana:2.25rem] sm:[--fila-barra:1] sm:[--nombre:1]">
+      <div className="overflow-x-auto pb-2 [--col-nombre:0px] [--col-semana:0px] [--fila-barra:2] [--nombre:1/-1] sm:[--col-nombre:11rem] sm:[--col-semana:2.25rem] sm:[--fila-barra:1] sm:[--nombre:1] lg:[--col-nombre:14rem]">
         <div style={{ minWidth: `calc(var(--col-nombre) + ${columnas} * var(--col-semana))` }}>
           {/* Eje */}
           <div className="border-border text-muted-foreground grid items-end border-b pb-1.5 text-xs" style={rejilla}>
@@ -223,7 +219,7 @@ export function Camino({
                 >
                   {semanas === 0 ? "la boda" : semanas > 0 ? `${semanas} sem` : `+${-semanas}`}
                   {diaDeSemana(fechaBoda, semanas) && (
-                    <span className="text-muted-foreground/70 max-sm:hidden"> · {diaDeSemana(fechaBoda, semanas)}</span>
+                    <span className="max-sm:hidden"> · {diaDeSemana(fechaBoda, semanas)}</span>
                   )}
                 </span>
               ))}
@@ -267,10 +263,6 @@ export function Camino({
         </span>
         <span className="flex items-center gap-1.5">
           <Sparkles className="text-primary size-3.5" /> Lista para empezar
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="border-muted-foreground/40 h-3 w-5 rounded-sm border border-dashed" />
-          Sin semanas puestas
         </span>
         {columnaHoy !== null && (
           <span className="flex items-center gap-1.5">
@@ -323,12 +315,12 @@ function Seccion({
   const contenedor = useRef<HTMLDivElement>(null);
   const [flechas, setFlechas] = useState<Flecha[]>([]);
   const ids = new Set(grupo.acciones.map((a) => a.id));
-  const cadena = grupo.meta ? cadenaPrincipal(grupo.acciones, dependencias) : new Set<string>();
+  const cadena = cadenaPrincipal(grupo.acciones, dependencias);
+  // La barra resumen es solo de la meta: lo demás no es un entregable (§5).
   const resumen = grupo.meta ? resumenMeta(grupo.acciones) : null;
-  // Solo las dependencias dentro del grupo se dibujan; las demás quedan en texto.
-  const pares = grupo.meta
-    ? dependencias.filter((d) => ids.has(d.accionId) && ids.has(d.requiereId))
-    : [];
+  // Solo las dependencias dentro del grupo se dibujan; las de otra meta se
+  // nombran en el texto "↳ requiere …".
+  const pares = dependencias.filter((d) => ids.has(d.accionId) && ids.has(d.requiereId));
   // Claves estables para el efecto: `pares` y `grupo.acciones` son arrays
   // nuevos en cada render y, como dependencia, medirían y re-renderizarían en bucle.
   const clavePares = pares.map((p) => `${p.requiereId}>${p.accionId}`).join(",");
@@ -397,7 +389,7 @@ function Seccion({
             {lineas}
             <div style={{ gridColumn: "var(--nombre)", gridRow: 1 }} className="sm:bg-background sticky left-0 z-20 flex min-w-0 items-center gap-1.5 pr-3">
               <Flag className="text-primary size-3.5 shrink-0" aria-hidden />
-              <h3 className="font-display truncate text-base">{grupo.titulo}</h3>
+              <h3 title={grupo.titulo} className="font-display truncate text-base">{grupo.titulo}</h3>
             </div>
             <div
               style={{
@@ -415,13 +407,15 @@ function Seccion({
             </div>
           </div>
         ) : (
-          <h3 className="bg-background text-muted-foreground sticky left-0 z-20 mb-1.5 w-fit text-xs">{grupo.titulo}</h3>
+          <div className="bg-background sticky left-0 z-20 mb-1.5 w-fit">
+            <h3 className="text-muted-foreground text-xs">{grupo.titulo}</h3>
+            {grupo.nota && <p className="text-muted-foreground text-xs">{grupo.nota}</p>}
+          </div>
         )}
 
         {grupo.acciones.map((a) => {
           const inicio = columnaDe(inicioDe(a));
           const span = Math.min(duracionDe(a), columnas - inicio + 1);
-          const supuesta = a.inicioSemanas === null;
           const hecha = a.estado === "hecho";
           const haciendo = a.estado === "haciendo";
           const enCadena = cadena.has(a.id);
@@ -431,9 +425,12 @@ function Seccion({
             .map((id) => porId.get(id))
             .filter((x): x is Accion => Boolean(x));
           // Las de otro grupo no tienen flecha: se nombran en texto.
-          const fuera = necesita.filter((r) => !ids.has(r.id) || !grupo.meta);
+          const fuera = necesita.filter((r) => !ids.has(r.id));
           // Un requisito que termina después de que esto empieza es un choque.
-          const choques = necesita.filter((r) => r.momento !== "idea" && r.estado !== "hecho" && finDe(r) < inicioDe(a));
+          // La idea suelta no choca con nada: todavía no tiene cuándo.
+          const choques = enCamino(necesita).filter(
+            (r) => r.estado !== "hecho" && finDe(r) < inicioDe(a),
+          );
 
           return (
             <div key={a.id} className="grid items-center gap-y-0.5" style={rejilla}>
@@ -442,7 +439,12 @@ function Seccion({
               {/* En el celular el fondo cubre solo el texto: las flechas pasan
                   por detrás de las palabras sin cortarse en toda la fila. */}
               <div style={{ gridColumn: "var(--nombre)", gridRow: 1 }} className="sm:bg-background sticky left-0 z-20 min-w-0 pr-3">
-                <p className={`max-sm:bg-background truncate text-sm max-sm:w-fit max-sm:max-w-full ${hecha ? "text-muted-foreground line-through" : ""}`}>
+                <p
+                  // El title va aquí y no en la barra: es este texto el que
+                  // se corta cuando el nombre no cabe en su columna.
+                  title={a.titulo}
+                  className={`max-sm:bg-background truncate text-sm max-sm:w-fit max-sm:max-w-full ${hecha ? "text-muted-foreground line-through" : ""}`}
+                >
                   {listas.has(a.id) && (
                     <Sparkles className="text-primary mr-1 inline size-3.5" aria-label="Lista para empezar" />
                   )}
@@ -456,7 +458,7 @@ function Seccion({
                     title={necesita.map((r) => r.titulo).join(", ")}
                   >
                     {choques.length > 0 && <TriangleAlert className="mr-1 inline size-3" />}
-                    ↳ {(choques.length > 0 ? choques : fuera).map((r) => r.titulo).join(", ")}
+                    {REQUIERE} {(choques.length > 0 ? choques : fuera).map((r) => r.titulo).join(", ")}
                   </p>
                 )}
               </div>
@@ -479,17 +481,13 @@ function Seccion({
                 <div
                   data-barra={a.id}
                   style={{ gridColumn: `${inicio + 1} / span ${span}`, gridRow: "var(--fila-barra)" }}
-                  title={`${a.titulo} · ${duracionDe(a)} ${duracionDe(a) === 1 ? "semana" : "semanas"}${
-                    supuesta ? " (supuesto)" : ""
-                  }`}
+                  title={`${a.titulo} · ${duracionDe(a)} ${duracionDe(a) === 1 ? "semana" : "semanas"}`}
                   className={`z-10 flex h-5 min-w-0 items-center gap-1.5 rounded px-1 sm:h-7 sm:px-2 ${
-                    supuesta
-                      ? "border-muted-foreground/40 text-muted-foreground border border-dashed"
-                      : hecha
-                        ? "bg-primary/15 text-muted-foreground"
-                        : haciendo
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-secondary text-foreground"
+                    hecha
+                      ? "bg-primary/15 text-muted-foreground"
+                      : haciendo
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-secondary text-foreground"
                   } ${enCadena ? "ring-primary ring-2" : ""}`}
                 >
                   {/* En una barra corta no cabe todo: el nombre ya está a la
@@ -528,30 +526,5 @@ function Seccion({
         )}
       </div>
     </section>
-  );
-}
-
-/** La plantilla "Registro civil" (docs/metas.md §3). */
-function EmpezarRegistroCivil() {
-  const [enviando, iniciar] = useTransition();
-  return (
-    <Button
-      variant="outline"
-      disabled={enviando}
-      onClick={() =>
-        iniciar(async () => {
-          try {
-            const r = await empezarRegistroCivil();
-            if (r.error) toast.error(r.error);
-            else toast.success("Meta Registro civil creada con sus pasos.");
-          } catch {
-            toast.error("No se pudo crear. Intenta otra vez.");
-          }
-        })
-      }
-    >
-      <Flag className="size-4" />
-      {enviando ? "Creando…" : "Empezar con Registro civil"}
-    </Button>
   );
 }

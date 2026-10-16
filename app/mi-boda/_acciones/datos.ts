@@ -1,6 +1,6 @@
 import "server-only";
 import { cache } from "react";
-import { and, asc, eq, isNotNull } from "drizzle-orm";
+import { and, asc, eq, isNotNull, sql } from "drizzle-orm";
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { getDb } from "@/db";
 import { acciones, bodas, dependencias, gastosBernie, metas, pagos, type Pago } from "@/db/schema";
@@ -45,11 +45,13 @@ export const listarAcciones = cache(async () => {
   const { orgId } = await auth();
   if (!orgId) return [];
   const bodaId = orgId;
+  // Por tiempo: lo más temprano primero (más semanas = más lejos de la boda) y
+  // las ideas sueltas al final. A igualdad, por llegada (docs/metas.md §14.4).
   return getDb()
     .select()
     .from(acciones)
     .where(eq(acciones.bodaId, bodaId))
-    .orderBy(asc(acciones.momento), asc(acciones.orden), asc(acciones.creadaEl));
+    .orderBy(sql`${acciones.inicioSemanas} desc nulls last`, asc(acciones.creadaEl));
 });
 
 /** La gente de esta boda, para elegir responsable. */

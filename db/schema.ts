@@ -34,19 +34,6 @@ export const bodas = pgTable("bodas", {
 export type Boda = typeof bodas.$inferSelect;
 
 /**
- * Dónde vive una acción en el camino a la boda.
- *
- * "idea" no es una lista aparte: es el estado de algo que todavía no sabes
- * dónde poner. Moverlo a un carril es cambiar este único campo.
- */
-export const momento = pgEnum("momento", [
-  "idea",
-  "antes",
-  "el_dia",
-  "despues",
-]);
-
-/**
  * En qué punto está una acción.
  *
  * Tres estados y no un sí/no: "haciendo" es donde se atasca todo — el
@@ -105,8 +92,6 @@ export const acciones = pgTable(
     titulo: text("titulo").notNull(),
     notas: text("notas"),
 
-    momento: momento("momento").notNull().default("idea"),
-
     cuestaTiempo: boolean("cuesta_tiempo").notNull().default(false),
 
     /** numeric, no float: en coma flotante 0.1 + 0.2 no da 0.3 y se pierden céntimos. */
@@ -124,12 +109,17 @@ export const acciones = pgTable(
      *
      * Se guarda relativo y no como fecha porque mover la boda mueve todo
      * con ella, que es lo que pasa de verdad cuando se cambia el día.
-     * Null = todavía sin decidir; el diagrama la coloca según su momento.
+     *
+     * Es el único campo que dice si una acción está en el camino
+     * (docs/metas.md §2.2): null = idea suelta, todavía sin sitio.
      */
     inicioSemanas: integer("inicio_semanas"),
     duracionSemanas: integer("duracion_semanas").notNull().default(1),
 
-    /** Posición dentro de su carril, para ordenar a mano. */
+    /**
+     * Contador de llegada, para desempatar. Ya no es "posición en su carril":
+     * los carriles del Mapa son las metas y nunca hubo reordenar a mano.
+     */
     orden: integer("orden").notNull().default(0),
 
     /**
@@ -149,8 +139,11 @@ export const acciones = pgTable(
       .defaultNow(),
   },
   (t) => [
-    // Toda consulta filtra por boda; sin este índice se escanea la tabla entera.
-    index("acciones_boda_momento_idx").on(t.bodaId, t.momento, t.orden),
+    // Toda consulta filtra por boda; sin un índice que empiece por boda_id se
+    // escanea la tabla entera. En Neon todavía existe el viejo
+    // acciones_boda_momento_idx: se cambia por este en el paso 3 del
+    // despliegue (docs/metas.md §3.1), no en este PR.
+    index("acciones_boda_orden_idx").on(t.bodaId, t.orden),
   ],
 );
 

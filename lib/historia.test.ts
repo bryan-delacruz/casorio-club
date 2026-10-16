@@ -4,7 +4,7 @@ import { collares, diasHasta, hoyEnLima, nombreDeLaPareja } from "./historia.ts"
 import type { AccionCamino } from "./metas.ts";
 
 const a = (id: string, extra: Partial<AccionCamino> = {}): AccionCamino => ({
-  id, titulo: id, momento: "antes", estado: "por_hacer", inicioSemanas: 5, duracionSemanas: 1,
+  id, titulo: id, estado: "por_hacer", inicioSemanas: 5, duracionSemanas: 1,
   monto: null, metaId: "m1", esHito: false, ...extra,
 });
 
@@ -22,7 +22,7 @@ test("hoy en Lima, no en UTC", () => {
 
 test("collares: perlas en orden de dependencia, hito como rombo", () => {
   const acciones = [
-    a("ceremonia", { esHito: true, inicioSemanas: 0, momento: "el_dia" }),
+    a("ceremonia", { esHito: true, inicioSemanas: 0 }),
     a("doc", { estado: "hecho", inicioSemanas: 10 }),
     a("tramite", { estado: "haciendo", inicioSemanas: 7 }),
     a("suelta", { metaId: null }),
@@ -35,8 +35,9 @@ test("collares: perlas en orden de dependencia, hito como rombo", () => {
   assert.deepEqual(c, { titulo: "Registro civil", perlas: ["hecha", "haciendo", "hito"], hechas: 1 });
 });
 
-test("collares: sin metas, un collar con lo que tiene fecha; metas vacías no salen", () => {
-  const acciones = [a("x", { metaId: null }), a("idea", { metaId: null, momento: "idea" })];
+test("collares: sin metas, un collar con lo que está en el camino; metas vacías no salen", () => {
+  // La idea suelta (sin semanas) no entra en el collar.
+  const acciones = [a("x", { metaId: null }), a("idea", { metaId: null, inicioSemanas: null })];
   assert.deepEqual(collares(acciones, [], []).map((c) => c.perlas.length), [1]);
   assert.equal(collares(acciones, [], [{ id: "vacia", titulo: "Vacía" }]).length, 0);
 });

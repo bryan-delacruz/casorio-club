@@ -19,19 +19,28 @@ export const DEMO = {
 /** Cada cuánto vuelve a su estado original, aunque nadie la haya tocado. */
 const VIGENCIA_MS = 12 * 60 * 60 * 1000;
 
+/**
+ * El edicto, además de la ceremonia, como hito (docs/metas.md §10): así la
+ * tira del próximo hito tiene algo que contar antes de la ceremonia, que con
+ * un solo hito en la semana 0 diría siempre lo mismo. Es fiel al trámite —el
+ * edicto publicado es el permiso para casarse—, pero es un supuesto de
+ * producto: se revierte poniendo esto en false, sin tocar nada más.
+ */
+const EDICTO_ES_HITO = true;
+
 type Semilla = {
   clave: string;
   titulo: string;
   notas?: string;
-  momento: "idea" | "antes" | "el_dia" | "despues";
   estado: "por_hacer" | "haciendo" | "hecho";
   quien?: "ana" | "luis";
   tiempo?: boolean;
   monto?: string;
+  /** Semanas respecto de la boda. Sin esto, queda como idea suelta. */
   inicio?: number;
   duracion?: number;
   requiere?: string[];
-  /** A qué meta de la demo va (docs/metas.md §7). */
+  /** A qué meta de la demo va (docs/metas.md §10). */
   meta?: "registro" | "almuerzo";
   hito?: boolean;
   /** Pagos hechos, en días antes de hoy. */
@@ -39,24 +48,24 @@ type Semilla = {
 };
 
 const SEMILLA: Semilla[] = [
-  { clave: "partidas", titulo: "Partida de nacimiento de los dos", momento: "antes", estado: "hecho", quien: "ana", tiempo: true, monto: "40", inicio: 12, duracion: 2, pagado: [{ monto: "40", haceDias: 20 }], meta: "registro" },
-  { clave: "dni", titulo: "Copia del DNI de los dos", momento: "antes", estado: "hecho", quien: "luis", tiempo: true, inicio: 12, meta: "registro" },
-  { clave: "domicilio", titulo: "Certificado domiciliario", momento: "antes", estado: "hecho", quien: "luis", tiempo: true, monto: "30", inicio: 11, pagado: [{ monto: "30", haceDias: 12 }], meta: "registro" },
-  { clave: "medico", titulo: "Certificado médico prenupcial", notas: "En el centro de salud del distrito. Pedir cita con anticipación.", momento: "antes", estado: "haciendo", quien: "ana", tiempo: true, monto: "120", inicio: 9, duracion: 2, meta: "registro" },
-  { clave: "testigos", titulo: "Elegir a los dos testigos", notas: "Mayores de edad, con DNI vigente.", momento: "antes", estado: "hecho", quien: "ana", inicio: 10, meta: "registro" },
-  { clave: "expediente", titulo: "Presentar el expediente en la municipalidad", momento: "antes", estado: "por_hacer", quien: "luis", tiempo: true, monto: "250", inicio: 7, requiere: ["partidas", "dni", "domicilio", "medico", "testigos"], meta: "registro" },
-  { clave: "edicto", titulo: "Publicar el edicto matrimonial", momento: "antes", estado: "por_hacer", quien: "luis", tiempo: true, monto: "80", inicio: 6, duracion: 2, requiere: ["expediente"], meta: "registro" },
-  { clave: "fotografo", titulo: "Reservar el fotógrafo", momento: "antes", estado: "haciendo", quien: "ana", monto: "1800", inicio: 8, pagado: [{ monto: "500", haceDias: 9, nota: "Adelanto para separar la fecha" }] },
-  { clave: "almuerzo", titulo: "Reservar el restaurante para el almuerzo", notas: "Para 40 personas.", momento: "antes", estado: "haciendo", quien: "luis", monto: "3600", inicio: 8, pagado: [{ monto: "1000", haceDias: 15, nota: "Adelanto" }, { monto: "800", haceDias: 3 }], meta: "almuerzo" },
-  { clave: "vestido", titulo: "Vestido", momento: "antes", estado: "haciendo", quien: "ana", tiempo: true, monto: "1500", inicio: 6, duracion: 4, pagado: [{ monto: "600", haceDias: 6 }] },
-  { clave: "traje", titulo: "Traje", momento: "antes", estado: "por_hacer", quien: "luis", tiempo: true, monto: "900", inicio: 4, duracion: 2 },
-  { clave: "anillos", titulo: "Comprar los anillos", momento: "antes", estado: "por_hacer", monto: "2400", inicio: 4, duracion: 2 },
-  { clave: "ceremonia", titulo: "Ceremonia civil en la municipalidad", momento: "el_dia", estado: "por_hacer", inicio: 0, requiere: ["edicto", "anillos"], meta: "registro", hito: true },
-  { clave: "fiesta", titulo: "Almuerzo con la familia", momento: "el_dia", estado: "por_hacer", inicio: 0, requiere: ["almuerzo"], meta: "almuerzo" },
-  { clave: "acta", titulo: "Recoger el acta de matrimonio", momento: "despues", estado: "por_hacer", quien: "luis", tiempo: true, inicio: -2, requiere: ["ceremonia"], meta: "registro" },
-  { clave: "estado-civil", titulo: "Actualizar el estado civil en el DNI", momento: "despues", estado: "por_hacer", quien: "ana", tiempo: true, monto: "30", inicio: -4, duracion: 2, requiere: ["acta"] },
-  { clave: "video", titulo: "Video corto para compartir con la familia", momento: "idea", estado: "por_hacer" },
-  { clave: "dulces", titulo: "Mesa de dulces", momento: "idea", estado: "por_hacer", monto: "400" },
+  { clave: "partidas", titulo: "Partida de nacimiento de los dos", estado: "hecho", quien: "ana", tiempo: true, monto: "40", inicio: 12, duracion: 2, pagado: [{ monto: "40", haceDias: 20 }], meta: "registro" },
+  { clave: "dni", titulo: "Copia del DNI de los dos", estado: "hecho", quien: "luis", tiempo: true, inicio: 12, meta: "registro" },
+  { clave: "domicilio", titulo: "Certificado domiciliario", estado: "hecho", quien: "luis", tiempo: true, monto: "30", inicio: 11, pagado: [{ monto: "30", haceDias: 12 }], meta: "registro" },
+  { clave: "medico", titulo: "Certificado médico prenupcial", notas: "En el centro de salud del distrito. Pedir cita con anticipación.", estado: "haciendo", quien: "ana", tiempo: true, monto: "120", inicio: 9, duracion: 2, meta: "registro" },
+  { clave: "testigos", titulo: "Elegir a los dos testigos", notas: "Mayores de edad, con DNI vigente.", estado: "hecho", quien: "ana", inicio: 10, meta: "registro" },
+  { clave: "expediente", titulo: "Expediente en la municipalidad", estado: "por_hacer", quien: "luis", tiempo: true, monto: "250", inicio: 7, requiere: ["partidas", "dni", "domicilio", "medico", "testigos"], meta: "registro" },
+  { clave: "edicto", titulo: "Edicto matrimonial", estado: "por_hacer", quien: "luis", tiempo: true, monto: "80", inicio: 6, duracion: 2, requiere: ["expediente"], meta: "registro", hito: EDICTO_ES_HITO },
+  { clave: "fotografo", titulo: "Reservar el fotógrafo", estado: "haciendo", quien: "ana", monto: "1800", inicio: 8, pagado: [{ monto: "500", haceDias: 9, nota: "Adelanto para separar la fecha" }] },
+  { clave: "almuerzo", titulo: "Reservar el restaurante para el almuerzo", notas: "Para 40 personas.", estado: "haciendo", quien: "luis", monto: "3600", inicio: 8, pagado: [{ monto: "1000", haceDias: 15, nota: "Adelanto" }, { monto: "800", haceDias: 3 }], meta: "almuerzo" },
+  { clave: "vestido", titulo: "Vestido", estado: "haciendo", quien: "ana", tiempo: true, monto: "1500", inicio: 6, duracion: 4, pagado: [{ monto: "600", haceDias: 6 }] },
+  { clave: "traje", titulo: "Traje", estado: "por_hacer", quien: "luis", tiempo: true, monto: "900", inicio: 4, duracion: 2 },
+  { clave: "anillos", titulo: "Comprar los anillos", estado: "por_hacer", monto: "2400", inicio: 4, duracion: 2 },
+  { clave: "ceremonia", titulo: "Ceremonia civil en la municipalidad", estado: "por_hacer", inicio: 0, requiere: ["edicto", "anillos"], meta: "registro", hito: true },
+  { clave: "fiesta", titulo: "Almuerzo con la familia", estado: "por_hacer", inicio: 0, requiere: ["almuerzo"], meta: "almuerzo" },
+  { clave: "acta", titulo: "Acta de matrimonio", estado: "por_hacer", quien: "luis", tiempo: true, inicio: -2, requiere: ["ceremonia"], meta: "registro" },
+  { clave: "estado-civil", titulo: "Actualizar el estado civil en el DNI", estado: "por_hacer", quien: "ana", tiempo: true, monto: "30", inicio: -4, duracion: 2, requiere: ["acta"] },
+  { clave: "video", titulo: "Video corto para compartir con la familia", estado: "por_hacer" },
+  { clave: "dulces", titulo: "Mesa de dulces", estado: "por_hacer", monto: "400" },
 ];
 
 function diasDesdeHoy(dias: number) {
@@ -109,28 +118,25 @@ export async function reiniciarDemoSiHaceFalta() {
     });
 
   const quien = { ana: DEMO.visitanteId, luis: DEMO.parejaId };
-  const orden: Record<string, number> = {};
   const creadas = await db
     .insert(acciones)
     .values(
-      SEMILLA.map((s) => {
-        orden[s.momento] = (orden[s.momento] ?? -1) + 1;
-        return {
-          bodaId: DEMO.orgId,
-          titulo: s.titulo,
-          notas: s.notas ?? null,
-          momento: s.momento,
-          estado: s.estado,
-          responsableId: s.quien ? quien[s.quien] : null,
-          cuestaTiempo: s.tiempo ?? false,
-          monto: s.monto ?? null,
-          inicioSemanas: s.inicio ?? null,
-          duracionSemanas: s.duracion ?? 1,
-          metaId: s.meta ? metaDe[s.meta] : null,
-          esHito: s.hito ?? false,
-          orden: orden[s.momento],
-        };
-      }),
+      // `orden` es solo el contador de llegada: el sitio de cada acción lo dan
+      // sus semanas (docs/metas.md §3).
+      SEMILLA.map((s, i) => ({
+        bodaId: DEMO.orgId,
+        titulo: s.titulo,
+        notas: s.notas ?? null,
+        estado: s.estado,
+        responsableId: s.quien ? quien[s.quien] : null,
+        cuestaTiempo: s.tiempo ?? false,
+        monto: s.monto ?? null,
+        inicioSemanas: s.inicio ?? null,
+        duracionSemanas: s.duracion ?? 1,
+        metaId: s.meta ? metaDe[s.meta] : null,
+        esHito: s.hito ?? false,
+        orden: i,
+      })),
     )
     .returning({ id: acciones.id, titulo: acciones.titulo });
 
