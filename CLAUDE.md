@@ -1,1 +1,260 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 @AGENTS.md
+
+Casorio Club: espacio compartido para que una pareja planifique su boda civil en
+Perú. Multi-tenant con registro abierto — cualquiera crea su boda. La interfaz,
+el código y los comentarios están en español; los comentarios explican el *por
+qué*, no el *qué*.
+
+## Comandos
+
+```bash
+pnpm dev          # servidor de desarrollo (puerto 3000)
+pnpm build        # build de producción
+pnpm lint         # eslint
+pnpm test         # node:test sobre lib/**/*.test.ts
+```
+
+`pnpm` es el gestor de paquetes; no uses `npm install`.
+
+Una sola prueba o un solo caso:
+
+```bash
+node --test lib/metas.test.ts
+node --test --test-name-pattern "cadena principal" lib/metas.test.ts
+```
+
+Base de datos (no hay migraciones versionadas: `drizzle-kit push` empuja el
+esquema directo, y `db/migraciones` no existe):
+
+```bash
+pnpm dotenv -e .env.local -- pnpm drizzle-kit push      # aplicar db/schema.ts a Neon
+pnpm dotenv -e .env.local -- node scripts/verificar-db.mjs   # ver columnas e índices reales
+pnpm dotenv -e .env.local -- node scripts/ver-acciones.mjs
+```
+
+⚠️ Drizzle selecciona **todas** las columnas de una tabla, así que una columna
+nueva en `db/schema.ts` debe existir en Neon **antes** de mergear, o producción
+rompe. `push` solo agrega; revisa su plan antes de aceptarlo.
+
+Variables de entorno: copia `.env.example` a `.env.local`. Sin las variables de
+`BERNIE_*` la integración simplemente no aparece en la interfaz
+(`integracionDisponible()`), que es el comportamiento buscado.
+
+## Arquitectura
+
+### Permisos en Clerk, contenido en Postgres
+
+Cada boda **es** una Clerk Organization. Su `orgId` se guarda como `boda_id` en
+toda fila de Postgres, y **toda consulta filtra por él**. El `bodaId` nunca
+viene del cliente: se lee de `auth()` en el servidor
+(`bodaActiva()` en `app/mi-boda/_acciones/acciones-servidor.ts`). Una consulta
+sin ese filtro es una fuga entre bodas, es decir un bug de seguridad.
+
+La protección de rutas vive en el **layout** con `auth.protect()`
+(`app/mi-boda/layout.tsx`), no en `proxy.ts`, que solo adjunta la sesión. Clerk
+desaconseja proteger por coincidencia de rutas: el patrón puede desalinearse de
+cómo Next enruta y dejar accesible algo privado.
+
+### Una sola entidad para todo
+
+No hay tablas separadas de trámites, compras y gastos a propósito: **un trámite
+que cuesta plata ES un gasto**. Todo vive en `acciones`, y las secciones de la
+app son vistas sobre esa tabla. Lo que una acción exige se lee de dos campos:
+`cuestaTiempo` (⏱) y `monto != null` (💰), en cualquier combinación. Cualquier
+propuesta que parta tareas y gastos en dos listas rompe los totales.
+
+Derivar, no duplicar:
+- Adelanto y saldo = suma de filas de `pagos` contra el `monto` de la acción.
+  No hay campo "ya pagado".
+- Avance, rango y monto de una `meta` = derivados de sus acciones.
+- `deBernie` en un pago = derivado de `gastosBernie.pagoId`, no es columna.
+
+Dinero como `numeric(12, 2)`, nunca float.
+
+### El tiempo es relativo a la boda
+
+`acciones.inicioSemanas` se cuenta hacia atrás desde el día de la boda:
+12 = doce semanas antes, 0 = el mismo día, −4 = cuatro después. Relativo y no
+fecha absoluta porque **mover la boda mueve todo con ella**, que es lo que pasa
+de verdad. `null` = sin decidir todavía.
+
+`acciones.momento` (`idea` | `antes` | `el_dia` | `despues`) hace dos trabajos:
+es el carril del tablero y el valor por defecto de `inicioSemanas` cuando nadie
+puso semanas (`POR_DEFECTO` en `lib/metas.ts`). El índice compuesto
+`(boda_id, momento, orden)` depende de esa columna.
+
+### Marco de gestión (PMP traducido)
+
+`docs/metas.md` define el vocabulario y lo usa con rigor, pero la pareja nunca
+lee jerga de PMP:
+- **Meta** = entregable / paquete de trabajo de la EDT. Una acción pertenece a
+  una meta o a ninguna, nunca a dos, para que el monto no se cuente doble.
+- **Hito** (`esHito`) = checkpoint de duración cero; rombo en el Gantt.
+- **Dependencia** = precedencia fin-a-inicio, guardada como par
+  `(accionId, requiereId)` para poder preguntar en los dos sentidos.
+- **Cadena principal** = ruta crítica.
+
+### Lógica pura en `lib/`, React y base aparte
+
+Todo cálculo de orden, fechas, totales o dependencias vive en `lib/` como
+función pura y se prueba con `node:test`. No metas ese cálculo en un componente.
+
+- `lib/metas.ts` — orden topológico de dependencias, cadena principal, "lista
+  para empezar", resumen de meta, plantilla `REGISTRO_CIVIL`.
+- `lib/historia.ts` — la imagen para compartir.
+- `lib/persona.ts` — nombre e iniciales de un miembro de Clerk.
+- `lib/demo.ts` — la semilla de la boda de ejemplo.
+- `lib/bernie/` — OAuth PKCE, cifrado, cliente, firma de webhooks, validador de
+  contrato OpenAPI, sincronización por cursor.
+
+### Lecturas y escrituras separadas
+
+- **Lecturas**: `app/mi-boda/_acciones/datos.ts`, marcado `server-only` y
+  envuelto en `cache` de React. Toleran no tener sesión y devuelven vacío: Next
+  renderiza layout y página en paralelo, así que una lectura puede correr antes
+  de que `auth.protect()` redirija.
+- **Escrituras**: `acciones-servidor.ts`, marcado `use server`, con
+  `revalidatePath`. No lanzan: devuelven `{ error }` con mensaje para el
+  usuario, porque en producción Next oculta el mensaje de lo que se lanza. Una
+  escritura sin sesión sí falla.
+
+Las lecturas no van en el archivo `use server`: todo lo que ese archivo exporta
+se publica como endpoint POST invocable desde el cliente.
+
+El cliente de base (`db/index.ts`) se inicializa perezosamente con `getDb()`.
+`neon()` lanza sin `DATABASE_URL` y Next evalúa el módulo al compilar, así que
+inicializar arriba rompería `next build`. No lo envuelvas en un `Proxy`: cuelga
+sin error.
+
+### Pantallas
+
+Dos vistas sobre los mismos datos, enlazadas desde `_acciones/rutas.ts`
+(centralizado: cabecera, selector y barra del celular usan las mismas rutas):
+- **Mapa** (`/mi-boda`, `mapa.tsx`) — tablero con arrastre por `dnd-kit` entre
+  carriles de `momento`. Siempre debe existir una ruta sin arrastre para
+  teclado y táctil.
+- **Camino** (`/mi-boda/camino`, `camino.tsx`) — Gantt con flechas de
+  dependencia, cadena principal resaltada, choques en rojo y hitos como rombo.
+
+### Demo
+
+`/demo` entra a una boda de ejemplo con un clic y sin contraseña, mediante un
+sign-in token de un solo uso de Clerk. Los datos se reconstruyen al entrar si
+tienen más de 12 horas, sin cron ni secreto extra. Los ids de `DEMO` en
+`lib/demo.ts` son identificadores de Clerk, no secretos. La boda demo no ofrece
+la integración con Bernie.
+
+### Integración con Bernie Wallet
+
+Solo lectura: Casorio nunca modifica nada en Bernie. Un gasto de Bernie llega a
+una bandeja **"Por asignar"** (`gastosBernie`) y no se vuelve pago solo, porque
+un gasto del banco no sabe a qué acción pertenece. OAuth 2.1 + PKCE, refresh
+token cifrado AES-256-GCM, webhooks deduplicados por `webhook-id`,
+sincronización incremental por cursor con lease para que dos syncs no gasten el
+mismo refresh token. Detalle completo en `docs/integracion-bernie.md`.
+
+## Estilo
+
+La paleta vive en los **tokens de shadcn**. No crees utilidades de color
+propias ni clases de color a mano. La interfaz de Clerk la dibuja Clerk: textos
+por localización (`lib/clerk-localization.ts`), cero overrides de CSS.
+
+Al verificar la interfaz en el navegador, **mide con JavaScript**
+(`getBoundingClientRect`, `getComputedStyle`, `devicePixelRatio`), no por
+captura: las capturas traen artefactos de escalado.
+
+# Cómo se trabaja en este proyecto
+
+Spec-Driven: **la spec en `docs/*.md` manda sobre el código**. Si algo cambia,
+primero se actualiza la spec. Cada documento declara su estado
+("aprobada e implementada").
+
+Orquestado por tres agentes especialistas en `.claude/agents/`. Ningún agente ve
+a los otros: **el relevo entre ellos es un archivo del repo**, no una
+conversación.
+
+| Agente | Rol | Entregable |
+| --- | --- | --- |
+| `po-bodas` | Product Owner, dominio de bodas civiles en Perú | spec en `docs/*.md` |
+| `arquitecto-senior` | Desarrollador senior, Next.js 16 / Clerk / Neon / shadcn | código y pruebas |
+| `validador-ux` | Validación de UX/UI en el navegador, solo lectura | informe de hallazgos medidos |
+
+## Ciclo de un cambio
+
+1. **Decidir.** `po-bodas` escribe o actualiza la spec en `docs/`, con el
+   alcance y lo que queda fuera.
+2. **Construir.** `arquitecto-senior` implementa esa spec, con las pruebas
+   `node:test` sobre las funciones puras de `lib/` que la spec pide.
+3. **Validar.** `validador-ux` comprueba en el navegador cada pantalla afectada
+   en móvil (375×812) y escritorio, en claro y en oscuro.
+4. **Cerrar el lazo.** Los hallazgos vuelven al agente que corresponde: de
+   producto al PO, técnicos al arquitecto. Se repite el paso 3 hasta que no
+   queden hallazgos abiertos.
+
+Los pasos 1 y 2 van **en serie**: dos agentes que escriben nunca tocan los
+mismos archivos a la vez. El paso 3 es de solo lectura y puede correr en
+paralelo con otra lectura.
+
+## Eficiencia del ciclo
+
+Medido en la sesión que estrenó este ciclo: seis corridas, ~62 min y ~750k
+tokens, y el mayor desperdicio no fue lentitud sino trabajo tirado — se
+construyó una agrupación entera y después se retiró.
+
+- **La pregunta de producto va antes que el modelo de dominio.** Antes de
+  especificar cómo se guarda o cómo se agrupa algo, el PO responde qué necesita
+  entender y hacer una pareja. Al revés se construye y se tira.
+- **Dos maneras de ver los mismos datos son una de más.** Una vista nueva se
+  justifica solo si contesta una pregunta que ninguna otra pantalla contesta.
+- **Los encargos van en delta, no en resumen del repo.** Este archivo ya da el
+  mapa del código, los comandos y la arquitectura, y los agentes lo cargan al
+  arrancar. El encargo dice qué cambia, qué archivos y qué decisiones ya están
+  tomadas; nada más.
+- **Un defecto ya medido se arregla, no se reproduce.** Si el encargo trae el
+  número, está comprobado.
+- **Leer en paralelo, escribir en serie.** El validador puede correr mientras el
+  PO escribe en `docs/`: uno lee la pantalla, el otro escribe documentos. Dos
+  que escriben código, nunca a la vez.
+- **Modelo según el trabajo.** El PO y el arquitecto deciden y diseñan: Opus.
+  Una revalidación, que es instrumentar y medir lo que ya se sabe dónde mirar,
+  va en Sonnet.
+- **Presupuesto del validador**: ~60 llamadas en una pasada completa, ~25 en una
+  revalidación. Al llegar al tope entrega lo que tiene y dice qué no miró.
+  Censa por muestra: lo que el cambio tocó, más los peores casos que encuentre.
+
+## El servidor de desarrollo es del usuario
+
+`pnpm dev` lo levanta el usuario y lo deja corriendo. **No lo arranques ni lo
+pares**, ni tú ni ningún agente: un segundo servidor falla por el puerto
+ocupado, y pararlo le quita al usuario lo que estaba mirando.
+
+Un servidor corriendo no cuesta nada mientras nadie lo lea. Lo que cuesta es
+mirar, y por orden de precio: una captura de pantalla vale varias páginas de
+texto; `read_page`, `get_page_text` y las mediciones con `javascript_tool`
+cuestan poco y además son más exactas. Si hace falta ver los logs, pídeselos al
+usuario en vez de leerlos.
+
+Lo exploratorio ("¿se ve bien?", "¿me gusta este orden?") lo mira el usuario en
+su navegador y lo cuenta en una frase. El validador se reserva para verificar
+con números: contrastes, píxeles, estados límite y regresiones.
+
+## Puerta de calidad
+
+Un cambio no está terminado hasta que todo esto se cumple y se puede mostrar:
+
+- `pnpm lint` y `pnpm test` pasan, con la salida real a la vista.
+- La spec en `docs/` refleja lo implementado.
+- Cada pantalla afectada está validada en móvil y escritorio, en claro y en
+  oscuro, con valores medidos por JavaScript y no por capturas.
+- Estados vacío, de carga y de error cubiertos, no solo el caso feliz.
+- Ruta de teclado y táctil donde haya arrastre con `dnd-kit`.
+- Sin errores de consola ni peticiones fallidas en las pantallas tocadas.
+- Toda consulta nueva filtra por `boda_id`.
+- Columnas nuevas ya existen en Neon antes de mergear.
+
+Si algo de esta lista no se cumple, se dice explícitamente qué falta y por qué.
+No se reporta como hecho lo que no se corrió.

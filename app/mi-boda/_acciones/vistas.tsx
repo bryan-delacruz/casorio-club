@@ -9,7 +9,7 @@ const VISTAS = [
   { href: RUTAS.camino, nombre: "Camino" },
 ];
 
-/** Las dos maneras de mirar lo mismo: por momento, o por calendario. En el celular las lleva la barra de abajo. */
+/** Las dos maneras de mirar lo mismo: el tablero, o el calendario. En el celular las lleva la barra de abajo. */
 export function Vistas() {
   const donde = usePathname();
   return (

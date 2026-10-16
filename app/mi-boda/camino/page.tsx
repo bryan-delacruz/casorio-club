@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Camino, type Agrupar } from "../_acciones/camino";
+import { Camino } from "../_acciones/camino";
 import {
   listarAcciones,
   listarDependencias,
@@ -12,23 +12,16 @@ import { BotonAnotar } from "../_acciones/boton-anotar";
 
 export const metadata: Metadata = { title: "El camino" };
 
-export default async function CaminoPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ por?: string }>;
-}) {
-  const [acciones, miembros, dependencias, boda, metas, { por }] = await Promise.all([
+export default async function CaminoPage() {
+  // Una sola agrupación, por meta (docs/metas.md §5): no hay selector ni
+  // `?por=`. Un enlace viejo con `?por=hito` simplemente se ignora.
+  const [acciones, miembros, dependencias, boda, metas] = await Promise.all([
     listarAcciones(),
     listarMiembros(),
     listarDependencias(),
     obtenerBoda(),
     listarMetas(),
-    searchParams,
   ]);
-  // Por meta si la boda tiene metas; sin metas, todo caería en un solo grupo
-  // "Sin meta", así que por momento (docs/metas.md §4). La URL manda si lo dice.
-  const agrupar: Agrupar =
-    por === "momento" || por === "meta" ? por : metas.length > 0 ? "meta" : "momento";
 
   const metasLite = metas.map((m) => ({ id: m.id, titulo: m.titulo }));
   return (
@@ -43,7 +36,6 @@ export default async function CaminoPage({
           dependencias={dependencias}
           fechaBoda={boda?.fecha ?? null}
           metas={metasLite}
-          agrupar={agrupar}
         />
       </div>
       <BotonAnotar miembros={miembros} metas={metasLite} />

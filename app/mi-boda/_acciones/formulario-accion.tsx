@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, type Dispatch, type ReactNode, type SetStateAction } from "react";
+import { useRef, useState, useTransition, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import type { Accion } from "@/db/schema";
@@ -32,13 +32,34 @@ import {
   crearMeta,
   editarAccion,
   guardarDependencias,
-  type Momento,
 } from "./acciones-servidor";
 import { Checkbox } from "@/components/ui/checkbox";
-import type { MetaLite, Miembro } from "./tipos";
+import { SIN_META, type MetaLite, type Miembro } from "./tipos";
+
+/**
+ * Cuándo cae la acción respecto de la boda. No se guarda en ninguna parte: es
+ * solo el signo de `inicioSemanas`, para poder teclear el número en positivo,
+ * que es como habla la gente ("un mes después", no "−4") (docs/metas.md §8).
+ */
+export type Cuando = "antes" | "el_dia" | "despues";
+
+const CUANDOS: { id: Cuando; nombre: string }[] = [
+  { id: "antes", nombre: "Antes" },
+  { id: "el_dia", nombre: "El día" },
+  { id: "despues", nombre: "Después" },
+];
+
+/** Sin semanas no hay opción marcada: la acción es una idea suelta. */
+export const cuandoDe = (semanas: number | null | undefined): Cuando | null =>
+  semanas === null || semanas === undefined
+    ? null
+    : semanas > 0
+      ? "antes"
+      : semanas === 0
+        ? "el_dia"
+        : "despues";
 
 const SIN_RESPONSABLE = "sin-responsable";
-const SIN_META = "sin-meta";
 const NUEVA_META = "nueva-meta";
 
 /**
@@ -58,7 +79,9 @@ const PIE = "bg-popover sticky -bottom-4 -mx-4 mt-6 border-t px-4 pt-3 pb-4";
  */
 function Campos({
   accion,
-  momento,
+  semanaInicial,
+  cuando,
+  setCuando,
   miembros,
   metas,
   meta,
@@ -71,7 +94,10 @@ function Campos({
   setEsHito,
 }: {
   accion?: Accion;
-  momento: Momento;
+  /** La semana con la que llega el formulario; null = idea suelta. */
+  semanaInicial: number | null;
+  cuando: Cuando | null;
+  setCuando: (v: Cuando | null) => void;
   miembros: Miembro[];
   metas: MetaLite[];
   meta: string;
@@ -83,10 +109,28 @@ function Campos({
   esHito: boolean;
   setEsHito: (v: boolean) => void;
 }) {
-  // Una idea suelta todavía no tiene sitio en el calendario, y el mismo día
-  // de la boda no se cuenta en semanas.
-  const enCalendario = momento === "antes" || momento === "despues";
-  const cuando = momento === "antes" ? "antes de la boda" : "después de la boda";
+  // El número se teclea siempre en positivo: el signo lo pone "Cuándo".
+  const [semanas, setSemanas] = useState(
+    semanaInicial === null ? "" : String(Math.abs(semanaInicial)),
+  );
+  // El mismo día de la boda no se cuenta en semanas.
+  const elDia = cuando === "el_dia";
+  const sinSitio = !elDia && semanas.trim() === "";
+
+  /**
+   * Las dos mitades del control dicen lo mismo o mienten: desmarcar la opción
+   * borra el número (queda en ideas sueltas, que es lo que anuncia la línea
+   * de abajo) y teclear un número marca "Antes", que es como se lee.
+   */
+  function elegir(id: Cuando) {
+    if (cuando !== id) return setCuando(id);
+    setCuando(null);
+    setSemanas("");
+  }
+  function escribirSemanas(valor: string) {
+    setSemanas(valor);
+    if (valor.trim() !== "" && cuando === null) setCuando("antes");
+  }
 
   return (
     <div className="mt-5 space-y-4">
@@ -167,30 +211,55 @@ function Campos({
         </label>
       </div>
 
-      {(cuestaDinero || enCalendario) && (
+      <div className="space-y-2">
+        <Label htmlFor="semanas">Cuándo</Label>
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Tres opciones y ninguna obligatoria: sin semanas la acción se
+              queda en ideas sueltas. Volver a tocar la marcada la desmarca y
+              borra el número, para que no se guarde algo que ya no se ve. */}
+          <div role="group" aria-label="Cuándo" className="border-border inline-flex rounded-md border p-0.5">
+            {CUANDOS.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                aria-pressed={cuando === c.id}
+                onClick={() => elegir(c.id)}
+                className={`focus-visible:ring-ring relative cursor-pointer rounded-sm px-3 py-1 text-sm outline-none before:absolute before:inset-x-0 before:-top-2 before:-bottom-2 before:content-[''] focus-visible:ring-2 ${
+                  cuando === c.id
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {c.nombre}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            <Input
+              id="semanas"
+              name="semanas"
+              type="number"
+              min="0"
+              max="260"
+              inputMode="numeric"
+              placeholder="8"
+              className="w-20"
+              disabled={elDia}
+              aria-label="Cuántas semanas"
+              value={semanas}
+              onChange={(e) => escribirSemanas(e.target.value)}
+            />
+            <span className="text-muted-foreground text-sm">semanas</span>
+          </div>
+        </div>
+        {sinSitio && (
+          <p className="text-muted-foreground text-xs">Sin semanas, queda en ideas sueltas.</p>
+        )}
+      </div>
+
+      {(cuestaDinero || !esHito) && (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-          {enCalendario && (
-            <div className="min-w-0 space-y-2">
-              <Label htmlFor="semanas" title={`Semanas ${cuando}`}>
-                Semanas {momento === "antes" ? "antes" : "después"}
-              </Label>
-              <Input
-                id="semanas"
-                name="semanas"
-                type="number"
-                min="0"
-                max="260"
-                inputMode="numeric"
-                placeholder="8"
-                defaultValue={
-                  accion?.inicioSemanas === null || accion?.inicioSemanas === undefined
-                    ? ""
-                    : String(Math.abs(accion.inicioSemanas))
-                }
-              />
-            </div>
-          )}
-          {enCalendario && !esHito && (
+          {!esHito && (
             <div className="min-w-0 space-y-2">
               <Label htmlFor="dura">Cuántas dura</Label>
               <Input
@@ -239,13 +308,13 @@ function Campos({
 /**
  * Lee el formulario. Devuelve null si falta el título.
  *
- * Las semanas se escriben siempre en positivo y el signo lo pone el momento:
+ * Las semanas se escriben siempre en positivo y el signo lo pone "Cuándo":
  * antes de la boda cuentan hacia atrás, después hacia adelante. Nadie debería
  * teclear "-4" para decir "un mes después".
  */
 function leer(
   form: FormData,
-  momento: Momento,
+  cuando: Cuando | null,
   cuestaTiempo: boolean,
   cuestaDinero: boolean,
   esHito: boolean,
@@ -260,12 +329,14 @@ function leer(
   // Un hito no dura: es un día.
   const dura = esHito ? 1 : Math.max(1, Number(form.get("dura") ?? 1) || 1);
 
+  // Sin opción marcada no hay nada que interpretar: idea suelta, que es lo
+  // que el formulario anuncia (el número se borra al desmarcar).
   const inicioSemanas =
-    momento === "el_dia"
+    cuando === "el_dia"
       ? 0
-      : semanas === null || !Number.isFinite(semanas)
+      : cuando === null || semanas === null || !Number.isFinite(semanas)
         ? null
-        : momento === "despues"
+        : cuando === "despues"
           ? -semanas
           : semanas;
 
@@ -311,39 +382,51 @@ async function guardarConMeta(meta: string, form: FormData, guardar: (metaId: st
 const mensajeDe = (e: unknown, generico: string) => (e instanceof MetaInvalida ? e.message : generico);
 
 export function NuevaAccion({
-  momento,
+  semanaInicial = null,
+  metaInicial = null,
   miembros,
   metas = [],
   etiqueta,
   disparador,
 }: {
-  momento: Momento;
+  /**
+   * La semana con la que llega prellenado: la del carril desde donde se
+   * anota. Vacío (null) desde el botón Anotar del celular y desde la bandeja
+   * de ideas (docs/metas.md §8).
+   */
+  semanaInicial?: number | null;
+  /** La meta del carril desde donde se anota; null desde "Sin meta" (§8). */
+  metaInicial?: string | null;
   miembros: Miembro[];
   metas?: MetaLite[];
+  /** El nombre del carril donde cae lo nuevo, tal cual se ve en el Mapa. */
   etiqueta: string;
   /** El botón que abre el formulario. Por defecto, "Añadir" al pie del carril. */
   disparador?: ReactNode;
 }) {
   const [abierto, setAbierto] = useState(false);
+  const disparo = useRef<HTMLButtonElement>(null);
   const [cuestaTiempo, setCuestaTiempo] = useState(false);
   const [cuestaDinero, setCuestaDinero] = useState(false);
   const [esHito, setEsHito] = useState(false);
-  const [meta, setMeta] = useState(SIN_META);
+  const [meta, setMeta] = useState(metaInicial ?? SIN_META);
+  const [cuando, setCuando] = useState(cuandoDe(semanaInicial));
   const [enviando, iniciar] = useTransition();
 
   function reiniciar() {
     setCuestaTiempo(false);
     setCuestaDinero(false);
     setEsHito(false);
-    setMeta(SIN_META);
+    setMeta(metaInicial ?? SIN_META);
+    setCuando(cuandoDe(semanaInicial));
   }
 
   function enviar(form: FormData) {
-    const datos = leer(form, momento, cuestaTiempo, cuestaDinero, esHito);
+    const datos = leer(form, cuando, cuestaTiempo, cuestaDinero, esHito);
     if (!datos) return;
     iniciar(async () => {
       try {
-        await guardarConMeta(meta, form, (metaId) => crearAccion({ ...datos, momento, metaId }));
+        await guardarConMeta(meta, form, (metaId) => crearAccion({ ...datos, metaId }));
         setAbierto(false);
         reiniciar();
         toast.success("Anotado.");
@@ -353,9 +436,20 @@ export function NuevaAccion({
     });
   }
 
+  /**
+   * El foco sale del disparador antes de abrir: al abrir, Radix pone
+   * aria-hidden a todo lo que queda fuera del diálogo y el navegador lo
+   * bloquea si el foco sigue dentro. Al cerrar se lo devolvemos a mano,
+   * porque Radix ya no sabría a dónde.
+   */
+  function abrir(v: boolean) {
+    if (v) (document.activeElement as HTMLElement | null)?.blur();
+    setAbierto(v);
+  }
+
   return (
-    <Dialog open={abierto} onOpenChange={setAbierto}>
-      <DialogTrigger asChild>
+    <Dialog open={abierto} onOpenChange={abrir}>
+      <DialogTrigger asChild ref={disparo}>
         {disparador ?? (
           <Button
             variant="ghost"
@@ -367,17 +461,25 @@ export function NuevaAccion({
         )}
       </DialogTrigger>
 
-      <DialogContent className={DIALOGO}>
+      <DialogContent
+        className={DIALOGO}
+        onCloseAutoFocus={(e) => {
+          e.preventDefault();
+          disparo.current?.focus();
+        }}
+      >
         {/* El formulario se rehace al abrir, así los campos no arrastran lo
             escrito en la vez anterior. */}
         <form action={enviar} key={abierto ? "abierto" : "cerrado"}>
           <DialogHeader>
             <DialogTitle className="font-display text-xl font-normal">Algo que hacer</DialogTitle>
-            <DialogDescription>Va a {etiqueta}.</DialogDescription>
+            <DialogDescription>Queda en «{etiqueta}».</DialogDescription>
           </DialogHeader>
 
           <Campos
-            momento={momento}
+            semanaInicial={semanaInicial}
+            cuando={cuando}
+            setCuando={setCuando}
             miembros={miembros}
             metas={metas}
             meta={meta}
@@ -508,11 +610,12 @@ export function EditarAccion({
   const [cuestaDinero, setCuestaDinero] = useState(accion.monto !== null);
   const [esHito, setEsHito] = useState(accion.esHito);
   const [meta, setMeta] = useState(accion.metaId ?? SIN_META);
+  const [cuando, setCuando] = useState(cuandoDe(accion.inicioSemanas));
   const [marcadas, setMarcadas] = useState(() => new Set(requiere));
   const [enviando, iniciar] = useTransition();
 
   function enviar(form: FormData) {
-    const datos = leer(form, accion.momento, cuestaTiempo, cuestaDinero, esHito);
+    const datos = leer(form, cuando, cuestaTiempo, cuestaDinero, esHito);
     if (!datos) return;
     iniciar(async () => {
       try {
@@ -536,12 +639,14 @@ export function EditarAccion({
         <form action={enviar}>
           <DialogHeader>
             <DialogTitle className="font-display text-xl font-normal">Cambiar esto</DialogTitle>
-            <DialogDescription>Para moverla de sitio usa el menú de la tarjeta.</DialogDescription>
+            <DialogDescription>Cambiar las semanas la mueve de sitio en el camino.</DialogDescription>
           </DialogHeader>
 
           <Campos
             accion={accion}
-            momento={accion.momento}
+            semanaInicial={accion.inicioSemanas}
+            cuando={cuando}
+            setCuando={setCuando}
             miembros={miembros}
             metas={metas}
             meta={meta}

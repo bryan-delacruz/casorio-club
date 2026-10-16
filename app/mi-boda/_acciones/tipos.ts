@@ -1,13 +1,47 @@
-import type { Estado, Momento } from "./acciones-servidor";
+import type { Estado } from "./acciones-servidor";
 
 export type Miembro = { id: string; nombre: string; iniciales: string; imagen?: string };
 
-export const DESTINOS: { id: Momento; nombre: string }[] = [
-  { id: "antes", nombre: "Antes" },
-  { id: "el_dia", nombre: "El día" },
-  { id: "despues", nombre: "Después" },
-  { id: "idea", nombre: "Ideas sueltas" },
-];
+/**
+ * Los dos destinos reservados del Mapa: la bandeja de ideas sueltas y el
+ * carril de lo que no es de ninguna meta.
+ *
+ * Son literales y no uuid a propósito (docs/metas.md §7): cualquier otro
+ * destino es el id de una meta, así que el servidor distingue los tres casos
+ * sin que el cliente le mande una estructura.
+ */
+export const IDEAS = "ideas-sueltas";
+export const NOMBRE_IDEAS = "Ideas sueltas";
+export const SIN_META = "sin-meta";
+export const NOMBRE_SIN_META = "Sin meta";
+
+/** El carril único de una boda que todavía no tiene ninguna meta (§7). */
+export const TODO_LO_ANOTADO = "Todo lo anotado";
+
+/**
+ * La misma invitación en el Mapa y en el Camino cuando la boda no tiene
+ * ninguna meta (docs/metas.md §5, §7). Compartida para que no se
+ * desincronicen.
+ */
+export const INVITA_META = "Agrupa lo que va junto: crea una meta.";
+
+/** Solo en el Mapa, y una sola vez, cuando no hay ningún hito (§5.3). */
+export const INVITA_HITO = "Marca lo importante como hito y verás cuánto falta.";
+
+/**
+ * Cómo se nombra una dependencia que no se dibuja con flecha (docs/metas.md
+ * §5). Una sola forma: el Mapa decía "necesita" y el Camino no decía nada.
+ */
+export const REQUIERE = "↳ requiere";
+
+/**
+ * A dónde se manda una tarjeta: el id de una meta, o uno de los dos
+ * literales reservados (docs/metas.md §7).
+ */
+export type Destino = string;
+
+/** Un carril del Mapa, tal como se lee en el menú "Mover a". */
+export type Carril = { id: Destino; nombre: string; esMeta: boolean };
 
 /** Hoy en formato YYYY-MM-DD, en la zona de quien mira. */
 export function hoy() {

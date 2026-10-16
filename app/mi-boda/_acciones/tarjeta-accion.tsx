@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useSortable } from "@dnd-kit/sortable";
+import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { Check, Clock, Coins, Diamond, MoreHorizontal, Pencil, Trash2, Wallet } from "lucide-react";
 import type { Estado } from "./acciones-servidor";
@@ -15,15 +15,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { Momento } from "./acciones-servidor";
 import { EditarAccion } from "./formulario-accion";
 import { PagosAccion } from "./pagos-accion";
 import {
   cuentaDe,
-  DESTINOS,
   ESTADOS,
+  REQUIERE,
   siguienteEstado,
   soles,
+  type Carril,
+  type Destino,
   type MetaLite,
   type Miembro,
 } from "./tipos";
@@ -47,6 +48,8 @@ export function TarjetaAccion({
   metas = [],
   requiere,
   titulos,
+  destinos = [],
+  destinoActual,
   onAlternar,
   onMover,
   onBorrar,
@@ -60,13 +63,24 @@ export function TarjetaAccion({
   metas?: MetaLite[];
   requiere?: Set<string>;
   titulos?: Map<string, string>;
+  /** Los carriles y las ideas sueltas: a dónde se puede mandar esta tarjeta. */
+  destinos?: Carril[];
+  /** Dónde está ahora, para no ofrecerse a sí misma. */
+  destinoActual?: Destino;
   onAlternar?: (id: string, estado: Estado) => void;
-  onMover?: (id: string, momento: Momento) => void;
+  onMover?: (id: string, destino: Destino) => void;
   onBorrar?: (id: string) => void;
   arrastrable?: boolean;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: accion.id, disabled: !arrastrable });
+  // Draggable y no sortable: dentro de un carril no se reordena a mano, las
+  // tarjetas van por semana (docs/metas.md §7).
+  // `attributes` se descarta a propósito: trae role="button", tabIndex y un
+  // aria-roledescription que prometen arrastrar con el teclado, y aquí no hay
+  // KeyboardSensor. El camino sin ratón es el menú ⋯, que sí funciona.
+  const { listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: accion.id,
+    disabled: !arrastrable,
+  });
   const [editando, setEditando] = useState(false);
   const [viendoPagos, setViendoPagos] = useState(false);
 
@@ -74,16 +88,16 @@ export function TarjetaAccion({
   const haciendo = accion.estado === "haciendo";
   const { total, pagado, falta } = cuentaDe(accion.monto, pagos);
   const conMonto = accion.monto !== null;
-  const otros = DESTINOS.filter((d) => d.id !== accion.momento);
-  const conMenu = arrastrable && (onMover || onBorrar);
+  const otros = destinos.filter((d) => d.id !== destinoActual);
+  const conMenu = arrastrable && Boolean(onMover || onBorrar);
   const meta = accion.metaId ? metas.find((m) => m.id === accion.metaId) : undefined;
 
   return (
     <div
       ref={setNodeRef}
-      style={{ transform: CSS.Translate.toString(transform), transition }}
+      style={{ transform: CSS.Translate.toString(transform) }}
       // La tarjeta entera es el asa, no una esquina.
-      {...(arrastrable ? { ...attributes, ...listeners } : {})}
+      {...(arrastrable ? listeners : {})}
       className={`group bg-card border-border rounded-md border p-3 ${
         arrastrable ? "cursor-grab touch-none active:cursor-grabbing" : ""
       } ${isDragging ? "opacity-40" : ""} ${hecha ? "opacity-60" : ""} ${
@@ -101,7 +115,7 @@ export function TarjetaAccion({
           aria-label={`${ESTADOS.find((e) => e.id === accion.estado)?.nombre}. Pasar a ${
             ESTADOS.find((e) => e.id === siguienteEstado(accion.estado))?.nombre
           }`}
-          className={`mt-0.5 grid size-4 shrink-0 cursor-pointer place-items-center rounded-full border ${
+          className={`focus-visible:ring-ring mt-0.5 grid size-4 shrink-0 cursor-pointer place-items-center rounded-full border outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
             hecha
               ? "border-primary bg-primary text-primary-foreground"
               : haciendo
@@ -126,7 +140,7 @@ export function TarjetaAccion({
             <DropdownMenuTrigger
               onPointerDown={(e) => e.stopPropagation()}
               aria-label="Opciones"
-              className="text-muted-foreground/50 hover:text-foreground focus-visible:text-foreground -mt-0.5 -mr-1 cursor-pointer rounded p-0.5"
+              className="text-muted-foreground/50 hover:text-foreground focus-visible:text-foreground focus-visible:ring-ring -mt-0.5 -mr-1 cursor-pointer rounded p-0.5 outline-none focus-visible:ring-2"
             >
               <MoreHorizontal className="size-4" />
             </DropdownMenuTrigger>
@@ -149,8 +163,12 @@ export function TarjetaAccion({
                   {e.nombre}
                 </DropdownMenuItem>
               ))}
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel>Mover a</DropdownMenuLabel>
+              {otros.length > 0 && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel>Mover a</DropdownMenuLabel>
+                </>
+              )}
               {otros.map((d) => (
                 <DropdownMenuItem
                   key={d.id}
@@ -194,7 +212,7 @@ export function TarjetaAccion({
               onPointerDown={(e) => e.stopPropagation()}
               onClick={() => conMenu && setViendoPagos(true)}
               disabled={!conMenu}
-              className={`flex items-center gap-1 text-xs ${
+              className={`focus-visible:ring-ring flex items-center gap-1 rounded-sm text-xs outline-none focus-visible:ring-2 ${
                 conMenu ? "cursor-pointer" : ""
               } ${
                 pagado > 0 && falta === 0
@@ -226,7 +244,7 @@ export function TarjetaAccion({
           guardado cada vez. */}
       {requiere && requiere.size > 0 && titulos && (
         <p className="text-muted-foreground mt-2 pl-6 text-xs">
-          ↳ necesita{" "}
+          {REQUIERE}{" "}
           {[...requiere]
             .map((id) => titulos.get(id))
             .filter(Boolean)
