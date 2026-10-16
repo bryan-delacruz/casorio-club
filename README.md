@@ -18,13 +18,13 @@ The UI is in Spanish, for its target users.
 - **Shared wedding space:** each wedding is a Clerk Organization. Invite your partner or family, manage members and switch between weddings.
 - **Passwordless sign-in:** email plus a 6-digit code, with a fully localized Clerk UI.
 - **One-click demo:** `/demo` signs visitors in as a member of a sample wedding with a one-time Clerk sign-in token. The sample data (actions, payments and dependencies, dated relative to today) is rebuilt on entry when it is older than 12 hours, with no cron or extra secret.
-- **Action board:** drag and drop actions between lanes — *idea*, *before*, *the day* and *after* — with `dnd-kit`. A non-drag path exists for keyboard and touch users.
+- **Action board:** one lane per goal, plus a tray for loose ideas. Drag and drop with `dnd-kit` moves an action to another goal; it never changes its date. A non-drag path exists for keyboard and touch users.
 - **One entity for everything:** a paperwork step that costs money *is* an expense. Each action can take time (⏱), cost money (💰), both or neither, so totals never miss an item.
 - **Owners and progress:** assign each action to a member and mark it done.
 
 ## Architecture decisions
 
-- **Permissions live in Clerk, content lives in Postgres.** Every action stores the Clerk `orgId` as `boda_id`. Every query filters by it, backed by a composite index on `(boda_id, momento, orden)`.
+- **Permissions live in Clerk, content lives in Postgres.** Every action stores the Clerk `orgId` as `boda_id`. Every query filters by it, backed by a composite index starting with `boda_id`.
 - **Money as `numeric(12, 2)`, never float**, so cents are never lost to floating-point rounding.
 - **Server Actions** for create, move, complete and delete, with `revalidatePath` to refresh the board.
 - **Route protection per layout** with `auth.protect()`, instead of path matching in middleware, as Clerk recommends.
