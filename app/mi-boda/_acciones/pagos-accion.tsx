@@ -23,8 +23,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { cuentaDe, etiquetaDePago, POR_REPARTIR } from "@/lib/pagos";
-import { borrarPago, registrarPago, registrarPagoRepartido } from "./acciones-servidor";
+import { cuentaDe, etiquetaDePago, POR_REPARTIR, UMBRAL_DE_MAS } from "@/lib/pagos";
+import { borrarPago, ponerTotal, registrarPago, registrarPagoRepartido } from "./acciones-servidor";
 import { diaCorto, hoy, soles, type Miembro } from "./tipos";
 
 /**
@@ -55,7 +55,7 @@ export function PagosAccion({
   // Null = la fila de fichas está cerrada. Solo aparece con tres o más
   // miembros: con dos no hay a quién elegir (docs/pagos.md §3.2).
   const [elegidos, setElegidos] = useState<string[] | null>(null);
-  const { total, pagado, falta } = cuentaDe(accion.monto, pagos);
+  const { total, pagado, falta, deMas } = cuentaDe(accion.monto, pagos);
   // Sin pagador conocido se lee "Por repartir", la misma etiqueta del
   // selector y del Reparto: quien salió de la boda deja su pago aquí
   // (docs/pagos.md §7). El capitalize solo va en las personas, porque "Por
@@ -109,6 +109,19 @@ export function PagosAccion({
     });
   }
 
+  /** La invitación: escribe el total y nada más; no bloquea ni valida (§3.5). */
+  function guardarTotal(form: FormData) {
+    const monto = String(form.get("total") ?? "").trim();
+    if (!monto) return;
+    iniciar(async () => {
+      const r = await ponerTotal(accion.id, monto).catch(() => ({
+        error: "No se pudo guardar. Intenta otra vez.",
+      }));
+      if (r?.error) return void toast.error(r.error);
+      toast.success("Guardado.");
+    });
+  }
+
   function quitar(id: string) {
     iniciar(async () => {
       try {
@@ -119,19 +132,43 @@ export function PagosAccion({
     });
   }
 
+  const descripcion =
+    total > 0
+      ? `Calculas ${soles(total)}. Anota aquí cada vez que salga plata.`
+      : pagos.length === 0
+        ? "Todavía no sabes cuánto cuesta. Anota lo que vayas pagando y el total se irá sumando."
+        : null;
+
   return (
     <Dialog open={abierto} onOpenChange={onAbiertoChange}>
-      <DialogContent>
+      {/* Sin descripción, aria-describedby={undefined} explícito evita el aviso
+          de Radix por un DialogDescription que no existe. */}
+      <DialogContent
+        {...(descripcion ? {} : { "aria-describedby": undefined })}
+      >
         <DialogHeader>
           <DialogTitle className="font-display text-xl font-normal">
             {accion.titulo}
           </DialogTitle>
-          <DialogDescription>
-            {total > 0
-              ? `Cuesta ${soles(total)}. Anota aquí cada vez que salga plata.`
-              : "Esta acción no tiene monto. Ponle uno desde Cambiar."}
-          </DialogDescription>
+          {/* "Calculas" y no "cuesta": el monto es lo que la pareja cree que
+              va a costar, no un hecho (docs/pagos.md §3.4). Sin monto y sin
+              pagos se invita a anotar; con pagos el número grande y la
+              invitación de abajo ya lo cuentan, y repetirlo sería ruido. */}
+          {descripcion && (
+            <DialogDescription>
+              {descripcion}
+            </DialogDescription>
+          )}
         </DialogHeader>
+
+        {/* Sin total el número grande es lo puesto y no hay barra: no hay nada
+            que llenar (docs/pagos.md §3.4). */}
+        {total <= 0 && pagado > 0 && (
+          <div className="mt-5 flex items-baseline justify-between gap-4">
+            <p className="font-display text-2xl leading-8">{soles(pagado)}</p>
+            <p className="text-muted-foreground text-sm">puestos hasta ahora</p>
+          </div>
+        )}
 
         {total > 0 && (
           <>
@@ -144,7 +181,10 @@ export function PagosAccion({
                   ? "sin pagar todavía"
                   : falta > 0
                     ? `falta · ${soles(pagado)} puestos de ${soles(total)}`
-                    : `${soles(pagado)} en ${pagos.length} ${pagos.length === 1 ? "pago" : "pagos"}`}
+                    : deMas >= UMBRAL_DE_MAS
+                      ? // Lo de más se dice donde pasó, y solo desde el umbral.
+                        `${soles(pagado)} puestos · ${soles(deMas)} más de lo calculado`
+                      : `${soles(pagado)} en ${pagos.length} ${pagos.length === 1 ? "pago" : "pagos"}`}
               </p>
             </div>
 
@@ -194,131 +234,164 @@ export function PagosAccion({
           </ul>
         )}
 
-        {total > 0 && (
-          // key: al guardar, el formulario vuelve en blanco con el saldo nuevo.
-          <form action={anotar} key={pagos.length} className="mt-5">
-            <div className="flex flex-wrap items-end gap-3">
+        {/* Mientras no haya total y sí pagos: la pareja descubre el total justo
+            al último pago. Es un form aparte y no anida en el de anotar. Se va
+            sola al haber total (docs/pagos.md §3.5). */}
+        {total <= 0 && pagos.length > 0 && (
+          <form action={guardarTotal} className="bg-muted/50 mt-4 space-y-3 rounded-lg p-3">
+            <p className="text-sm">
+              ¿Ya sabes cuánto fue en total? Escríbelo y verás si queda algo por pagar.
+            </p>
+            <div className="flex items-end gap-3">
               <div className="min-w-24 flex-1 space-y-2">
-                <Label htmlFor="monto">Cuánto</Label>
+                <Label htmlFor="total">Cuánto (S/)</Label>
                 <Input
-                  id="monto"
-                  name="monto"
+                  id="total"
+                  name="total"
                   type="number"
                   step="0.01"
                   min="0"
                   inputMode="decimal"
-                  defaultValue={falta > 0 ? String(falta) : ""}
-                  autoFocus
                   required
                 />
               </div>
-              <div className="min-w-32 flex-1 space-y-2">
-                <Label htmlFor="fecha">Cuándo</Label>
-                <Input
-                  id="fecha"
-                  name="fecha"
-                  type="date"
-                  defaultValue={hoy()}
-                  required
-                />
-              </div>
-            </div>
-            <div className="mt-3 flex flex-wrap items-end gap-3">
-              <div className="min-w-32 flex-1 space-y-2">
-                <Label htmlFor="pagadoPor">Quién puso</Label>
-                {/* "Por repartir" y no "Sin decidir": es la etiqueta que el
-                    Reparto ya usa para ese grupo (docs/pagos.md §3.1). */}
-                <Select
-                  name="pagadoPor"
-                  defaultValue={accion.responsableId ?? POR_REPARTIR}
-                >
-                  <SelectTrigger id="pagadoPor" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {miembros.map((m) => (
-                      <SelectItem key={m.id} value={m.id}>
-                        {m.nombre}
-                      </SelectItem>
-                    ))}
-                    <SelectItem value={POR_REPARTIR}>Por repartir</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="min-w-32 flex-1 space-y-2">
-                <Label htmlFor="nota">Qué fue</Label>
-                <Input
-                  id="nota"
-                  name="nota"
-                  placeholder="Adelanto, saldo, la mitad…"
-                />
-              </div>
-            </div>
-
-            {/* A quiénes se reparte: fichas conmutables con el mismo avatar de
-                siempre. Envuelven a 375 px en vez de hacer scroll. */}
-            {elegidos && (
-              <div className="mt-4 flex flex-wrap gap-x-4 gap-y-3">
-                {miembros.map((m) => {
-                  const marcado = elegidos.includes(m.id);
-                  return (
-                    <button
-                      key={m.id}
-                      type="button"
-                      aria-pressed={marcado}
-                      onClick={() =>
-                        setElegidos(
-                          marcado
-                            ? elegidos.filter((id) => id !== m.id)
-                            : [...elegidos, m.id],
-                        )
-                      }
-                      // El pseudo-elemento sube el área de toque a 44 px sin
-                      // separar las fichas, igual que en "Antes/El día/Después".
-                      className="focus-visible:ring-ring relative flex cursor-pointer items-center gap-2 rounded-full text-sm outline-none before:absolute before:inset-x-0 before:-top-1.5 before:-bottom-1.5 before:content-[''] focus-visible:ring-2"
-                    >
-                      <AvatarPersona
-                        persona={m}
-                        className={marcado ? "ring-primary size-8 ring-2" : "size-8 opacity-40"}
-                      />
-                      <span className={marcado ? "capitalize" : "text-muted-foreground capitalize"}>
-                        {m.nombre.split(" ")[0]}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
-            <DialogFooter className="mt-6">
-              {/* Con dos miembros no hay nada que elegir: reparte y listo. Con
-                  tres o más, el primer toque abre las fichas. */}
-              {miembros.length >= 2 &&
-                (hayVarios && !elegidos ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setElegidos(miembros.map((m) => m.id))}
-                  >
-                    Repartir
-                  </Button>
-                ) : (
-                  <Button
-                    type="submit"
-                    variant="outline"
-                    className="relative before:absolute before:inset-x-0 before:-top-1.5 before:-bottom-1.5 before:content-['']"
-                    formAction={repartir}
-                    disabled={enviando || (elegidos !== null && elegidos.length < 2)}
-                  >
-                    {elegidos ? `Repartir entre ${elegidos.length}` : "Repartir"}
-                  </Button>
-                ))}
-              <Button type="submit" disabled={enviando}>
-                {enviando ? "Anotando…" : "Anotar pago"}
+              <Button
+                type="submit"
+                variant="outline"
+                className="relative before:absolute before:inset-x-0 before:-top-1.5 before:-bottom-1.5 before:content-['']"
+                disabled={enviando}
+              >
+                Guardar
               </Button>
-            </DialogFooter>
+            </div>
           </form>
         )}
+
+        {/* El formulario se dibuja siempre, también sin monto: es la única
+            puerta para empezar a pagar algo cuyo total no se sabe (§3.4). La
+            key: al guardar, vuelve en blanco con el saldo nuevo. */}
+        <form action={anotar} key={pagos.length} className="mt-5">
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="min-w-24 flex-1 space-y-2">
+              <Label htmlFor="monto">Cuánto</Label>
+              <Input
+                id="monto"
+                name="monto"
+                type="number"
+                step="0.01"
+                min="0"
+                inputMode="decimal"
+                defaultValue={falta > 0 ? String(falta) : ""}
+                autoFocus
+                required
+              />
+            </div>
+            <div className="min-w-32 flex-1 space-y-2">
+              <Label htmlFor="fecha">Cuándo</Label>
+              <Input
+                id="fecha"
+                name="fecha"
+                type="date"
+                defaultValue={hoy()}
+                required
+              />
+            </div>
+          </div>
+          <div className="mt-3 flex flex-wrap items-end gap-3">
+            <div className="min-w-32 flex-1 space-y-2">
+              <Label htmlFor="pagadoPor">Quién puso</Label>
+              {/* "Por repartir" y no "Sin decidir": es la etiqueta que el
+                  Reparto ya usa para ese grupo (docs/pagos.md §3.1). */}
+              <Select
+                name="pagadoPor"
+                defaultValue={accion.responsableId ?? POR_REPARTIR}
+              >
+                <SelectTrigger id="pagadoPor" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {miembros.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      {m.nombre}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value={POR_REPARTIR}>Por repartir</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="min-w-32 flex-1 space-y-2">
+              <Label htmlFor="nota">Qué fue</Label>
+              <Input
+                id="nota"
+                name="nota"
+                placeholder="Adelanto, saldo, la mitad…"
+              />
+            </div>
+          </div>
+
+          {/* A quiénes se reparte: fichas conmutables con el mismo avatar de
+              siempre. Envuelven a 375 px en vez de hacer scroll. */}
+          {elegidos && (
+            <div className="mt-4 flex flex-wrap gap-x-4 gap-y-3">
+              {miembros.map((m) => {
+                const marcado = elegidos.includes(m.id);
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    aria-pressed={marcado}
+                    onClick={() =>
+                      setElegidos(
+                        marcado
+                          ? elegidos.filter((id) => id !== m.id)
+                          : [...elegidos, m.id],
+                      )
+                    }
+                    // El pseudo-elemento sube el área de toque a 44 px sin
+                    // separar las fichas, igual que en "Antes/El día/Después".
+                    className="focus-visible:ring-ring relative flex cursor-pointer items-center gap-2 rounded-full text-sm outline-none before:absolute before:inset-x-0 before:-top-1.5 before:-bottom-1.5 before:content-[''] focus-visible:ring-2"
+                  >
+                    <AvatarPersona
+                      persona={m}
+                      className={marcado ? "ring-primary size-8 ring-2" : "size-8 opacity-40"}
+                    />
+                    <span className={marcado ? "capitalize" : "text-muted-foreground capitalize"}>
+                      {m.nombre.split(" ")[0]}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          <DialogFooter className="mt-6">
+            {/* Con dos miembros no hay nada que elegir: reparte y listo. Con
+                tres o más, el primer toque abre las fichas. */}
+            {miembros.length >= 2 &&
+              (hayVarios && !elegidos ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setElegidos(miembros.map((m) => m.id))}
+                >
+                  Repartir
+                </Button>
+              ) : (
+                <Button
+                  type="submit"
+                  variant="outline"
+                  className="relative before:absolute before:inset-x-0 before:-top-1.5 before:-bottom-1.5 before:content-['']"
+                  formAction={repartir}
+                  disabled={enviando || (elegidos !== null && elegidos.length < 2)}
+                >
+                  {elegidos ? `Repartir entre ${elegidos.length}` : "Repartir"}
+                </Button>
+              ))}
+            <Button type="submit" disabled={enviando}>
+              {enviando ? "Anotando…" : "Anotar pago"}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

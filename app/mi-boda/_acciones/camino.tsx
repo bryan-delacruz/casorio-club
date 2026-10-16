@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useLayoutEffect, useRef, useState } from "react";
 import { Flag, Sparkles, TriangleAlert } from "lucide-react";
-import type { Accion, Dependencia } from "@/db/schema";
+import type { Accion, Dependencia, Pago } from "@/db/schema";
 import { AvatarPersona } from "@/components/avatar-persona";
 import {
   cadenaPrincipal,
@@ -17,6 +17,7 @@ import {
   resumenMeta,
   semanasHastaLaBoda,
 } from "@/lib/metas";
+import { cuentaDe, pagosPorAccion } from "@/lib/pagos";
 import { CompartirHistoria } from "./compartir-historia";
 import { EmpezarRegistroCivil } from "./empezar-registro-civil";
 import { FechaBoda } from "./fecha-boda";
@@ -62,18 +63,22 @@ export function Camino({
   dependencias,
   fechaBoda,
   metas,
+  pagos,
 }: {
   acciones: Accion[];
   miembros: Miembro[];
   dependencias: Dependencia[];
   fechaBoda: string | null;
   metas: MetaLite[];
+  pagos: Pago[];
 }) {
   const enCalendario: EnCamino[] = enCamino(acciones);
   const sueltas = acciones.filter((a) => a.inicioSemanas === null);
   const porId = new Map(acciones.map((a) => [a.id, a]));
   const gente = new Map(miembros.map((m) => [m.id, m]));
   const listas = listasParaEmpezar(acciones, dependencias);
+  // Los totales suman lo que va costando, no el monto (docs/pagos.md §4.3).
+  const pagosDe = pagosPorAccion(pagos);
   const tieneRegistro = metas.some((m) => m.titulo === REGISTRO_CIVIL.titulo);
 
   const requiereDe = new Map<string, string[]>();
@@ -239,6 +244,7 @@ export function Camino({
                 lineas={lineas}
                 columnas={columnas}
                 columnaDe={columnaDe}
+                pagosDe={pagosDe}
               />
             ),
           )}
@@ -300,6 +306,7 @@ function Seccion({
   lineas,
   columnas,
   columnaDe,
+  pagosDe,
 }: {
   grupo: Grupo;
   dependencias: Dependencia[];
@@ -311,13 +318,14 @@ function Seccion({
   lineas: React.ReactNode;
   columnas: number;
   columnaDe: (semanas: number) => number;
+  pagosDe: Map<string, Pago[]>;
 }) {
   const contenedor = useRef<HTMLDivElement>(null);
   const [flechas, setFlechas] = useState<Flecha[]>([]);
   const ids = new Set(grupo.acciones.map((a) => a.id));
   const cadena = cadenaPrincipal(grupo.acciones, dependencias);
   // La barra resumen es solo de la meta: lo demás no es un entregable (§5).
-  const resumen = grupo.meta ? resumenMeta(grupo.acciones) : null;
+  const resumen = grupo.meta ? resumenMeta(grupo.acciones, pagosDe) : null;
   // Solo las dependencias dentro del grupo se dibujan; las de otra meta se
   // nombran en el texto "↳ requiere …".
   const pares = dependencias.filter((d) => ids.has(d.accionId) && ids.has(d.requiereId));
@@ -420,6 +428,8 @@ function Seccion({
           const haciendo = a.estado === "haciendo";
           const enCadena = cadena.has(a.id);
           const quien = a.responsableId ? gente.get(a.responsableId) : undefined;
+          // Lo que va costando, sin palabras: aquí no cabe una frase (§4.3).
+          const { costando } = cuentaDe(a.monto, pagosDe.get(a.id) ?? []);
 
           const necesita = (requiereDe.get(a.id) ?? [])
             .map((id) => porId.get(id))
@@ -450,7 +460,7 @@ function Seccion({
                   )}
                   {a.titulo}
                   {/* En el celular la barra es corta: el monto viaja con el nombre. */}
-                  {a.monto && <span className="text-muted-foreground sm:hidden"> · {soles(Number(a.monto))}</span>}
+                  {costando > 0 && <span className="text-muted-foreground sm:hidden"> · {soles(costando)}</span>}
                 </p>
                 {(fuera.length > 0 || choques.length > 0) && (
                   <p
@@ -496,8 +506,8 @@ function Seccion({
                     <AvatarPersona persona={quien} className="size-4" />
                   )}
                   {span >= 3 && <span className="truncate text-xs max-sm:hidden">{a.titulo}</span>}
-                  {a.monto && span >= 2 && (
-                    <span className="ml-auto shrink-0 text-xs tabular-nums max-sm:hidden">{soles(Number(a.monto))}</span>
+                  {costando > 0 && span >= 2 && (
+                    <span className="ml-auto shrink-0 text-xs tabular-nums max-sm:hidden">{soles(costando)}</span>
                   )}
                 </div>
               )}

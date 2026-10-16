@@ -66,8 +66,9 @@ export function hoy() {
   return `${d.getFullYear()}-${mes}-${dia}`;
 }
 
-export const soles = (n: number) =>
-  `S/ ${Math.round(n).toLocaleString("es-PE")}`;
+// El formato del dinero vive con su aritmética, en `lib/pagos.ts`: los textos
+// de la plata se prueban sin React. Se reexporta para no cambiar los imports.
+export { soles } from "@/lib/pagos";
 
 /** "5 mar" — el año sobra cuando la boda cabe en un año. */
 export function diaCorto(fecha: string) {

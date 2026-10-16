@@ -34,6 +34,20 @@ export const POR_REPARTIR = "por-repartir";
  */
 export const UMBRAL_DESBALANCE = 50;
 
+/**
+ * Desde cuánto de más se avisa que lo puesto pasó lo calculado, en soles
+ * (docs/pagos.md §3.4). Mismo juicio que `UMBRAL_DESBALANCE`: por debajo de
+ * esa cifra el aviso aparecería y desaparecería con cada adelanto.
+ */
+export const UMBRAL_DE_MAS = 50;
+
+/**
+ * Soles redondeados, como los escribe toda la app. Vive aquí porque los
+ * textos del dinero (`etiquetaDeDinero`) son puros y se prueban sin React;
+ * `tipos.ts` lo reexporta para que la interfaz siga importándolo de siempre.
+ */
+export const soles = (n: number) => `S/ ${Math.round(n).toLocaleString("es-PE")}`;
+
 /** "123.45" → 12345. Redondea porque el `numeric` llega como texto. */
 export const aCentimos = (monto: string) => Math.round(Number(monto) * 100);
 
@@ -46,7 +60,24 @@ export const aCentimos = (monto: string) => Math.round(Number(monto) * 100);
 export function cuentaDe(monto: string | null, pagos: { monto: string }[]) {
   const total = monto ? Number(monto) : 0;
   const pagado = pagos.reduce((s, p) => s + Number(p.monto), 0);
-  return { total, pagado, falta: Math.max(total - pagado, 0) };
+  const sinTotal = monto === null;
+  return {
+    /** Lo calculado: lo que la pareja cree que va a costar (docs/pagos.md §3.4). */
+    total,
+    /** Lo puesto: la suma de los pagos. */
+    pagado,
+    falta: Math.max(total - pagado, 0),
+    // Sin nada calculado no hay nada que pasarse: lo puesto es, por ahora, lo
+    // que cuesta.
+    deMas: sinTotal ? 0 : Math.max(pagado - total, 0),
+    sinTotal,
+    /**
+     * Lo que va costando: manda lo calculado hasta que lo puesto lo pasa —o
+     * no hay nada calculado—, porque esa plata ya salió (docs/pagos.md §4.3).
+     * Es lo que suman todos los totales, y no se guarda.
+     */
+    costando: Math.max(total, pagado),
+  };
 }
 
 /**
@@ -187,4 +218,53 @@ export function etiquetaDePago(pagos: PagoLite[], pago: PagoLite): string {
   const i = [...pagos].sort(porDia).findIndex((p) => p.id === pago.id);
   if (i === -1) return "Pago";
   return `${ordinal(i + 1)} pago`;
+}
+
+/**
+ * Los pagos de la boda agrupados por acción.
+ *
+ * Lo necesitan el Reparto, el Mapa y el Camino, que reciben los pagos
+ * planos: se arma una vez aquí y no tres veces en tres componentes.
+ */
+export function pagosPorAccion<T extends { accionId: string }>(pagos: T[]): Map<string, T[]> {
+  const porAccion = new Map<string, T[]>();
+  for (const p of pagos) {
+    const lote = porAccion.get(p.accionId) ?? [];
+    lote.push(p);
+    porAccion.set(p.accionId, lote);
+  }
+  return porAccion;
+}
+
+/** Lo que la tarjeta necesita de una acción para hablar de su plata. */
+export type AccionConDinero = {
+  monto: string | null;
+  estado: "por_hacer" | "haciendo" | "hecho";
+};
+
+/**
+ * Lo que dice la tarjeta sobre la plata de una acción, o null cuando no hay
+ * nada que decir y tampoco se dibuja la 💰 (docs/pagos.md §3.4).
+ *
+ * Las palabras viven aquí y no en el JSX para poder probar las siete filas
+ * de la tabla de la spec. El estado viaja en la acción pero no entra en la
+ * cuenta: ni "hecho" dice que no queda plata por salir, ni el saldo en cero
+ * dice que la gestión esté hecha.
+ */
+export function etiquetaDeDinero(
+  accion: AccionConDinero,
+  pagos: { monto: string }[],
+): string | null {
+  const { total, pagado, falta, deMas, sinTotal } = cuentaDe(accion.monto, pagos);
+  // Sin plata por ningún lado no es un gasto. Un monto en cero tampoco:
+  // la 💰 sale solo cuando hay plata de verdad.
+  if (total <= 0 && pagado <= 0) return null;
+  // Sin total siempre es "hasta ahora", esté la acción hecha o no: pagar y
+  // terminar son ejes independientes, hay cosas que se pagan por adelantado
+  // (docs/pagos.md §3.5). Cerrar la cuenta lo hace la pareja escribiendo el total.
+  if (sinTotal || total <= 0) return `${soles(pagado)} hasta ahora`;
+  if (pagado === 0) return `${soles(total)} calculados`;
+  if (deMas >= UMBRAL_DE_MAS) return `${soles(deMas)} más de lo calculado`;
+  if (falta === 0) return `${soles(total)} pagado`;
+  return `faltan ${soles(falta)} de ${soles(total)}`;
 }

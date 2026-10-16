@@ -5,6 +5,7 @@ import {
   listarDependencias,
   listarMetas,
   listarMiembros,
+  listarPagos,
   obtenerBoda,
 } from "../_acciones/datos";
 import { Vistas } from "../_acciones/vistas";
@@ -15,12 +16,17 @@ export const metadata: Metadata = { title: "El camino" };
 export default async function CaminoPage() {
   // Una sola agrupación, por meta (docs/metas.md §5): no hay selector ni
   // `?por=`. Un enlace viejo con `?por=hito` simplemente se ignora.
-  const [acciones, miembros, dependencias, boda, metas] = await Promise.all([
+  //
+  // Los pagos entran porque los totales suman lo que va costando cada acción,
+  // `max(lo calculado, lo puesto)` (docs/pagos.md §4.3): sin ellos el monto de
+  // una meta diría una cosa en el Mapa y otra aquí.
+  const [acciones, miembros, dependencias, boda, metas, pagos] = await Promise.all([
     listarAcciones(),
     listarMiembros(),
     listarDependencias(),
     obtenerBoda(),
     listarMetas(),
+    listarPagos(),
   ]);
 
   const metasLite = metas.map((m) => ({ id: m.id, titulo: m.titulo }));
@@ -36,6 +42,7 @@ export default async function CaminoPage() {
           dependencias={dependencias}
           fechaBoda={boda?.fecha ?? null}
           metas={metasLite}
+          pagos={pagos}
         />
       </div>
       <BotonAnotar miembros={miembros} metas={metasLite} />

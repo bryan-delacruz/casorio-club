@@ -309,6 +309,30 @@ export async function editarAccion(
 }
 
 /**
+ * Escribir el total de una acción, y nada más (docs/pagos.md §3.5): la
+ * invitación del diálogo de pagos. Aparte de `editarAccion`, que exige el
+ * formulario entero. No se compara con lo puesto: si queda por debajo, la
+ * acción dirá "más de lo calculado" y es verdad.
+ */
+export async function ponerTotal(accionId: string, monto: string): Promise<{ error?: string }> {
+  const { bodaId } = await bodaActiva();
+  const valor = Number(monto);
+  if (!monto.trim() || !Number.isFinite(valor) || valor <= 0) {
+    return { error: "Ese monto no se entiende." };
+  }
+
+  const guardada = await getDb()
+    .update(acciones)
+    .set({ monto: valor.toFixed(2), actualizadaEl: new Date() })
+    .where(and(eq(acciones.id, accionId), eq(acciones.bodaId, bodaId)))
+    .returning({ id: acciones.id });
+  if (guardada.length === 0) return { error: "Esa acción ya no está." };
+
+  revalidatePath("/mi-boda");
+  return {};
+}
+
+/**
  * Escribir la semana de una acción, y nada más (docs/metas.md §7): null la
  * devuelve a las ideas sueltas y conserva meta, dependencias, monto, pagos y
  * responsable. No recalcula `orden` ni toca la duración.
