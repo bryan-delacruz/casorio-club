@@ -12,6 +12,10 @@ import { and, count, eq, isNull } from "drizzle-orm";
 import { getDb } from "@/db";
 import { gastosBernie } from "@/db/schema";
 import { integracionDisponible } from "@/lib/bernie/config";
+import { cuentaRegresiva } from "@/lib/fecha-boda";
+import { hoyEnLima } from "@/lib/historia";
+import { FechaBoda } from "./_acciones/fecha-boda";
+import { obtenerBoda } from "./_acciones/datos";
 
 /**
  * Puerta de la zona privada. Al vivir en el layout, protege esta ruta y todo
@@ -27,10 +31,12 @@ export default async function MiBodaLayout({
   // La bandeja de Bernie se ofrece solo si la integración está configurada y
   // no es la boda demo (docs/integracion-bernie.md §9).
   const conBernie = !!orgId && orgId !== DEMO.orgId && integracionDisponible();
-  const [porAsignar, yo] = await Promise.all([
+  const [porAsignar, yo, boda] = await Promise.all([
     conBernie ? contarPorAsignar(orgId) : 0,
     currentUser(),
+    obtenerBoda(),
   ]);
+  const fecha = boda?.fecha ?? null;
   const correo = yo?.primaryEmailAddress?.emailAddress;
 
   return (
@@ -48,15 +54,29 @@ export default async function MiBodaLayout({
 
         {/* hidePersonal: aquí no existe la cuenta suelta, siempre hay una boda.
             En el celular baja a su propia fila: arriba quedan marca y avatar. */}
-        <div className="max-sm:order-last max-sm:w-full">
-          <OrganizationSwitcher
-            hidePersonal
-            afterCreateOrganizationUrl={RUTAS.mapa}
-            afterSelectOrganizationUrl={RUTAS.mapa}
-          />
+        <div className="flex items-center gap-2 max-sm:order-last max-sm:w-full">
+          {/* En el celular el switcher es lo que cede: su nombre se recorta
+              antes que empujar la cuenta regresiva fuera de la pantalla. */}
+          <div className="max-sm:min-w-0 max-sm:flex-1 max-sm:overflow-hidden">
+            <OrganizationSwitcher
+              hidePersonal
+              afterCreateOrganizationUrl={RUTAS.mapa}
+              afterSelectOrganizationUrl={RUTAS.mapa}
+            />
+          </div>
+          {/* En el celular la cuenta se mete en esta fila: una tercera
+              empujaría el contenido fuera de la primera pantalla. */}
+          <div className="ml-auto shrink-0 sm:hidden">
+            <FechaBoda fecha={fecha} cuenta={cuentaRegresiva(fecha, hoyEnLima())} />
+          </div>
         </div>
 
+        {/* La fecha es el único control de la app: vive en la cabecera y se
+            ve desde cualquier ruta de /mi-boda (docs/fecha-de-la-boda.md §4.1). */}
         <div className="ml-auto flex items-center gap-2">
+          <div className="max-sm:hidden">
+            <FechaBoda fecha={fecha} cuenta={cuentaRegresiva(fecha, hoyEnLima())} />
+          </div>
           {/* En el celular estos dos viven en la barra de abajo. */}
           {conBernie && (
             <Button variant="ghost" size="lg" className="max-sm:hidden" asChild>

@@ -527,6 +527,20 @@ export function faltanSemanas(semanasHastaLaBoda: number | null, semana: number)
   return semanasHastaLaBoda === null ? null : semanasHastaLaBoda - semana;
 }
 
+/**
+ * Cuántas cosas del camino quedaron en una semana que ya pasó.
+ *
+ * Solo informa al mover la fecha (docs/fecha-de-la-boda.md §4.4): nada se
+ * reprograma solo, porque las semanas las puso la pareja a mano. Las ideas
+ * sueltas no cuentan —no están en el camino— ni lo hecho, que ya no espera.
+ */
+export function cuantasYaPasaron(acciones: AccionCamino[], semanasHastaLaBoda: number | null) {
+  if (semanasHastaLaBoda === null) return 0;
+  return enCamino(acciones).filter(
+    (a) => a.estado !== "hecho" && a.inicioSemanas > semanasHastaLaBoda,
+  ).length;
+}
+
 // ---------------------------------------------------------------------------
 // Plantilla "Registro civil" (Perú)
 // ---------------------------------------------------------------------------

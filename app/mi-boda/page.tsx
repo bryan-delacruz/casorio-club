@@ -77,11 +77,17 @@ export default async function MiBodaPage() {
             {nombre ? `Hola, ${nombre}` : "Hola"}
           </h1>
           <p className="text-muted-foreground mt-1.5 max-w-[60ch] leading-6">
+            {/* Sin fecha el texto la pide: el control está arriba, a la
+                vista, así que aquí basta con nombrarla (docs/fecha-de-la-boda.md §4.2). */}
             {acciones.length === 0
-              ? "Empieza por anotar lo que se les venga a la cabeza. Ya decidirán después cuándo va cada cosa."
+              ? boda?.fecha
+                ? "Empieza por anotar lo que se les venga a la cabeza. Ya decidirán después cuándo va cada cosa."
+                : "Pon el día de la boda y anota lo que se les venga a la cabeza."
               : `${hechas} de ${acciones.length} hechas${
-                  haciendo > 0 ? `, ${haciendo} en marcha` : ""
-                }.`}
+                  boda?.fecha
+                    ? `${haciendo > 0 ? `, ${haciendo} en marcha` : ""}.`
+                    : ". Pon el día de la boda y las semanas se vuelven días."
+                }`}
           </p>
         </div>
 

@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   cadenaPrincipal,
+  cuantasYaPasaron,
   enCamino,
   estadoDeHitos,
   faltanAntesDe,
@@ -480,4 +481,19 @@ test("plantilla: dependencias apuntan a pasos que existen y la ceremonia es hito
   const claves = new Set(REGISTRO_CIVIL.pasos.map((p) => p.clave));
   for (const p of REGISTRO_CIVIL.pasos) for (const r of p.requiere) assert.ok(claves.has(r), `${p.clave} → ${r}`);
   assert.equal(REGISTRO_CIVIL.pasos.find((p) => p.clave === "ceremonia")?.hito, true);
+});
+
+test("ya pasaron: solo lo del camino, sin hacer, con la semana ya vencida", () => {
+  const lista = [
+    accion("vencida", 12),
+    accion("justo", 6),
+    accion("porVenir", 3),
+    accion("hecha", 20, 1, { estado: "hecho" }),
+    idea("suelta"),
+  ];
+  assert.equal(cuantasYaPasaron(lista, 6), 1);
+  assert.equal(cuantasYaPasaron(lista, 20), 0);
+  assert.equal(cuantasYaPasaron(lista, 2), 3);
+  // Sin fecha de boda no hay con qué comparar: no se avisa de nada.
+  assert.equal(cuantasYaPasaron(lista, null), 0);
 });
