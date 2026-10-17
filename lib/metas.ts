@@ -200,7 +200,7 @@ export function listasParaEmpezar(acciones: AccionCamino[], requisitos: Requisit
 /**
  * Avance, rango en semanas y monto de una meta, derivados de sus acciones.
  *
- * El monto suma lo que va **costando** cada acción, `max(lo calculado, lo
+ * El monto suma lo que va **costando** cada acción, `max(el estimado, lo
  * puesto)` (docs/pagos.md §4.3): una acción pagada sin monto dejaría de
  * valer S/ 0. Por eso recibe los pagos ya agrupados por acción, con
  * `pagosPorAccion`: enriquecer las acciones con su pago se colaría en los

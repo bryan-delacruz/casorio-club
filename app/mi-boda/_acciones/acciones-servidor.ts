@@ -339,7 +339,8 @@ export async function editarAccion(
  * Escribir el total de una acción, y nada más (docs/pagos.md §3.5): la
  * invitación del diálogo de pagos. Aparte de `editarAccion`, que exige el
  * formulario entero. No se compara con lo puesto: si queda por debajo, la
- * acción dirá "más de lo calculado" y es verdad.
+ * acción dirá "S/ N puestos de S/ M" con lo puesto por encima del estimado, y
+ * es verdad.
  */
 export async function ponerTotal(accionId: string, monto: string): Promise<{ error?: string }> {
   const { bodaId } = await bodaActiva();
