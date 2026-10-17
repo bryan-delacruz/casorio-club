@@ -61,7 +61,7 @@ const SEMILLA: Semilla[] = [
   { clave: "traje", titulo: "Traje", estado: "por_hacer", quien: "luis", tiempo: true, monto: "900", inicio: 4, duracion: 2 },
   { clave: "anillos", titulo: "Comprar los anillos", estado: "por_hacer", monto: "2400", inicio: 4, duracion: 2 },
   { clave: "ceremonia", titulo: "Ceremonia civil en la municipalidad", estado: "por_hacer", inicio: 0, requiere: ["edicto", "anillos"], meta: "registro", hito: true },
-  { clave: "fiesta", titulo: "Almuerzo con la familia", estado: "por_hacer", inicio: 0, requiere: ["almuerzo"], meta: "almuerzo" },
+  { clave: "fiesta", titulo: "Almuerzo con la familia", estado: "por_hacer", inicio: 0, requiere: ["almuerzo", "ceremonia"], meta: "almuerzo" },
   { clave: "acta", titulo: "Acta de matrimonio", estado: "por_hacer", quien: "luis", tiempo: true, inicio: -2, requiere: ["ceremonia"], meta: "registro" },
   { clave: "estado-civil", titulo: "Actualizar el estado civil en el DNI", estado: "por_hacer", quien: "ana", tiempo: true, monto: "30", inicio: -4, duracion: 2, requiere: ["acta"] },
   { clave: "video", titulo: "Video corto para compartir con la familia", estado: "por_hacer" },

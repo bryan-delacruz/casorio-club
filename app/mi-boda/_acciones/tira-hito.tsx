@@ -77,7 +77,7 @@ export function TiraProximoHito({
         <span aria-hidden>·</span>
         <span>hecho</span>
         <span aria-hidden>·</span>
-        <span>no queda ningún hito por delante</span>
+        <span>no queda ningún día clave por delante</span>
       </p>
     );
   }
