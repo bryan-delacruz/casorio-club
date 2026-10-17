@@ -13,6 +13,8 @@
 > contradecían se borró. Lo último en corregirse: **pagar y terminar son ejes
 > independientes**, así que el estado **hecho** no dice nada de la plata (§3.5).
 >
+> **Enmienda posterior:** aviso al guardar un total menor que lo puesto (§3.5.1).
+>
 > **Cero columnas nuevas.** Todo sale de `pagos` y de `acciones` tal como
 > están. No hay nota de despliegue porque no hay nada que empujar a Neon antes
 > de mergear.
@@ -287,11 +289,42 @@ lista aparece una línea con un campo y un botón:
 - **No bloquea nada.** Anotar pagos funciona sin tocarla, y la línea no se
   convierte en obligación ni en error: es una invitación y se puede ignorar para
   siempre.
-- **No valida el número contra lo puesto.** Si lo escrito queda por debajo, la
-  acción pasa a decir *"S/ N puestos de S/ M"* con lo puesto por encima del
-  estimado,
-  que es verdad y no hay nada que corregir.
+- **No bloquea ni corrige el número contra lo puesto.** Si lo escrito queda por
+  debajo, se guarda igual y la acción pasa a decir *"S/ N puestos de S/ M"* con
+  lo puesto por encima del estimado. Puede ser correcto, o puede ser un pago
+  mal anotado; la app no sabe cuál. Solo avisa, una vez, al guardar (§3.5.1).
 - Se deja de ver en cuanto hay total, porque entonces el saldo ya lo cuenta.
+
+#### 3.5.1 Aviso al guardar un total menor que lo puesto
+
+Decisión del dueño: *"dejarlo, pero avisar al guardar"*. No se bloquea, no se
+pide confirmación y no se corrige nada solo. La etiqueta de la tarjeta no
+cambia (§3.4); el aviso vive solo en el toast del momento de guardar.
+
+**Toast:** **"Guardado. Ya hay S/ 527 puestos, más que el total de S/ 200."**
+Con `soles()` en los dos números. No dice que algo esté mal.
+
+| Total escrito contra lo puesto | `puestos` devuelto | Toast |
+|---|---|---|
+| Mayor | no | el de guardado de siempre |
+| **Exactamente igual** (en céntimos) | no | el de siempre; cuenta cerrada, nada que avisar |
+| Menor, pero lo puesto es 0 | no | el de siempre |
+| **Menor y hay pagos** | suma de pagos | el de arriba |
+| Vacío o 0 (quita el total) | no | el de siempre; sin total no hay con qué comparar |
+
+**Qué devuelve `ponerTotal`:** `{ error?, puestos? }`, mismo patrón que
+`guardarFechaBoda` (`{ error?, yaPasaron? }`). `puestos` es la suma de `pagos`
+de esa acción como cadena `numeric` (`"527.00"`), presente solo en la fila
+"menor y hay pagos". El cliente arma el toast con ella y con el total que acaba
+de escribir. La suma se hace en el servidor, filtrada por `boda_id`, con la
+misma `cuentaDe` que el resto; el cliente no la recalcula. Con `error` no hay
+`puestos`.
+
+Prueba (función pura en `lib/pagos.ts`, p. ej. `puestosSiExcede(total, pagos)`,
+nombre a decidir por el arquitecto): total `"200"` con pagos que suman `"527"`
+→ `"527.00"`; total `"527"` → `null`; total `"600"` → `null`; total `"200"`
+sin pagos → `null`; total `""` y `"0"` con pagos → `null`; `"526.99"` contra
+`"527.00"` → `"527.00"` (comparación en céntimos).
 
 **Por qué no una marca "pagado del todo" en `acciones`** (columna nueva y
 despliegue en Neon antes de mergear): el total escrito sirve en cuatro sitios
@@ -510,6 +543,7 @@ todo y tiene que probarse.
   `costando` = `max(total, pagado)` en los cuatro cruces de monto nulo/puesto y
   pagos cero/parcial/de más. **`deMas` ya no se prueba porque ya no existe**
   (§3.4).
+- **Aviso de total menor** (§3.5.1): los casos de su tabla, en céntimos.
 - **`etiquetaDeDinero(accion, pagos)`**: una prueba por fila de la tabla de
   §3.4 —`null`, *"S/ 450 puestos hasta ahora"*, *"S/ 1,200 estimado"*,
   *"S/ 450 puestos de S/ 1,200"*— más los dos extremos de la última plantilla:

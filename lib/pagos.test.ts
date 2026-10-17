@@ -8,6 +8,7 @@ import {
   desbalance,
   etiquetaDePago,
   partes,
+  puestosSiExcede,
   POR_REPARTIR,
   reparte,
   repartoDePagos,
@@ -426,4 +427,32 @@ test("reparte: los montos suman exactamente el objetivo", () => {
 
 test("reparte: todas las partes en cero no inventa nada", () => {
   assert.deepEqual(reparte([0, 0], 100), [0, 0]);
+});
+
+// ---------------------------------------------------------------------------
+// puestosSiExcede (docs/pagos.md §3.5.1)
+
+test("puestosSiExcede: total menor que lo puesto devuelve la suma", () => {
+  const pagos = [{ monto: "300.00" }, { monto: "227.00" }];
+  assert.equal(puestosSiExcede("200", pagos), "527.00");
+});
+
+test("puestosSiExcede: igualdad exacta y total mayor no avisan", () => {
+  const pagos = [{ monto: "300.00" }, { monto: "227.00" }];
+  assert.equal(puestosSiExcede("527", pagos), null);
+  assert.equal(puestosSiExcede("600", pagos), null);
+});
+
+test("puestosSiExcede: sin pagos no avisa", () => {
+  assert.equal(puestosSiExcede("200", []), null);
+});
+
+test("puestosSiExcede: total vacío o 0 quita el total y no avisa", () => {
+  const pagos = [{ monto: "527.00" }];
+  assert.equal(puestosSiExcede("", pagos), null);
+  assert.equal(puestosSiExcede("0", pagos), null);
+});
+
+test("puestosSiExcede: compara en céntimos", () => {
+  assert.equal(puestosSiExcede("526.99", [{ monto: "527.00" }]), "527.00");
 });

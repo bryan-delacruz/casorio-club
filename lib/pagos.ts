@@ -62,6 +62,19 @@ export function cuentaDe(monto: string | null, pagos: { monto: string }[]) {
 }
 
 /**
+ * Lo puesto, como cadena `numeric`, solo si el total escrito quedó por debajo
+ * (docs/pagos.md §3.5.1); `null` en cualquier otro caso. Se compara en
+ * céntimos: con coma flotante, "526.99" contra "527.00" depende del redondeo.
+ * Vacío o 0 es la vía para quitar el total, así que no hay con qué comparar.
+ */
+export function puestosSiExcede(total: string, pagos: { monto: string }[]): string | null {
+  const totalC = aCentimos(total);
+  if (!Number.isFinite(totalC) || totalC <= 0 || pagos.length === 0) return null;
+  const puestosC = pagos.reduce((s, p) => s + aCentimos(p.monto), 0);
+  return puestosC > totalC ? (puestosC / 100).toFixed(2) : null;
+}
+
+/**
  * Reparte un entero entre varias partes sin perder ni inventar unidades.
  *
  * Redondear cada parte por su cuenta no cuadra: los porcentajes suman 99 o
