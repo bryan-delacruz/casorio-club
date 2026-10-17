@@ -96,3 +96,40 @@ export function siguienteEstado(actual: Estado): Estado {
 
 /** Lo mínimo de una meta que necesitan el formulario y las tarjetas. */
 export type MetaLite = { id: string; titulo: string };
+
+/**
+ * Más ancho que el diálogo por defecto: los campos cortos van de a dos y no se
+ * estira hacia abajo. La altura máxima y el scroll los pone el propio
+ * DialogContent; el pie queda pegado abajo para que "Guardar" esté siempre a
+ * la vista, aunque la lista sea larga.
+ *
+ * Vive aquí y no en el formulario porque lo usan los tres diálogos de una
+ * acción: cambiarla, sus pagos y su orden.
+ */
+export const DIALOGO = "sm:max-w-lg";
+export const PIE = "bg-popover sticky -bottom-4 -mx-4 mt-6 border-t px-4 pt-3 pb-4";
+
+/**
+ * La semana de una acción, como se lee al lado de su título
+ * (docs/dependencias.md §3). Las mismas cuatro formas que el eje del Camino.
+ */
+export function etiquetaSemana(inicioSemanas: number | null) {
+  if (inicioSemanas === null) return "sin semana";
+  if (inicioSemanas === 0) return "la boda";
+  return inicioSemanas > 0 ? `${inicioSemanas} sem` : `+${-inicioSemanas}`;
+}
+
+/** Los textos del diálogo del orden (docs/dependencias.md §3). */
+export const ORDEN = {
+  menu: "Qué va antes",
+  titulo: "Antes y después de esto",
+  descripcion:
+    "Dos listas: lo que tiene que estar listo antes, y lo que espera a que esto esté.",
+  antes: "Qué tiene que estar listo antes",
+  despues: "Qué espera a que esto esté",
+  vedadaAntes: "Esta ya te espera a ti.",
+  vedadaDespues: "A esta la esperas tú.",
+  nadaQueElegir: "Anota algo más y podrás poner el orden.",
+  buscar: "Buscar entre las demás",
+  sinResultados: "Ninguna se llama así.",
+} as const;

@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useOptimistic, useRef, useState, useTransition } from "react";
 import { Flag, Sparkles, TriangleAlert } from "lucide-react";
+import { toast } from "sonner";
 import type { Accion, Dependencia, Pago } from "@/db/schema";
 import { AvatarPersona } from "@/components/avatar-persona";
 import {
@@ -19,6 +20,8 @@ import {
   semanasHastaLaBoda,
 } from "@/lib/metas";
 import { cuentaDe, pagosPorAccion } from "@/lib/pagos";
+import { borrarAccion, cambiarEstado, type Estado } from "./acciones-servidor";
+import { MenuAccion } from "./menu-accion";
 import { CompartirHistoria } from "./compartir-historia";
 import { EmpezarPlan } from "./empezar-plan";
 import { TiraProximoHito } from "./tira-hito";
@@ -60,7 +63,7 @@ type Grupo = {
 };
 
 export function Camino({
-  acciones,
+  acciones: iniciales,
   miembros,
   dependencias,
   fechaBoda,
@@ -74,6 +77,38 @@ export function Camino({
   metas: MetaLite[];
   pagos: Pago[];
 }) {
+  // El estado se pinta antes de que el servidor conteste: la barra cambia de
+  // color al instante y no parece que el menú no hizo nada. Es el mismo
+  // patrón del Mapa, y la revalidación trae después la verdad.
+  const [acciones, aplicar] = useOptimistic(
+    iniciales,
+    (actual: Accion[], cambio: { id: string; estado: Estado }) =>
+      actual.map((a) => (a.id === cambio.id ? { ...a, ...cambio } : a)),
+  );
+  const [, iniciar] = useTransition();
+
+  function alAlternar(id: string, estado: Estado) {
+    iniciar(async () => {
+      aplicar({ id, estado });
+      try {
+        await cambiarEstado(id, estado);
+      } catch {
+        toast.error("No se pudo actualizar.");
+      }
+    });
+  }
+
+  function alBorrar(id: string) {
+    iniciar(async () => {
+      try {
+        await borrarAccion(id);
+        toast.success("Borrado.");
+      } catch {
+        toast.error("No se pudo borrar.");
+      }
+    });
+  }
+
   const enCalendario: EnCamino[] = enCamino(acciones);
   const sueltas = acciones.filter((a) => a.inicioSemanas === null);
   const porId = new Map(acciones.map((a) => [a.id, a]));
@@ -252,6 +287,11 @@ export function Camino({
                 columnas={columnas}
                 columnaDe={columnaDe}
                 pagosDe={pagosDe}
+                acciones={acciones}
+                miembros={miembros}
+                metas={metas}
+                onAlternar={alAlternar}
+                onBorrar={alBorrar}
               />
             ),
           )}
@@ -314,6 +354,11 @@ function Seccion({
   columnas,
   columnaDe,
   pagosDe,
+  acciones,
+  miembros,
+  metas,
+  onAlternar,
+  onBorrar,
 }: {
   grupo: Grupo;
   dependencias: Dependencia[];
@@ -326,6 +371,12 @@ function Seccion({
   columnas: number;
   columnaDe: (semanas: number) => number;
   pagosDe: Map<string, Pago[]>;
+  /** Todas las de la boda: el diálogo del orden necesita el grafo entero. */
+  acciones: Accion[];
+  miembros: Miembro[];
+  metas: MetaLite[];
+  onAlternar: (id: string, estado: Estado) => void;
+  onBorrar: (id: string) => void;
 }) {
   const contenedor = useRef<HTMLDivElement>(null);
   const [flechas, setFlechas] = useState<Flecha[]>([]);
@@ -468,19 +519,38 @@ function Seccion({
               {/* En el celular el fondo cubre solo el texto: las flechas pasan
                   por detrás de las palabras sin cortarse en toda la fila. */}
               <div style={{ gridColumn: "var(--nombre)", gridRow: 1 }} className="sm:bg-background sticky left-0 z-20 min-w-0 pr-3">
-                <p
-                  // El title va aquí y no en la barra: es este texto el que
-                  // se corta cuando el nombre no cabe en su columna.
-                  title={a.titulo}
-                  className={`max-sm:bg-background truncate text-sm max-sm:w-fit max-sm:max-w-full ${hecha ? "text-muted-foreground line-through" : ""}`}
-                >
-                  {listas.has(a.id) && (
-                    <Sparkles className="text-primary mr-1 inline size-3.5" aria-label="Lista para empezar" />
-                  )}
-                  {a.titulo}
-                  {/* En el celular la barra es corta: el monto viaja con el nombre. */}
-                  {costando > 0 && <span className="text-muted-foreground sm:hidden"> · {soles(costando)}</span>}
-                </p>
+                {/* El menú va con el nombre y no sobre la barra: una barra de
+                    una semana mide 36 px y en el celular queda fuera de la
+                    vista sin hacer scroll (docs/dependencias.md §9.1). */}
+                <div className="max-sm:bg-background flex min-w-0 items-center gap-1 max-sm:w-fit max-sm:max-w-full">
+                  <p
+                    // El title va aquí y no en la barra: es este texto el que
+                    // se corta cuando el nombre no cabe en su columna.
+                    title={a.titulo}
+                    className={`min-w-0 truncate text-sm ${hecha ? "text-muted-foreground line-through" : ""}`}
+                  >
+                    {listas.has(a.id) && (
+                      <Sparkles className="text-primary mr-1 inline size-3.5" aria-label="Lista para empezar" />
+                    )}
+                    {a.titulo}
+                    {/* En el celular la barra es corta: el monto viaja con el nombre. */}
+                    {costando > 0 && <span className="text-muted-foreground sm:hidden"> · {soles(costando)}</span>}
+                  </p>
+                  {/* 16 px de icono: el pseudo-elemento le da los 44 px de
+                      área táctil sin agrandar el dibujo. Sin "Mover a": aquí
+                      el carril es la meta, y la meta se cambia en Cambiar. */}
+                  <MenuAccion
+                    accion={a}
+                    miembros={miembros}
+                    pagos={pagosDe.get(a.id) ?? []}
+                    otras={acciones}
+                    metas={metas}
+                    dependencias={dependencias}
+                    onAlternar={onAlternar}
+                    onBorrar={onBorrar}
+                    className="relative shrink-0 before:absolute before:-inset-[14px] before:content-['']"
+                  />
+                </div>
                 {(fuera.length > 0 || choques.length > 0) && (
                   <p
                     className={`max-sm:bg-background truncate text-xs max-sm:w-fit max-sm:max-w-full ${choques.length > 0 ? "text-destructive" : "text-muted-foreground"}`}
