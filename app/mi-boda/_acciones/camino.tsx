@@ -14,13 +14,13 @@ import {
   listasParaEmpezar,
   metasQueEspera,
   ordenPorDependencia,
-  REGISTRO_CIVIL,
+  faltanMetasDelPlan,
   resumenMeta,
   semanasHastaLaBoda,
 } from "@/lib/metas";
 import { cuentaDe, pagosPorAccion } from "@/lib/pagos";
 import { CompartirHistoria } from "./compartir-historia";
-import { EmpezarRegistroCivil } from "./empezar-registro-civil";
+import { EmpezarPlan } from "./empezar-plan";
 import { TiraProximoHito } from "./tira-hito";
 import {
   INVITA_META,
@@ -81,7 +81,8 @@ export function Camino({
   const listas = listasParaEmpezar(acciones, dependencias);
   // Los totales suman lo que va costando, no el monto (docs/pagos.md §4.3).
   const pagosDe = pagosPorAccion(pagos);
-  const tieneRegistro = metas.some((m) => m.titulo === REGISTRO_CIVIL.titulo);
+  // El botón se ofrece mientras falte alguna meta del plan (docs/plantillas.md §8).
+  const faltaPlan = faltanMetasDelPlan(metas);
 
   const requiereDe = new Map<string, string[]>();
   for (const d of dependencias) {
@@ -99,7 +100,7 @@ export function Camino({
         </p>
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        {!tieneRegistro && <EmpezarRegistroCivil />}
+        {faltaPlan && <EmpezarPlan />}
         <CompartirHistoria />
       </div>
     </div>
@@ -115,7 +116,7 @@ export function Camino({
             <Link href={RUTAS.mapa} className="text-foreground underline">
               Manda algo a un carril
             </Link>{" "}
-            {tieneRegistro ? "y aparecerá aquí." : "o empieza con la meta Registro civil."}
+            {faltaPlan ? "o empieza con un plan de boda." : "y aparecerá aquí."}
           </p>
         </div>
       </div>

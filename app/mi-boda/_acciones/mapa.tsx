@@ -23,13 +23,13 @@ import {
   ordenPorSemana,
   motivoBandaVacia,
   queTocaAhora,
-  REGISTRO_CIVIL,
+  faltanMetasDelPlan,
   resumenMeta,
   semanaPorDefecto,
 } from "@/lib/metas";
 import { pagosPorAccion } from "@/lib/pagos";
 import { borrarAccion, cambiarEstado, moverAccion, type Estado } from "./acciones-servidor";
-import { EmpezarRegistroCivil } from "./empezar-registro-civil";
+import { EmpezarPlan } from "./empezar-plan";
 import { EditarAccion, NuevaAccion } from "./formulario-accion";
 import { Reparto } from "./reparto";
 import { TarjetaAccion } from "./tarjeta-accion";
@@ -219,7 +219,8 @@ export function Mapa({
 
   const ideas = lista.filter((a) => a.inicioSemanas === null);
   const hayMetas = carriles.some((c) => c.esMeta);
-  const tieneRegistro = metas.some((m) => m.titulo === REGISTRO_CIVIL.titulo);
+  // El botón se ofrece mientras falte alguna meta del plan (docs/plantillas.md §8).
+  const faltaPlan = faltanMetasDelPlan(metas);
 
   /** De qué meta es una acción, con "Sin meta" para la que no tiene (§7). */
   const metaDe = (a: Accion): Destino =>
@@ -409,7 +410,7 @@ export function Mapa({
         {nadaEnElCamino ? (
           <div className="mt-2 space-y-3">
             <p className="text-muted-foreground text-sm">Todavía no hay nada con fecha.</p>
-            {!tieneRegistro && <EmpezarRegistroCivil />}
+            {faltaPlan && <EmpezarPlan />}
           </div>
         ) : banda.length === 0 ? (
           <p className="text-muted-foreground mt-2 text-sm">
