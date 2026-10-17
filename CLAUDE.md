@@ -114,10 +114,20 @@ lee jerga de PMP:
 - **Hito** (`esHito`) = checkpoint de duración cero; rombo en el Gantt y la
   tira de cuenta regresiva ("Edicto matrimonial · faltan 4 semanas"). Es una
   marca, no una manera de agrupar: se probó agrupar por hito y se retiró porque
-  no contestaba ninguna pregunta que la meta no contestara ya.
+  no contestaba ninguna pregunta que la meta no contestara ya. En pantalla se
+  llama **día clave**: "hito" es jerga de PMP y hacía falta un párrafo para
+  distinguirla de "meta" (`docs/metas.md` §11).
 - **Dependencia** = precedencia fin-a-inicio, guardada como par
   `(accionId, requiereId)` para poder preguntar en los dos sentidos.
-- **Cadena principal** = ruta crítica.
+- **Cadena principal** = ruta crítica. En pantalla, **"Lo que no se puede
+  atrasar"**.
+
+Las metas **no guardan precedencia propia**: el orden de carriles y grupos, y
+la línea "↳ después de", se derivan de las dependencias entre sus acciones
+(`ordenarMetas`, `metasQueEspera`). Guardar ese orden sería un segundo dato que
+hay que mantener coherente con las semanas, que es el error que costó retirar
+`momento`. El orden se calcula una sola vez, en `listarMetas`, para que las dos
+pantallas no puedan divergir.
 
 ### Lógica pura en `lib/`, React y base aparte
 
@@ -125,7 +135,8 @@ Todo cálculo de orden, fechas, totales o dependencias vive en `lib/` como
 función pura y se prueba con `node:test`. No metas ese cálculo en un componente.
 
 - `lib/metas.ts` — orden topológico de dependencias, cadena principal, "lista
-  para empezar", resumen de meta, plantilla `REGISTRO_CIVIL`.
+  para empezar", resumen de meta, orden derivado de metas, plantillas
+  (`PLAN_COMPLETO`, que compone `REGISTRO_CIVIL`; ver `docs/plantillas.md`).
 - `lib/historia.ts` — la imagen para compartir.
 - `lib/persona.ts` — nombre e iniciales de un miembro de Clerk.
 - `lib/demo.ts` — la semilla de la boda de ejemplo.

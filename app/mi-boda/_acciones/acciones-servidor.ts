@@ -8,8 +8,8 @@ import { acciones, bodas, dependencias, metas, pagos } from "@/db/schema";
 import {
   cuantasYaPasaron,
   duracionDe,
-  planPlantilla,
-  REGISTRO_CIVIL,
+  planDelPlan,
+  PLAN_COMPLETO,
   semanaPorDefecto,
   semanasHastaLaBoda,
 } from "@/lib/metas";
@@ -537,89 +537,139 @@ export async function borrarMeta(id: string) {
 }
 
 /**
- * Plantilla "Registro civil": crea la meta, reutiliza las acciones que ya
- * existen con el mismo título y crea las que faltan, con sus dependencias.
- * Todo en un solo batch: o queda completa o no queda nada.
+ * La plantilla del plan: cuatro metas con sus acciones y sus dependencias
+ * (docs/plantillas.md).
+ *
+ * Es idempotente: reutiliza la meta que ya existe con ese título, adopta la
+ * acción que está sin meta y no toca la que ya tiene otra. Todo en un solo
+ * batch —una sentencia por tabla más las adopciones— para que o quede completo
+ * o no quede nada. Devuelve el recuento porque el toast dice el número real, no
+ * un texto fijo (§7).
  */
-export async function empezarRegistroCivil(): Promise<{ error?: string }> {
+export async function empezarPlan(): Promise<{
+  error?: string;
+  resumen?: { metasNuevas: number; accionesNuevas: number; accionesReutilizadas: number };
+  yaPasaron?: number;
+}> {
   const { bodaId } = await bodaActiva();
   const db = getDb();
 
-  const [existentes, yaHay] = await Promise.all([
+  const [metasSuyas, existentes, [boda], [{ ordenMeta, ordenAccion }]] = await Promise.all([
+    db.select({ id: metas.id, titulo: metas.titulo }).from(metas).where(eq(metas.bodaId, bodaId)),
     db
       .select({
         id: acciones.id,
         titulo: acciones.titulo,
         inicioSemanas: acciones.inicioSemanas,
+        metaId: acciones.metaId,
+        orden: acciones.orden,
+        estado: acciones.estado,
       })
       .from(acciones)
       .where(eq(acciones.bodaId, bodaId)),
+    db.select({ fecha: bodas.fecha }).from(bodas).where(eq(bodas.id, bodaId)),
     db
-      .select({ id: metas.id })
+      .select({
+        ordenMeta: sql<number>`coalesce(max(${metas.orden}), -1) + 1`,
+        // Se lee el contador de llegada en vez del viejo 1000 + i: con 24 filas
+        // ese truco choca consigo mismo al aplicar la plantilla dos veces.
+        ordenAccion: sql<number>`(select coalesce(max(${acciones.orden}), -1) + 1 from ${acciones} where ${acciones.bodaId} = ${bodaId})`,
+      })
       .from(metas)
-      .where(and(eq(metas.bodaId, bodaId), eq(metas.titulo, REGISTRO_CIVIL.titulo))),
+      .where(eq(metas.bodaId, bodaId)),
   ]);
-  if (yaHay.length) return { error: "Ya tienen la meta Registro civil." };
 
-  const { reutilizar, crear } = planPlantilla(REGISTRO_CIVIL.pasos, existentes);
-  const metaId = crypto.randomUUID();
-  const ids = new Map(reutilizar);
-  for (const p of crear) ids.set(p.clave, crypto.randomUUID());
+  const plan = planDelPlan(PLAN_COMPLETO, metasSuyas, existentes);
+  const metasNuevas = [...plan.metas.values()].filter((m) => m.nueva);
 
-  const [{ siguiente }] = await db
-    .select({ siguiente: sql<number>`coalesce(max(${metas.orden}), -1) + 1` })
-    .from(metas)
-    .where(eq(metas.bodaId, bodaId));
-
-  const filasDependencias = REGISTRO_CIVIL.pasos.flatMap((p) =>
-    p.requiere.map((r) => ({ bodaId, accionId: ids.get(p.clave)!, requiereId: ids.get(r)! })),
-  );
+  // El batch se arma antes de lanzarlo: al reaplicar la plantilla pueden faltar
+  // las metas y las acciones, y el tipo de `db.batch` exige al menos una
+  // sentencia. El orden importa: las dependencias apuntan a las acciones.
+  const sentencias: Parameters<typeof db.batch>[0][number][] = [
+      ...(metasNuevas.length
+        ? [
+            db.insert(metas).values(
+              metasNuevas.map((m, i) => ({
+                id: m.id,
+                bodaId,
+                titulo: m.titulo,
+                // Solo desempata: el orden de los carriles se deriva (§2).
+                orden: Number(ordenMeta) + i,
+              })),
+            ),
+          ]
+        : []),
+      ...(plan.acciones.crear.length
+        ? [
+            db.insert(acciones).values(
+              plan.acciones.crear.map(({ id, metaId, paso }, i) => ({
+                id,
+                bodaId,
+                titulo: paso.titulo,
+                cuestaTiempo: paso.tiempo ?? false,
+                // Ningún paso trae monto: monto = 0 daría "pagado del todo"
+                // sin un solo pago (docs/plantillas.md §3).
+                inicioSemanas: paso.inicio,
+                duracionSemanas: paso.dura,
+                esHito: paso.hito ?? false,
+                metaId,
+                orden: Number(ordenAccion) + i,
+              })),
+            ),
+          ]
+        : []),
+      ...plan.acciones.adoptar.map(({ id, ...campos }) =>
+        db
+          .update(acciones)
+          .set({ ...campos, actualizadaEl: new Date() })
+          .where(and(eq(acciones.id, id), eq(acciones.bodaId, bodaId))),
+      ),
+      db
+        .insert(dependencias)
+        .values(plan.dependencias.map((d) => ({ bodaId, ...d })))
+        .onConflictDoNothing(),
+  ];
 
   try {
-    await db.batch([
-    db.insert(metas).values({ id: metaId, bodaId, titulo: REGISTRO_CIVIL.titulo, orden: siguiente }),
-    ...(crear.length
-      ? [
-          db.insert(acciones).values(
-            crear.map((p, i) => ({
-              id: ids.get(p.clave)!,
-              bodaId,
-              titulo: p.titulo,
-              cuestaTiempo: p.tiempo ?? false,
-              inicioSemanas: p.inicio,
-              duracionSemanas: p.dura,
-              esHito: p.hito ?? false,
-              metaId,
-              orden: 1000 + i, // al final del contador de llegada
-            })),
-          ),
-        ]
-      : []),
-    ...[...reutilizar].map(([clave, id]) => {
-      const paso = REGISTRO_CIVIL.pasos.find((p) => p.clave === clave)!;
-      const actual = existentes.find((e) => e.id === id)!;
-      // Lo que la pareja ya decidió (las semanas) se respeta; lo que falta se
-      // completa con la plantilla, si no quedaría fuera del camino.
-      const sinFecha = actual.inicioSemanas === null;
-      return db
-        .update(acciones)
-        .set({
-          metaId,
-          esHito: paso.hito ?? false,
-          ...(sinFecha ? { inicioSemanas: paso.inicio, duracionSemanas: paso.dura } : {}),
-          actualizadaEl: new Date(),
-        })
-        .where(and(eq(acciones.id, id), eq(acciones.bodaId, bodaId)));
-    }),
-    db.insert(dependencias).values(filasDependencias).onConflictDoNothing(),
-    ]);
+    // La última sentencia siempre está: las dependencias se escriben completas.
+    await db.batch([sentencias[0], ...sentencias.slice(1)]);
   } catch (e) {
-    // Otra persona la aplicó al mismo tiempo: el índice único lo frenó y el
-    // batch no dejó nada a medias.
-    if (esDuplicado(e)) return { error: "Ya tienen la meta Registro civil." };
+    // Otra persona la aplicó al mismo tiempo: el índice único de metas lo frenó
+    // y el batch no dejó nada a medias. Reintentar es seguro.
+    if (esDuplicado(e)) return { error: "Alguien acaba de crear el plan. Vuelve a intentarlo." };
     throw e;
   }
 
+  // Las semanas no se reescalan (§7): si la boda es en cinco semanas, la pareja
+  // tiene que saber cuántas cosas cayeron en semanas que ya pasaron.
+  const semanas = semanasHastaLaBoda(boda?.fecha ?? null);
+  const adoptada = new Map(plan.acciones.adoptar.map((a) => [a.id, a]));
+  const resultado = [
+    ...existentes.map((a) => ({
+      ...a,
+      inicioSemanas: adoptada.get(a.id)?.inicioSemanas ?? a.inicioSemanas,
+    })),
+    ...plan.acciones.crear.map(({ paso }) => ({
+      estado: "por_hacer" as const,
+      inicioSemanas: paso.inicio,
+    })),
+  ];
+
   revalidatePath("/mi-boda");
-  return {};
+  return {
+    resumen: plan.resumen,
+    yaPasaron: cuantasYaPasaron(
+      resultado.map((a) => ({
+        id: "",
+        titulo: "",
+        estado: a.estado,
+        inicioSemanas: a.inicioSemanas,
+        duracionSemanas: 1,
+        monto: null,
+        metaId: null,
+        esHito: false,
+      })),
+      semanas,
+    ),
+  };
 }

@@ -118,12 +118,20 @@ opcional de los títulos de plantilla a sustantivo **están ejecutados en Neon**
 
 ## 4. Plantilla "Registro civil" (Perú)
 
-Botón **"Empezar con Registro civil"** cuando la boda aún no tiene esa meta.
-Crea la meta y estas acciones, con dependencias y semanas típicas (todo editable
+> Esta plantilla ya no se ofrece sola: es la meta 2 del **plan de cuatro metas**
+> de `docs/plantillas.md`, que la reutiliza tal cual y sustituye el botón
+> "Empezar con Registro civil" por uno solo, "Empezar con un plan de boda".
+> Los nueve pasos, sus semanas, sus `alias` y su único día clave **no cambian**:
+> se siguen definiendo aquí.
+
+Crea la meta "Registro civil" y estas acciones, con dependencias y semanas típicas (todo editable
 después). Si ya existe una acción con el mismo título —o con uno de sus títulos
 antiguos (§4.1)—, comparado sin mayúsculas ni tildes, la reutiliza y le asigna la
 meta en vez de duplicarla; si esa acción no tenía semanas, toma las de la
 plantilla. Lo que la pareja ya había decidido se respeta. Todo va en un batch.
+Las reglas exactas de la reutilización —una acción que ya tiene otra meta no se
+mueve, y un día clave solo se marca, nunca se desmarca— están en
+`docs/plantillas.md` §7.
 
 | Acción | Semanas antes | Dura | Requiere | Día clave |
 |---|---|---|---|---|
@@ -840,8 +848,7 @@ Lo que añade **§11**:
 - **Un popover de "meta"** (§11.4).
 - **Reordenar los carriles a mano.** El orden se deriva (§11.3).
 - **Una plantilla de las cuatro fases** (ahorro, registro civil, ceremonia,
-  recepción). Hoy la única plantilla es "Registro civil" (§4). Es el candidato
-  más claro para la siguiente spec, después de §13.
+  recepción). Ya no queda fuera: es `docs/plantillas.md`, su propia spec.
 - **Una migración de datos.** Ninguna fila guarda la palabra: las dos viven en
   cadenas del código.
 - **Explicar "meta", "acción", "camino", "mapa" o "dependencia"** con el mismo

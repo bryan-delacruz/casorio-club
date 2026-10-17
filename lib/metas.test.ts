@@ -15,7 +15,10 @@ import {
   ordenarMetas,
   ordenPorDependencia,
   ordenPorSemana,
-  planPlantilla,
+  pasosDe,
+  planDelPlan,
+  PLAN_COMPLETO,
+  faltanMetasDelPlan,
   proximoHito,
   motivoBandaVacia,
   queTocaAhora,
@@ -26,6 +29,7 @@ import {
   ultimoHitoHecho,
   type AccionCamino,
   type AccionEnCamino,
+  type AccionExistente,
   type Requisito,
 } from "./metas.ts";
 
@@ -460,29 +464,207 @@ test("semanas hasta la boda: null sin fecha, negativo si ya pasó", () => {
   assert.equal(semanasHastaLaBoda("2026-10-01", hoy), -2);
 });
 
-test("plantilla: reutiliza por título sin tildes ni mayúsculas y crea lo que falta", () => {
-  const { reutilizar, crear } = planPlantilla(REGISTRO_CIVIL.pasos, [
-    { id: "x1", titulo: "certificado MEDICO prenupcial" },
-    { id: "x2", titulo: "Otra cosa" },
-  ]);
-  assert.deepEqual([...reutilizar], [["medico", "x1"]]);
-  assert.equal(crear.length, REGISTRO_CIVIL.pasos.length - 1);
+// --------------------------------------------------------------------------
+// La plantilla del plan (docs/plantillas.md §10)
+// --------------------------------------------------------------------------
+
+/** Ids deterministas: así cada prueba puede nombrar lo que la plantilla creó. */
+const contador = () => {
+  let n = 0;
+  return () => `n${++n}`;
+};
+
+const existente = (
+  id: string,
+  titulo: string,
+  extra: Partial<AccionExistente> = {},
+): AccionExistente => ({ id, titulo, inicioSemanas: null, metaId: null, orden: 0, ...extra });
+
+const todos = pasosDe(PLAN_COMPLETO);
+
+const aplicar = (
+  metasExistentes: { id: string; titulo: string }[] = [],
+  accionesExistentes: AccionExistente[] = [],
+) => planDelPlan(PLAN_COMPLETO, metasExistentes, accionesExistentes, contador());
+
+test("plantilla: claves únicas en toda la plantilla, no por meta", () => {
+  const claves = todos.map(({ paso }) => paso.clave);
+  assert.equal(new Set(claves).size, claves.length);
+  assert.equal(claves.length, 24);
+  assert.equal(PLAN_COMPLETO.metas.length, 4);
 });
 
-test("plantilla: una boda con el título viejo del edicto no gana un duplicado", () => {
-  const { reutilizar, crear } = planPlantilla(REGISTRO_CIVIL.pasos, [
-    { id: "viejo", titulo: "Publicar el edicto matrimonial" },
-  ]);
-  // Se reutiliza (recibe la meta) y no se crea otra; la plantilla no renombra.
-  assert.equal(reutilizar.get("edicto"), "viejo");
-  assert.equal(crear.some((p) => p.clave === "edicto"), false);
-  assert.equal(crear.length, REGISTRO_CIVIL.pasos.length - 1);
+test("plantilla: toda clave requerida existe en la plantilla", () => {
+  const claves = new Set(todos.map(({ paso }) => paso.clave));
+  for (const { paso } of todos) {
+    for (const r of paso.requiere) assert.ok(claves.has(r), `${paso.clave} → ${r}`);
+  }
+  assert.equal(todos.flatMap(({ paso }) => paso.requiere).length, 21);
 });
 
-test("plantilla: dependencias apuntan a pasos que existen y la ceremonia es hito", () => {
-  const claves = new Set(REGISTRO_CIVIL.pasos.map((p) => p.clave));
-  for (const p of REGISTRO_CIVIL.pasos) for (const r of p.requiere) assert.ok(claves.has(r), `${p.clave} → ${r}`);
-  assert.equal(REGISTRO_CIVIL.pasos.find((p) => p.clave === "ceremonia")?.hito, true);
+test("plantilla: ningún choque, el requisito termina antes de que empiece el dependiente", () => {
+  const porClave = new Map(todos.map(({ paso }) => [paso.clave, paso]));
+  for (const { paso } of todos) {
+    for (const r of paso.requiere) {
+      const req = porClave.get(r)!;
+      const fin = finDe({
+        inicioSemanas: req.inicio,
+        duracionSemanas: req.dura,
+        esHito: Boolean(req.hito),
+      });
+      assert.ok(fin >= paso.inicio, `${r} acaba en ${fin} y ${paso.clave} empieza en ${paso.inicio}`);
+    }
+  }
+});
+
+test("plantilla: ningún paso trae monto y hay un solo día clave", () => {
+  for (const { paso } of todos) assert.equal("monto" in paso, false, paso.clave);
+  const hitos = todos.filter(({ paso }) => paso.hito);
+  assert.deepEqual(hitos.map(({ paso }) => paso.clave), ["ceremonia"]);
+});
+
+test("plan: boda vacía recibe 4 metas, 24 acciones y 21 dependencias", () => {
+  const plan = aplicar();
+  assert.deepEqual(plan.resumen, { metasNuevas: 4, accionesNuevas: 24, accionesReutilizadas: 0 });
+  assert.equal(plan.acciones.crear.length, 24);
+  assert.equal(plan.dependencias.length, 21);
+  assert.equal(plan.acciones.adoptar.length, 0);
+  assert.equal(plan.acciones.intactas.length, 0);
+  // Cinco dependencias cruzan de meta (§4.5).
+  const metaDe = new Map(plan.acciones.crear.map((c) => [c.id, c.metaId]));
+  const cruces = plan.dependencias.filter((d) => metaDe.get(d.accionId) !== metaDe.get(d.requiereId));
+  assert.equal(cruces.length, 5);
+});
+
+test("plan: aplicar dos veces no crea nada nuevo", () => {
+  const primera = aplicar();
+  const metas = [...primera.metas.values()].map((m) => ({ id: m.id, titulo: m.titulo }));
+  const acciones = primera.acciones.crear.map((c, i) =>
+    existente(c.id, c.paso.titulo, { inicioSemanas: c.paso.inicio, metaId: c.metaId, orden: i }),
+  );
+
+  const segunda = aplicar(metas, acciones);
+  assert.deepEqual(segunda.resumen, { metasNuevas: 0, accionesNuevas: 24 - 24, accionesReutilizadas: 24 });
+  assert.equal(segunda.acciones.adoptar.length, 0);
+  assert.equal(segunda.acciones.intactas.length, 24);
+  // Las dependencias se vuelven a resolver sobre las mismas acciones: el
+  // onConflictDoNothing de la escritura no inserta ninguna nueva (§7).
+  assert.deepEqual(
+    new Set(segunda.dependencias.map((d) => `${d.accionId}>${d.requiereId}`)),
+    new Set(primera.dependencias.map((d) => `${d.accionId}>${d.requiereId}`)),
+  );
+});
+
+test("plan: una boda que ya tiene Registro civil completo recibe 3 metas y 15 acciones", () => {
+  const acciones = REGISTRO_CIVIL.pasos.map((p, i) =>
+    existente(`r${i}`, p.titulo, { inicioSemanas: p.inicio, metaId: "mr", orden: i }),
+  );
+  const plan = aplicar([{ id: "mr", titulo: "Registro civil" }], acciones);
+  assert.deepEqual(plan.resumen, { metasNuevas: 3, accionesNuevas: 15, accionesReutilizadas: 9 });
+  assert.deepEqual(plan.acciones.intactas, acciones.map((a) => a.id));
+  assert.equal(plan.dependencias.length, 21);
+});
+
+test("plan: la meta existente se reutiliza con su título, sin tildes ni mayúsculas", () => {
+  const plan = aplicar([{ id: "mr", titulo: "registro Civil" }]);
+  assert.deepEqual(plan.metas.get("registro"), { id: "mr", titulo: "registro Civil", nueva: false });
+  assert.equal(plan.resumen.metasNuevas, 3);
+});
+
+test("plan: una acción sin meta se adopta y conserva su título", () => {
+  const plan = aplicar([], [existente("x", "edicto matrimonial", { inicioSemanas: 6, orden: 0 })]);
+  assert.equal(plan.acciones.crear.some((c) => c.paso.clave === "edicto"), false);
+  const adoptada = plan.acciones.adoptar.find((a) => a.id === "x")!;
+  assert.equal(adoptada.metaId, plan.metas.get("registro")!.id);
+  assert.equal(adoptada.inicioSemanas, undefined);
+  assert.equal(plan.resumen.accionesNuevas, 23);
+});
+
+test("plan: el alias viejo del edicto se adopta y no aparece un duplicado", () => {
+  const plan = aplicar([], [existente("viejo", "Publicar el edicto matrimonial", { inicioSemanas: 6 })]);
+  assert.equal(plan.acciones.adoptar.some((a) => a.id === "viejo"), true);
+  assert.equal(plan.acciones.crear.filter((c) => c.paso.clave === "edicto").length, 0);
+});
+
+test("plan: una acción con otra meta ni se adopta ni se duplica, y la dependencia apunta a ella", () => {
+  const plan = aplicar([], [existente("suya", "Expediente en la municipalidad", { metaId: "otra", inicioSemanas: 7 })]);
+  assert.deepEqual(plan.acciones.intactas, ["suya"]);
+  assert.equal(plan.acciones.adoptar.length, 0);
+  assert.equal(plan.acciones.crear.some((c) => c.paso.clave === "expediente"), false);
+  assert.equal(plan.dependencias.filter((d) => d.requiereId === "suya").length, 2); // edicto e invitaciones
+  assert.equal(plan.dependencias.filter((d) => d.accionId === "suya").length, 5);
+});
+
+test("plan: la idea suelta recibe semana y duración; la que ya tenía semana las conserva", () => {
+  const plan = aplicar([], [
+    existente("idea", "La torta"),
+    existente("puesta", "Los anillos", { inicioSemanas: 3, orden: 1 }),
+  ]);
+  const torta = plan.acciones.adoptar.find((a) => a.id === "idea")!;
+  assert.equal(torta.inicioSemanas, 6);
+  assert.equal(torta.duracionSemanas, 2);
+  const anillos = plan.acciones.adoptar.find((a) => a.id === "puesta")!;
+  assert.equal(anillos.inicioSemanas, undefined);
+  assert.equal(anillos.duracionSemanas, undefined);
+});
+
+test("plan: solo marca el día clave, nunca lo desmarca", () => {
+  const plan = aplicar([], [
+    existente("c", "Ceremonia civil", { inicioSemanas: 0 }),
+    existente("t", "La torta", { inicioSemanas: 6, orden: 1 }),
+  ]);
+  assert.equal(plan.acciones.adoptar.find((a) => a.id === "c")!.esHito, true);
+  // El paso no pide hito: no se escribe es_hito y la marca de la pareja queda.
+  assert.equal("esHito" in plan.acciones.adoptar.find((a) => a.id === "t")!, false);
+});
+
+test("plan: dos acciones con el mismo título, se adopta la primera por orden", () => {
+  const plan = aplicar([], [
+    existente("segunda", "La torta", { orden: 7 }),
+    existente("primera", "la Torta", { orden: 2 }),
+  ]);
+  assert.deepEqual(plan.acciones.adoptar.map((a) => a.id), ["primera"]);
+});
+
+test("plan: el orden de los carriles se deriva 16 → 12 → 11 → 10", () => {
+  const plan = aplicar();
+  const metas = [...plan.metas.values()].map((m, i) => ({
+    id: m.id,
+    titulo: m.titulo,
+    orden: i,
+    creadaEl: 0,
+  }));
+  const lista = plan.acciones.crear.map((c) =>
+    accion(c.id, c.paso.inicio, c.paso.dura, { metaId: c.metaId, esHito: Boolean(c.paso.hito) }),
+  );
+  assert.deepEqual(
+    ordenarMetas(metas, lista).map((m) => m.titulo),
+    ["El ahorro", "Registro civil", "La ceremonia", "La recepción"],
+  );
+
+  const ordenadas = ordenarMetas(metas, lista);
+  const espera = (titulo: string) =>
+    metasQueEspera(ordenadas.find((m) => m.titulo === titulo)!.id, lista, plan.dependencias, ordenadas).map(
+      (m) => m.titulo,
+    );
+  assert.deepEqual(espera("La ceremonia"), ["El ahorro"]);
+  assert.deepEqual(espera("La recepción"), ["El ahorro", "Registro civil"]);
+  assert.deepEqual(espera("El ahorro"), []);
+  assert.deepEqual(espera("Registro civil"), []);
+});
+
+test("plan: el botón se ofrece mientras falte alguna de las cuatro metas", () => {
+  assert.equal(faltanMetasDelPlan([]), true);
+  assert.equal(faltanMetasDelPlan([{ titulo: "Registro civil" }]), true);
+  assert.equal(
+    faltanMetasDelPlan([
+      { titulo: "el AHORRO" },
+      { titulo: "Registro civil" },
+      { titulo: "La ceremonia" },
+      { titulo: "La recepción" },
+    ]),
+    false,
+  );
 });
 
 test("ya pasaron: solo lo del camino, sin hacer, con la semana ya vencida", () => {

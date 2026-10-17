@@ -654,19 +654,213 @@ export const REGISTRO_CIVIL: { titulo: string; pasos: PasoPlantilla[] } = {
 const normalizar = (s: string) =>
   s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().replace(/\s+/g, " ").trim();
 
+// ---------------------------------------------------------------------------
+// La plantilla del plan: las cuatro metas (docs/plantillas.md)
+// ---------------------------------------------------------------------------
+
 /**
- * Qué hacer al aplicar una plantilla: reutilizar las acciones que ya existen
- * con el mismo título o con uno de sus alias (sin mayúsculas ni tildes) y crear
- * las que faltan. No renombra nada: el título existente es de la pareja.
+ * Una plantilla es una lista de metas con sus pasos. Las claves son únicas en
+ * TODA la plantilla y no por meta: así un paso puede requerir una clave de otra
+ * meta y los cruces se escriben sin un tipo aparte (docs/plantillas.md §6).
  */
-export function planPlantilla(pasos: PasoPlantilla[], existentes: { id: string; titulo: string }[]) {
-  const porTitulo = new Map(existentes.map((e) => [normalizar(e.titulo), e.id]));
-  const reutilizar = new Map<string, string>();
-  const crear: PasoPlantilla[] = [];
-  for (const p of pasos) {
-    const id = [p.titulo, ...(p.alias ?? [])].map((t) => porTitulo.get(normalizar(t))).find(Boolean);
-    if (id) reutilizar.set(p.clave, id);
-    else crear.push(p);
+export type Plantilla = {
+  metas: { clave: string; titulo: string; pasos: PasoPlantilla[] }[];
+};
+
+/**
+ * El esqueleto completo de una boda civil peruana: 4 metas, 24 acciones, 21
+ * dependencias (docs/plantillas.md §4).
+ *
+ * Ningún paso trae monto: `monto = 0` haría que `cuentaDe` lo leyera como total
+ * conocido y diera "pagado del todo" sin un solo pago (§3). Las semanas están
+ * elegidas para que `ordenarMetas` derive 16 → 12 → 11 → 10, que es el orden de
+ * los carriles (§2); editarlas cambia ese orden con ellas.
+ */
+export const PLAN_COMPLETO: Plantilla = {
+  metas: [
+    {
+      clave: "ahorro",
+      titulo: "El ahorro",
+      pasos: [
+        { clave: "cuanto", titulo: "Cuánto queremos gastar", inicio: 16, dura: 1, requiere: [], tiempo: true },
+        { clave: "quien-pone", titulo: "Quién pone cuánto", inicio: 15, dura: 1, requiere: ["cuanto"], tiempo: true },
+        { clave: "bote", titulo: "El bote común del ahorro", inicio: 14, dura: 1, requiere: ["quien-pone"], tiempo: true },
+        // Nueve semanas a propósito: es la barra larga que cruza el Gantt y
+        // termina cinco semanas antes, cuando se pagan los saldos (§4.1).
+        { clave: "aportes", titulo: "Los aportes de cada mes", inicio: 13, dura: 9, requiere: ["bote"], tiempo: true },
+      ],
+    },
+    // Los nueve pasos del papeleo se componen, no se copian: si REGISTRO_CIVIL
+    // cambia, la plantilla del plan cambia con él (§4.2).
+    { clave: "registro", titulo: REGISTRO_CIVIL.titulo, pasos: REGISTRO_CIVIL.pasos },
+    {
+      clave: "ceremonia-lista",
+      titulo: "La ceremonia",
+      pasos: [
+        // Ropa, anillos y fotos esperan al bote: no se compra ni se reserva
+        // antes de saber de dónde sale la plata (§4.5).
+        { clave: "ropa", titulo: "La ropa de los dos", inicio: 11, dura: 4, requiere: ["bote"], tiempo: true },
+        { clave: "anillos", titulo: "Los anillos", inicio: 10, dura: 2, requiere: ["bote"], tiempo: true },
+        { clave: "fotos", titulo: "Fotos y video del acto", inicio: 9, dura: 2, requiere: ["bote"], tiempo: true },
+        { clave: "ramo", titulo: "El ramo y las flores", inicio: 2, dura: 1, requiere: [], tiempo: true },
+        { clave: "traslado", titulo: "Cómo llegamos ese día", inicio: 2, dura: 1, requiere: [], tiempo: true },
+      ],
+    },
+    {
+      clave: "recepcion",
+      titulo: "La recepción",
+      pasos: [
+        { clave: "local", titulo: "El local de la recepción", inicio: 10, dura: 2, requiere: ["bote"], tiempo: true },
+        // El local antes que la lista porque el aforo manda sobre la lista, y
+        // al revés hay que rehacerla dos veces (§4.4).
+        { clave: "invitados", titulo: "La lista de invitados", inicio: 9, dura: 2, requiere: ["local"], tiempo: true },
+        { clave: "comida", titulo: "La comida y la bebida", inicio: 8, dura: 2, requiere: ["invitados"], tiempo: true },
+        { clave: "torta", titulo: "La torta", inicio: 6, dura: 2, requiere: ["invitados"], tiempo: true },
+        { clave: "musica", titulo: "La música", inicio: 6, dura: 2, requiere: ["local"], tiempo: true },
+        // La invitación lleva día y hora, y la municipalidad los fija al
+        // aprobar el expediente (§4.5, supuesto 1 de §13).
+        {
+          clave: "invitaciones",
+          titulo: "Enviar las invitaciones",
+          inicio: 5,
+          dura: 2,
+          requiere: ["invitados", "expediente"],
+          tiempo: true,
+        },
+      ],
+    },
+  ],
+};
+
+/** Todos los pasos de la plantilla, con la meta a la que pertenece cada uno. */
+export const pasosDe = (plantilla: Plantilla) =>
+  plantilla.metas.flatMap((m) => m.pasos.map((paso) => ({ paso, metaClave: m.clave })));
+
+/** Falta alguna de las metas de la plantilla, comparando sin mayúsculas ni tildes. */
+export function faltanMetasDelPlan(
+  metasExistentes: { titulo: string }[],
+  plantilla: Plantilla = PLAN_COMPLETO,
+) {
+  const hay = new Set(metasExistentes.map((m) => normalizar(m.titulo)));
+  return plantilla.metas.some((m) => !hay.has(normalizar(m.titulo)));
+}
+
+/** Lo mínimo que `planDelPlan` necesita saber de una acción que ya existe. */
+export type AccionExistente = {
+  id: string;
+  titulo: string;
+  inicioSemanas: number | null;
+  metaId: string | null;
+  orden: number;
+};
+
+export type PlanDelPlan = {
+  /** Por clave de meta: la reutilizada o la que hay que crear, en orden de plantilla. */
+  metas: Map<string, { id: string; titulo: string; nueva: boolean }>;
+  acciones: {
+    crear: { id: string; metaId: string; paso: PasoPlantilla }[];
+    /** Qué escribirle a una acción que ya existía y estaba sin meta. */
+    adoptar: {
+      id: string;
+      metaId: string;
+      inicioSemanas?: number;
+      duracionSemanas?: number;
+      esHito?: true;
+    }[];
+    /** Existen con una meta ya puesta: solo sirven de destino de dependencias. */
+    intactas: string[];
+  };
+  dependencias: Requisito[];
+  resumen: { metasNuevas: number; accionesNuevas: number; accionesReutilizadas: number };
+};
+
+/**
+ * Qué hay que escribir para dejar una boda con la plantilla aplicada, sin
+ * tocar la base (docs/plantillas.md §10).
+ *
+ * Es idempotente por construcción: reutiliza la meta cuyo título coincide sin
+ * mayúsculas ni tildes, adopta la acción que existe sin meta y no toca la que
+ * ya tiene otra. Nunca renombra, nunca desmarca un día clave y nunca reescala
+ * semanas: lo que la pareja decidió manda (§7).
+ *
+ * `nuevoId` se inyecta para que las pruebas sean deterministas y para que la
+ * función se mantenga pura.
+ */
+export function planDelPlan(
+  plantilla: Plantilla,
+  metasExistentes: { id: string; titulo: string }[],
+  accionesExistentes: AccionExistente[],
+  nuevoId: () => string = () => crypto.randomUUID(),
+): PlanDelPlan {
+  const metaPorTitulo = new Map(metasExistentes.map((m) => [normalizar(m.titulo), m]));
+  const metasPlan = new Map<string, { id: string; titulo: string; nueva: boolean }>();
+  for (const m of plantilla.metas) {
+    const ya = metaPorTitulo.get(normalizar(m.titulo));
+    // Conserva el título tal como la pareja lo escribió (§7).
+    metasPlan.set(m.clave, ya ? { ...ya, nueva: false } : { id: nuevoId(), titulo: m.titulo, nueva: true });
   }
-  return { reutilizar, crear };
+
+  // Dos acciones con el mismo título: gana la primera por `orden`, el contador
+  // de llegada, y la otra se queda suelta (§9).
+  const porTitulo = new Map<string, AccionExistente[]>();
+  for (const a of [...accionesExistentes].sort((x, y) => x.orden - y.orden || x.id.localeCompare(y.id))) {
+    const clave = normalizar(a.titulo);
+    porTitulo.set(clave, [...(porTitulo.get(clave) ?? []), a]);
+  }
+
+  const crear: PlanDelPlan["acciones"]["crear"] = [];
+  const adoptar: PlanDelPlan["acciones"]["adoptar"] = [];
+  const intactas: string[] = [];
+  const usadas = new Set<string>();
+  /** Clave de paso → id de la acción que la representa, exista o se cree. */
+  const idDe = new Map<string, string>();
+
+  for (const { paso, metaClave } of pasosDe(plantilla)) {
+    const meta = metasPlan.get(metaClave)!;
+    const ya = [paso.titulo, ...(paso.alias ?? [])]
+      .flatMap((t) => porTitulo.get(normalizar(t)) ?? [])
+      .find((a) => !usadas.has(a.id));
+
+    if (!ya) {
+      const id = nuevoId();
+      crear.push({ id, metaId: meta.id, paso });
+      idDe.set(paso.clave, id);
+      continue;
+    }
+
+    usadas.add(ya.id);
+    idDe.set(paso.clave, ya.id);
+    if (ya.metaId !== null) {
+      // La meta que la pareja eligió gana, incluso si es la de la plantilla:
+      // no hay nada que escribirle. Sí es destino de dependencias (§7).
+      intactas.push(ya.id);
+      continue;
+    }
+    adoptar.push({
+      id: ya.id,
+      metaId: meta.id,
+      // Una idea suelta sin semana quedaría fuera del camino; una con semana
+      // puesta conserva la suya y su duración.
+      ...(ya.inicioSemanas === null ? { inicioSemanas: paso.inicio, duracionSemanas: paso.dura } : {}),
+      // Solo se marca, nunca se desmarca.
+      ...(paso.hito ? { esHito: true as const } : {}),
+    });
+  }
+
+  const dependencias = pasosDe(plantilla).flatMap(({ paso }) =>
+    paso.requiere
+      .map((r) => ({ accionId: idDe.get(paso.clave)!, requiereId: idDe.get(r)! }))
+      .filter((d) => d.accionId && d.requiereId),
+  );
+
+  return {
+    metas: metasPlan,
+    acciones: { crear, adoptar, intactas },
+    dependencias,
+    resumen: {
+      metasNuevas: [...metasPlan.values()].filter((m) => m.nueva).length,
+      accionesNuevas: crear.length,
+      accionesReutilizadas: adoptar.length + intactas.length,
+    },
+  };
 }
