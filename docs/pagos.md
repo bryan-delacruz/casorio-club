@@ -3,8 +3,11 @@
 > **Spec (SDD).** Este documento manda sobre el código de los pagos y del
 > Reparto: si algo cambia, primero se actualiza aquí.
 >
-> **Estado: aprobada e implementada**, salvo lo que §9.1 deja pendiente: la
-> invitación a escribir el total y el diálogo vacío (§3.4).
+> **Estado: aprobada e implementada.** Lo último en entrar, lo de §9.1: la
+> etiqueta con el estimado y lo puesto juntos (§3.4), la línea del Reparto sin
+> umbral (§4.2), la palabra "estimado" en lugar de "calculado", la invitación a
+> escribir el total y el diálogo vacío. Queda pendiente la validación en
+> pantalla (§9.1, paso 7).
 >
 > **Consolidada.** Las enmiendas están integradas en el cuerpo; lo que
 > contradecían se borró. Lo último en corregirse: **pagar y terminar son ejes
@@ -76,24 +79,13 @@ sería la segunda manera de ver los mismos datos, y eso ya se rechazó una vez
 ## 2. El defecto del Reparto, corregido
 
 Queda escrito porque explica por qué el Reparto se calcula como se calcula.
-`app/mi-boda/_acciones/reparto.tsx` construía una fila por persona **a partir
-de los responsables** de las acciones con monto, y solo después repartía lo
-pagado:
-
-```ts
-for (const p of pagos) {
-  const id = p.pagadoPorId ?? POR_REPARTIR;
-  const cuenta = cuentas.get(id);
-  if (cuenta) cuenta.hecho += Number(p.monto);   // ← si no hay fila, se pierde
-}
-```
-
-Si quien pagó no es responsable de ninguna acción con monto, **su pago no tiene
-fila y desaparece de la cuenta**: el total "ya pagados" sale corto y nadie se
-entera. Hoy casi no se nota porque `registrarPago` copia siempre el responsable
-de la acción, así que el pagador siempre tiene fila. En cuanto se pueda elegir
-quién pagó (§3.1), lo que pone quien no es responsable se evapora: un gasto
-repartido entre tres mostraría solo el tercio del responsable.
+`app/mi-boda/_acciones/reparto.tsx` construía una fila por persona **a partir de
+los responsables** de las acciones con monto, y solo después sumaba lo pagado
+sobre esas filas (`if (cuenta) cuenta.hecho += …`). Si quien pagó no es
+responsable de ninguna acción con monto, **su pago no tiene fila y desaparece de
+la cuenta**: el total "ya pagados" sale corto y nadie se entera. Con "Quién
+puso" (§3.1), un gasto repartido entre tres mostraría solo el tercio del
+responsable.
 
 **La corrección.** El reparto de lo pagado se calcula sobre **todos** los pagos
 de la boda, y una persona que pagó sin responder por nada **aparece igual**, con
@@ -189,19 +181,32 @@ de `creado_el`): **"1.er pago"**, **"2.º pago"**, **"3.º pago"**.
 - Si la acción tiene un solo pago sin nota, dice **"Pago"** como hoy: "1.er
   pago" cuando no hay un segundo es un número que no informa.
 
-### 3.4 Lo calculado y lo puesto
+### 3.4 El estimado y lo puesto, los dos a la vez
 
 En palabras del dueño: *"es posible que yo ya sepa el total que me va a salir,
 como aún no lo sepa y voy pagando por partes y el total se sabrá al final"*.
 Son dos números y la pantalla hoy nombra uno solo, y mal: trata el `monto` como
 el total.
 
-- **Lo calculado** = `acciones.monto`, lo que la pareja cree que va a costar.
-  El verbo es **calcular**: el formulario pide *"Cuánto calculas (S/)"* y el
-  diálogo abre con *"Calculas S/ 1,200. Anota aquí cada vez que salga plata."*
-  No "estimado" (jerga) ni "presupuesto" (reservado a lo que sigue fuera, §6).
-- **Lo puesto** = la suma de los pagos. La palabra ya está en uso y se queda:
-  *"S/ 450 puestos de S/ 1,200"*, *"quién puso"*.
+- **El estimado** = `acciones.monto`, lo que la pareja cree que va a costar.
+  La palabra en la interfaz es **"estimado"**, la que usó el dueño: *"yo
+  colocaria el estimado y el hasta ahora"*. Nombra un número, se lee sola y no
+  es jerga de gestión. **"Calculado" se retira entera**: el formulario pide
+  *"Cuánto estimas (S/)"* y el diálogo abre con *"Estimado S/ 1,200. Anota aquí
+  cada vez que salga plata."* Dos palabras para el mismo número es una de más.
+  No "presupuesto", reservado a lo que sigue fuera (§6).
+- **Lo puesto** = la suma de los pagos, el número que crece pago a pago. La
+  palabra para él es **"puestos"**, la que el producto ya usa en *"quién puso"*
+  y en el diálogo, y ahora también en la tarjeta: *"S/ 450 puestos de
+  S/ 1,200"*. Se lee sola, no se conjuga con nadie y no dice si la cuenta está
+  cerrada. Por qué no las otras: **"pagado"** ya significa cuenta cerrada
+  (§3.5); **"gastado"** choca con *gasto*, que aquí es la fila de Bernie
+  (`gastosBernie`); **"acumulado"** es de contabilidad; **"llevamos"** es verbo
+  conjugado y da por hecho que pagan los dos, cuando puede pagar uno (§1.0);
+  **"lo que va saliendo"** son cuatro palabras para un número.
+- **"Hasta ahora" sobrevive, pero no como nombre del número**: es la marca de
+  que la cuenta sigue abierta, y por eso aparece **solo cuando no hay
+  estimado**, donde no hay un *"de S/ N"* que ponga el techo.
 
 `monto` nulo con pagos dentro significa **"cuesta plata y todavía no sé
 cuánto"**, y hoy esa acción no se ve como gasto en ninguna pantalla aunque haya
@@ -211,20 +216,37 @@ aparece siempre en el menú ⋯**, que es la única puerta para empezar a pagar 
 sin total; cuesta una fila de menú y la 💰 sigue apareciendo solo cuando hay
 plata de verdad.
 
-Lo que dice la tarjeta, caso por caso, desde una función pura nueva
-`etiquetaDeDinero`, para que las palabras no vivan en el JSX:
+Los dos números se muestran **juntos** siempre que existan. Antes se excluían y
+la tarjeta nunca decía las dos cosas a la vez. Las palabras viven en la función
+pura `etiquetaDeDinero`, no en el JSX. Una cadena por cuadrante, ninguna más:
 
-El **estado no entra en la cuenta** en ninguna fila; la columna está para
-decirlo (§3.5).
+| Estimado | Pagos | Texto de la tarjeta |
+|---|---|---|
+| no hay | ninguno | sin 💰 y sin texto (`null`) |
+| no hay | S/ 450 | **"S/ 450 puestos hasta ahora"** |
+| S/ 1,200 | ninguno | **"S/ 1,200 estimado"** |
+| S/ 1,200 | S/ 450 | **"S/ 450 puestos de S/ 1,200"** |
 
-| Lo calculado | Lo puesto | Estado | Texto de la tarjeta |
-|---|---|---|---|
-| no hay | nada | cualquiera | sin 💰 y sin texto |
-| no hay | S/ 450 | cualquiera | **"S/ 450 hasta ahora"** |
-| S/ 1,200 | nada | cualquiera | **"S/ 1,200 calculados"** |
-| S/ 1,200 | S/ 450 | cualquiera | "faltan S/ 750 de S/ 1,200" (como hoy) |
-| S/ 1,200 | S/ 1,200 | cualquiera | "S/ 1,200 pagado" (como hoy) |
-| S/ 1,200 | S/ 1,380 | cualquiera | **"S/ 180 más de lo calculado"** |
+La última fila es **una sola plantilla** para los tres casos que antes eran tres
+textos: a medias *"S/ 450 puestos de S/ 1,200"*, completo *"S/ 1,200 puestos de
+S/ 1,200"*, pasado *"S/ 1,380 puestos de S/ 1,200"*. Ni el exceso ni el saldo
+se nombran: **se deducen de los dos números**, que es el total real que el dueño
+pidió en vez del aviso. `soles()` redondea los dos, así que un céntimo no cambia
+el texto.
+
+El **estado no entra** en ninguna fila (§3.5). El saldo sigue sin bajar de cero
+y la barra sigue cortándose al 100 %.
+
+**A 375 px.** El peor caso es *"S/ 1,380 puestos de S/ 1,200"*: 28 caracteres,
+tres más que *"faltan S/ 750 de S/ 1,200"* (25), que ya se mostraba. La fila de
+insignias es `flex-wrap`: si no cabe, la insignia **salta de línea** y no se
+corta. **Ningún número se trunca nunca**, ni se abrevia "puestos"; cede el alto
+de la tarjeta (§9.1).
+
+El diálogo dice ahora **lo mismo, palabra por palabra**: la línea de la derecha
+es siempre *"S/ 450 puestos de S/ 1,200"*, con *"falta · "* delante mientras
+falte plata. Con cero pagos sigue
+diciendo *"sin pagar todavía"*, porque el número grande ya es el estimado.
 
 El diálogo con `monto` nulo **deja anotar pagos**, al contrario que hoy: en vez
 de *"Esta acción no tiene monto. Ponle uno desde Cambiar."* dice **"Todavía no
@@ -235,12 +257,10 @@ barra** porque no hay total que llenar, y "Cuánto" arranca en blanco. Lista,
 bloque del número no se dibuja**: diría *"S/ 0 puestos hasta ahora"*, que es
 ruido; quedan la frase y el formulario.
 
-**Cuando lo puesto pasa lo calculado** se dice solo donde pasó: la tarjeta (la
-última fila de la tabla) y el diálogo, cuya línea de la derecha pasa a leer
-*"S/ 1,380 puestos · S/ 180 más de lo calculado"*. El saldo sigue sin bajar de
-cero y la barra sigue cortándose al 100 %. Desde **S/ 50** de más
-(`UMBRAL_DE_MAS` en `lib/pagos.ts`), por lo mismo que el umbral de §4.2. En la
-meta y en el Reparto no se avisa (§4.3).
+**El aviso de exceso se retira entero.** Con él se van dos cosas de
+`lib/pagos.ts`: la constante **`UMBRAL_DE_MAS`** y **`cuentaDe().deMas`**, cuyos
+únicos clientes eran ese aviso en la tarjeta y en el diálogo. En la meta y en el
+Reparto nunca se avisó (§4.3).
 
 ### 3.5 "Pagado del todo" cuando el total se sabe al final
 
@@ -254,7 +274,7 @@ del otro, ni aquí ni en la tarjeta (§3.4).
 Entonces, con el total sin saber, ¿quién dice que ese fue el último pago? **La
 pareja, escribiendo el total en cuanto lo sabe**, que es justo el momento en que
 lo descubre: el último pago. Desde ahí "pagado del todo" se deriva como siempre
-—lo puesto contra lo calculado— y no hace falta ninguna marca.
+—lo puesto contra el estimado— y no hace falta ninguna marca.
 
 Para que no dependa de que alguien se acuerde, el diálogo lo invita donde pasa.
 Mientras la acción **no tenga total y tenga al menos un pago**, debajo de la
@@ -268,17 +288,16 @@ lista aparece una línea con un campo y un botón:
   convierte en obligación ni en error: es una invitación y se puede ignorar para
   siempre.
 - **No valida el número contra lo puesto.** Si lo escrito queda por debajo, la
-  acción pasa a decir *"S/ N más de lo calculado"*, que es verdad y no hay nada
-  que corregir.
+  acción pasa a decir *"S/ N puestos de S/ M"* con lo puesto por encima del
+  estimado,
+  que es verdad y no hay nada que corregir.
 - Se deja de ver en cuanto hay total, porque entonces el saldo ya lo cuenta.
 
-**Por qué no una marca "pagado del todo" en `acciones`** (que sería columna
-nueva y despliegue en Neon antes de mergear): el total escrito sirve en cuatro
-sitios —saldo, tarjeta, meta y Reparto— y la marca solo pintaría una etiqueta,
-dejando los totales sin saber cuánto costó la cosa. Entre guardar un dato que
-ya se necesita y guardar una bandera que se deriva de él, se guarda el dato.
-Qué lo reabriría: ver en uso que las parejas nunca escriben el total y dejan
-todo en *"hasta ahora"*.
+**Por qué no una marca "pagado del todo" en `acciones`** (columna nueva y
+despliegue en Neon antes de mergear): el total escrito sirve en cuatro sitios
+—saldo, tarjeta, meta y Reparto— y la marca solo pintaría una etiqueta, dejando
+los totales sin saber cuánto costó la cosa. Qué lo reabriría: ver que las
+parejas nunca escriben el total y todo se queda en *"hasta ahora"*.
 
 ## 4. El Reparto (en el Mapa)
 
@@ -336,16 +355,23 @@ Cuándo se dibuja — las tres condiciones, todas obligatorias:
 1. La boda tiene **dos miembros o más**. Con uno no hay con quién comparar.
 2. Hay **al menos un pago con pagador conocido**. Sin eso no hay nada que
    repartir.
-3. Al menos una persona va por debajo de su parte en **S/ 50 o más**. Por debajo
-   de esa cifra nadie reequilibra nada, y una línea que aparece y desaparece con
-   cada adelanto es ruido. Quien va por debajo en menos de S/ 50 **no se nombra**
-   aunque la línea se dibuje por otro.
-   ⚠️ **Supuesto no verificado**: el umbral es un juicio de producto, no un dato.
-   Si se ve ruidoso en uso real, se sube; está en una constante.
+3. **Hay diferencia.** Alguien va por debajo de su parte. **No hay umbral de
+   producto**: lo decidió el dueño —*"que no haya umbral"*— y con dos personas
+   eso significa que la línea estará visible casi siempre, que es lo buscado:
+   si la diferencia existe, se dice. `UMBRAL_DESBALANCE` **se retira** de
+   `lib/pagos.ts` y `desbalance` pierde su parámetro `umbral`.
+
+Los dos casos que el umbral tapaba, y que ahora manda esta regla:
+
+| Caso | Qué pasa |
+|---|---|
+| **Empate exacto**: nadie por debajo, ni un céntimo | No se dibuja la línea. Nada que contar; el silencio es la buena noticia. |
+| **Falta de menos de 50 céntimos** | No se dibuja, y con tres o más no se nombra a esa persona aunque la línea salga por otro. Es el **único corte** que queda, y no es un juicio de producto: desde 50 céntimos `soles()` deja de escribir "S/ 0", y *"Bryan puso S/ 0 más que Ana"* sería falso. Vive dentro de `desbalance`, sin constante. |
+| **Falta de 50 céntimos a S/ 1** | Se dibuja: *"Bryan puso S/ 1 más que Ana"*. Redondeado y verdadero. Con dos personas el corte se mide sobre la **falta**, que es la mitad de la diferencia: S/ 1 de diferencia es una falta de 50 céntimos y sí se dibuja. |
 
 El cálculo va **en céntimos enteros**, no en soles con decimales, y solo se
 convierte a soles al escribir el texto: comparar y restar sumas de `numeric` en
-coma flotante arrastra medio céntimo y dispara el umbral por error.
+coma flotante arrastra medio céntimo, que es justo la cifra del corte.
 
 Los pagos de "Por repartir" (`pagado_por_id = null`) **no entran** en la
 comparación ni se reparten entre nadie: no se sabe quién los puso, y adivinarlo
@@ -353,11 +379,10 @@ es inventar el número que la línea vende como exacto. Por eso la parte se
 calcula sobre lo pagado **con pagador conocido**: si entrara lo anónimo, la parte
 de todos subiría y todo el mundo parecería ir por detrás.
 
-### 4.3 Lo que va costando: lo calculado o lo puesto, el mayor
+### 4.3 Lo que va costando: el estimado o lo puesto, el mayor
 
-Una regla: **por acción cuenta `max(lo calculado, lo puesto)`**. Manda lo
-calculado hasta que lo puesto lo pasa —o no hay nada calculado—, porque esa
-plata ya salió. Se llama `costando`, sale de `cuentaDe` y no se guarda.
+Una regla: **por acción cuenta `max(estimado, lo puesto)`**. Manda el estimado
+hasta que lo puesto lo pasa —o no hay estimado—, porque esa plata ya salió. Se llama `costando`, sale de `cuentaDe` y no se guarda.
 
 Suman con esa regla, y solo con esa: el **número grande** del Reparto y cada
 fila de su desglose —y con ellos los trozos de la barra y los porcentajes—, el
@@ -401,76 +426,67 @@ boda** (§4.3), **que una acción cuesta plata** (tiene monto o tiene pagos) y
 Lo que **no** se añade y por qué: ni `es_mitad` (dos filas ya lo dicen), ni
 `orden` (la fecha lo dice), ni `pagado_por_nombre` (§6), ni un campo "ya pagado"
 en `acciones` (es la suma de las filas, y el esquema ya explica por qué no), ni
-`pagado_del_todo` (se deriva de lo puesto contra lo calculado en cuanto la
+`pagado_del_todo` (se deriva de lo puesto contra el estimado en cuanto la
 pareja escribe el total, §3.5), ni `monto_real` (es la suma de los pagos).
 
 ## 6. Qué queda fuera
 
-- **Numerar los pagos como campo guardado** ("1era parte" escrito por la app en
-  la nota). La numeración es derivada (§3.3). Guardarla se desincroniza en
-  cuanto se borra un pago o se anota uno con fecha anterior, y encima pisaría lo
-  que la pareja quiso escribir.
+- **Numerar los pagos como campo guardado**. La numeración es derivada (§3.3):
+  guardarla se desincroniza al borrar un pago o anotar uno con fecha anterior, y
+  pisaría lo que la pareja quiso escribir.
 - **Montos desiguales dentro del atajo** (60/40, "yo pongo S/ 500 y tú el
-  resto"). El atajo reparte en **partes iguales** entre los elegidos (§3.2), que
-  es el caso que se repite; un reparto desigual se anota como un pago por
-  persona con su "Quién puso", que ya se puede y ahora se ve. Lo que costaría de
-  verdad no son los campos: es la validación de que N montos sumen exactamente
-  el total, con su mensaje de error, su redondeo y su estado a medio llenar —
-  una clase de error nueva para algo que pasa una o dos veces en una boda.
-- **Repartir entre varios con porcentajes guardados** ("este gasto siempre va
-  70/30"). Un pago es un hecho con fecha, no una regla.
+  resto"). El atajo reparte en **partes iguales** entre los elegidos (§3.2); un
+  reparto desigual se anota como un pago por persona con su "Quién puso". Lo
+  caro no son los campos: es validar que N montos sumen exactamente el total,
+  con su error, su redondeo y su estado a medio llenar — una clase de error
+  nueva para algo que pasa una o dos veces en una boda.
+- **Porcentajes guardados** ("este gasto siempre va 70/30"). Un pago es un
+  hecho con fecha, no una regla.
 - **Que pague alguien que no es miembro de la boda** — los papás, un padrino, un
-  tío. Es realísimo en una boda peruana y **queda fuera a propósito**:
+  tío. Realísimo en una boda peruana y **queda fuera a propósito**:
   `pagado_por_id` es un userId de Clerk, así que admitirlo pide o invitar a esa
   persona a la boda (y entonces ve todo) o una columna `pagado_por_nombre` de
-  texto libre, que es cambio de esquema y despliegue. Mientras tanto hay una
-  salida honesta: "Por repartir" más la nota ("lo puso mi mamá"). Es la
-  ampliación más probable después de esta spec, y va en su propia spec. **El
-  reparto entre varios no lo vuelve inevitable**: reparte entre miembros de la
-  boda, y a quien no es miembro se le puede invitar a la organización, que es la
-  decisión que esa otra spec tendrá que pesar.
-- **Editar un pago.** Hoy se crea y se borra, y borrar más crear es la misma
-  operación en dos toques. No se añade edición.
-- **Una pantalla o sección "Pagos"** con todos los pagos de la boda, su
-  historial o su calendario. Serían los mismos datos que ya están en cada acción
-  (§1.1).
-- **Recordatorios** de un saldo que vence, y cualquier noción de **fecha de
-  vencimiento** de un pago. Un pago tiene el día en que se hizo, no el día en
-  que toca.
+  texto libre, que es cambio de esquema y despliegue. Salida honesta mientras
+  tanto: "Por repartir" más la nota ("lo puso mi mamá"). Es la ampliación más
+  probable después de esta spec, y va en su propia spec.
+- **Editar un pago.** Borrar más crear es la misma operación en dos toques.
+- **Una pantalla o sección "Pagos"**: los mismos datos que ya están en cada
+  acción (§1.1).
+- **Recordatorios** y **fecha de vencimiento** de un pago. Un pago tiene el día
+  en que se hizo, no el día en que toca.
 - **Monedas distintas de soles.** `moneda` existe en el esquema y la interfaz
-  sigue mostrando `S/` con `soles()`. Un gasto de Bernie en otra moneda es
-  materia de `docs/integracion-bernie.md`.
+  sigue mostrando `S/` con `soles()`; otra moneda es materia de
+  `docs/integracion-bernie.md`.
 - **Una marca "pagado del todo"** en `acciones`. Se deriva (§3.5).
 - **Un presupuesto por meta o por boda**: un número que la pareja fije como
-  techo, con su aviso al pasarse. La comparación de lo calculado con lo puesto
+  techo, con su aviso al pasarse. La comparación del estimado con lo puesto
   **sí entra**, pero solo por acción (§3.4), que es donde hay dos números del
   mismo gasto. Un techo de boda es un dato nuevo que nadie ha escrito —columna y
   pantalla— y es otra spec.
 - **Tocar el contrato de Bernie.** Intacto. Un gasto asignado sigue creando su
-  pago, y ese pago entra en todo lo de aquí como cualquier otro, con su
-  `pagado_por_id` resuelto como hoy.
+  pago, que entra en todo lo de aquí como cualquier otro.
 
 ## 7. Casos borde
 
 | Caso | Qué pasa |
 |---|---|
 | **La acción no tiene monto y no tiene pagos** | Ni 💰 ni cuenta. "Pagos" sí está en el menú ⋯ y el diálogo abre con la frase y el formulario, **sin el bloque del número** (§3.4). |
-| **La acción no tiene monto y tiene pagos** | Es un gasto: 💰 y *"S/ 450 hasta ahora"*. El diálogo deja anotar más, sin barra (§3.4). |
+| **La acción no tiene monto y tiene pagos** | Es un gasto: 💰 y *"S/ 450 puestos hasta ahora"*. El diálogo deja anotar más, sin barra (§3.4). |
 | **La acción tenía monto, se pagó y después le quitaron el monto** | Cae en el caso de arriba: los pagos siguen contando, la acción **sigue siendo gasto** y el diálogo deja anotar más. |
-| **Acción hecha, sin monto, con pagos** | *"S/ 450 hasta ahora"*, igual que si no estuviera hecha: pagar y terminar son ejes independientes (§3.5). La invitación a escribir el total sigue ahí. |
-| **Acción hecha, con monto y saldo pendiente** | *"faltan S/ N de S/ M"*. Hecho es el estado de la gestión, no el de la plata. |
-| **Acción por hacer, con monto y todo pagado** | *"S/ 1,200 pagado"* y sigue por hacer: se paga por adelantado (§3.5). |
-| **La pareja escribe el total y es menor que lo puesto** | Se guarda tal cual. La acción pasa a decir *"S/ N más de lo calculado"* si la diferencia llega a S/ 50. Nada se bloquea ni se corrige (§3.5). |
+| **Acción hecha, sin monto, con pagos** | *"S/ 450 puestos hasta ahora"*, igual que si no estuviera hecha: pagar y terminar son ejes independientes (§3.5). La invitación a escribir el total sigue ahí. |
+| **Acción hecha, con monto y saldo pendiente** | *"S/ 450 puestos de S/ 1,200"*. Hecho es el estado de la gestión, no el de la plata. |
+| **Acción por hacer, con monto y todo pagado** | *"S/ 1,200 puestos de S/ 1,200"* y sigue por hacer: se paga por adelantado (§3.5). |
+| **La pareja escribe el total y es menor que lo puesto** | Se guarda tal cual: *"S/ 1,380 puestos de S/ 1,200"*. Nada se bloquea, nada se avisa, nada se corrige (§3.5). |
 | **La pareja nunca escribe el total** | La acción se queda en *"hasta ahora"* para siempre. Cuenta en todos los totales por lo puesto (§4.3); lo único que no se puede decir es "no falta nada". |
-| **Monto puesto y cero pagos** | *"S/ 1,200 calculados"*. Nada es real todavía. |
+| **Monto puesto y cero pagos** | *"S/ 1,200 estimado"*. Nada es real todavía. |
 | **"Cuesta dinero" encendido y "Cuánto" vacío, sin pagos** | No se dibuja 💰: no hay dónde guardar "cuesta plata y no sé cuánto" sin un pago que lo pruebe, y no se añade columna para eso. El formulario lo dice: *"Si todavía no lo sabes, déjalo en blanco y anota los pagos."* |
-| **Lo pagado supera el monto en S/ 50 o más** | El saldo no baja de cero (`cuentaDe` ya hace `Math.max(total - pagado, 0)`) y la barra se corta al 100 %. La tarjeta dice *"S/ 180 más de lo calculado"* y el diálogo *"S/ 1,380 puestos · S/ 180 más de lo calculado"*. En el Reparto entra lo puesto (§4.3), así que "ya pagados" ya **no** sale mayor que el número grande. |
-| **Lo pagado supera el monto en menos de S/ 50** | Sin aviso: *"S/ 1,200 pagado"*, como hoy. El número grande del Reparto sí incluye el exceso. |
+| **Lo pagado supera el monto**, por un céntimo o por mil soles | El saldo no baja de cero (`cuentaDe` ya hace `Math.max(total - pagado, 0)`) y la barra se corta al 100 %. La tarjeta y el diálogo dicen lo mismo: *"S/ 1,380 puestos de S/ 1,200"*. **Sin aviso de exceso**: los dos números lo dicen (§3.4). En el Reparto entra lo puesto (§4.3), así que "ya pagados" ya **no** sale mayor que el número grande. |
 | **Ninguna acción tiene monto y hay pagos** | El Reparto muestra como número grande lo puesto, donde antes salía **S/ 0** con la barra vacía. |
 | **Un pago de alguien que no responde por nada** | Aparece en el Reparto con `total = 0` y su `hecho` (§2). |
 | **Todos los pagos son "Por repartir"** | No hay línea de desbalance: no hay ningún pago con pagador conocido que repartir. |
 | **Una sola persona ha pagado, y la boda tiene dos** | Sí se dibuja: la otra va por debajo de su parte en la mitad de lo pagado. Es el caso que la línea existe para contar. |
-| **Todos pusieron exactamente su parte** | Nadie va por debajo en S/ 50 o más: no se dibuja la línea. El silencio es la buena noticia. |
+| **Todos pusieron exactamente su parte** | Empate exacto: no se dibuja la línea (§4.2). |
+| **Dos personas y una puso S/ 0.30 más** | No se dibuja: la línea diría "S/ 0" (§4.2). |
 | **Boda de una sola persona** (todavía sin su pareja en la organización) | Sin botón "Repartir" y sin línea de desbalance. El selector "Quién puso" muestra esa persona y "Por repartir". |
 | **Tres o más miembros y uno no ha pagado nada** | Se nombra con su parte entera como falta, junto a los demás que vayan por debajo, de mayor a menor (§4.2). |
 | **Tres o más miembros y solo uno va por debajo** | La línea nombra a uno solo: *"Para ir parejos, faltan S/ 320 de Ana."* |
@@ -490,14 +506,16 @@ pareja escribe el total, §3.5), ni `monto_real` (es la suma de los pagos).
 todo y tiene que probarse.
 
 - **`cuentaDe`**: sin monto; con monto y sin pagos; pagado parcial; pagado
-  exacto; pagado de más (el `falta` no baja de 0); `deMas` (0 salvo exceso),
-  `sinTotal` (monto nulo) y `costando` =
-  `max(total, pagado)` en los cuatro cruces de monto nulo/puesto y pagos
-  cero/parcial/de más.
+  exacto; pagado de más (el `falta` no baja de 0); `sinTotal` (monto nulo) y
+  `costando` = `max(total, pagado)` en los cuatro cruces de monto nulo/puesto y
+  pagos cero/parcial/de más. **`deMas` ya no se prueba porque ya no existe**
+  (§3.4).
 - **`etiquetaDeDinero(accion, pagos)`**: una prueba por fila de la tabla de
-  §3.4, con *"S/ 450 hasta ahora"*, *"S/ 1,200 calculados"* y el aviso de exceso
-  justo por encima y justo por debajo de `UMBRAL_DE_MAS`. Y una que fija la
-  corrección de §3.5: **el mismo caso con la acción `hecho` y con la acción
+  §3.4 —`null`, *"S/ 450 puestos hasta ahora"*, *"S/ 1,200 estimado"*,
+  *"S/ 450 puestos de S/ 1,200"*— más los dos extremos de la última plantilla:
+  *"S/ 1,200 puestos de S/ 1,200"* y *"S/ 1,380 puestos de S/ 1,200"*, sin
+  ninguna palabra de exceso. Y una
+  que fija §3.5: **el mismo caso con la acción `hecho` y con la acción
   `por_hacer` devuelve el mismo texto**; el estado no entra.
 - **`resumenMeta`** (en `lib/metas.test.ts`): el monto de una meta suma
   `costando` y no `monto`, comprobado con una acción sin monto y pagada, y con
@@ -512,15 +530,16 @@ todo y tiene que probarse.
   pagó sin ser responsable de nada** (la corrección de §2); agrupa los
   `pagado_por_id` nulos en "Por repartir"; un `pagado_por_id` que no está en
   `miembros` cae en "Por repartir".
-- **`desbalance(pagadoPorPersona, miembros, umbral)`**: null con un solo
-  miembro; null sin ningún pago con pagador conocido; null cuando nadie va por
-  debajo en el umbral o más; con **dos** miembros devuelve quién va por delante,
+- **`desbalance(pagadoPorPersona, miembros)`** —sin parámetro `umbral`—: null
+  con un solo miembro; null sin ningún pago con pagador conocido; null en
+  **empate exacto**; null cuando la mayor falta no llega a **50 céntimos**; se
+  dibuja con una falta de S/ 1; con **dos** miembros devuelve quién va por delante,
   quién por detrás y la diferencia entre los dos (no la mitad); con **tres**
   devuelve la lista de los que van por debajo con su falta, de mayor a menor;
   **incluye a un miembro que no pagó nada**, con su parte entera como falta;
   **excluye del cálculo los pagos "Por repartir"**, comprobado con un caso donde
   incluirlos cambiaría el resultado; omite de la lista a quien va por debajo en
-  menos del umbral aunque la línea se dibuje por otro; el cálculo en céntimos no
+  menos de 50 céntimos aunque la línea se dibuje por otro; el cálculo en céntimos no
   se desvía con montos como `"333.33"` repetidos (el caso que delata el float).
 - **`etiquetaDePago(pagos, pago)`**: devuelve la nota si la hay; devuelve
   "1.er pago" / "2.º pago" por orden de fecha cuando no la hay; con un solo pago
@@ -534,42 +553,59 @@ todo y tiene que probarse.
 
 ## 9. Orden de implementación
 
-**Ya implementado**: `lib/pagos.ts` con `cuentaDe`, `reparte`, `partes`,
-`repartoDePagos`, `desbalance`, `etiquetaDePago`, `etiquetaDeDinero`,
-`UMBRAL_DE_MAS` y sus pruebas; la corrección del Reparto (§2) y su línea de
-desbalance (§4.2); "Quién puso" y "Repartir" (§3.1, §3.2); los nombres
-derivados (§3.3); `costando` en el Reparto, en `resumenMeta` y en la fila del
-Camino (§4.3); y el diálogo que deja anotar sin total (§3.4).
+Todo implementado salvo la validación en pantalla (paso 7). Los pasos en el
+orden en que entraron: `lib/pagos.ts` con `cuentaDe`, `reparte`, `partes`,
+`repartoDePagos`, `desbalance`, `etiquetaDePago`, `etiquetaDeDinero` y sus
+pruebas; la corrección del Reparto (§2) y su línea de desbalance (§4.2); "Quién
+puso" y "Repartir" (§3.1, §3.2); los nombres derivados (§3.3); `costando` en el
+Reparto, en `resumenMeta` y en la fila del Camino (§4.3); el diálogo que deja
+anotar sin total, el diálogo vacío y la invitación a escribir el total con
+`ponerTotal` (§3.4, §3.5); y por último las cuatro cadenas de `etiquetaDeDinero`
+con la palabra "estimado", el diálogo que repite esa cadena palabra por palabra
+y `desbalance` sin umbral, que se llevó `UMBRAL_DE_MAS`, `UMBRAL_DESBALANCE` y
+`cuentaDe().deMas`.
 
-### 9.1 Lo que falta
+### 9.1 Los pasos
 
-1. **Quitar el estado de `etiquetaDeDinero`** (§3.5): sin total, el texto es
-   *"S/ N hasta ahora"* esté la acción hecha o no. Se borra la rama
-   *"en total"* y se ajusta la prueba.
-2. **La invitación a escribir el total** en el diálogo (§3.5): línea con campo
+1. **`etiquetaDeDinero` con las cuatro cadenas** de §3.4, y fuera
+   `UMBRAL_DE_MAS` y `cuentaDe().deMas`. Se ajustan las pruebas y el único
+   consumidor de `deMas`, el diálogo.
+2. **El diálogo**: la línea de la derecha pasa a *"S/ 450 puestos de
+   S/ 1,200"* en los tres casos con estimado, idéntica a la de la tarjeta
+   (§3.4). Y el bloque sin estimado dice *"puestos hasta ahora"*, como hoy.
+3. **`desbalance` sin umbral** (§4.2): fuera `UMBRAL_DESBALANCE` y el
+   parámetro; dentro el corte de 50 céntimos. Se ajustan las pruebas.
+4. **La palabra "estimado"** donde se leía "calculado" (§3.4): formulario
+   (*"Cuánto estimas (S/)"*), frase de apertura del diálogo, y los comentarios
+   que la nombran.
+5. **La invitación a escribir el total** en el diálogo (§3.5): línea con campo
    y botón "Guardar" mientras no haya total y haya al menos un pago. Escribe
    solo `acciones.monto`.
-3. **El diálogo vacío** (§3.4): sin total y sin pagos, no se dibuja el bloque
+6. **El diálogo vacío** (§3.4): sin total y sin pagos, no se dibuja el bloque
    del número.
-4. **Validación** en móvil (375×812) y escritorio, claro y oscuro: el diálogo
-   en sus tres formas (sin total y vacío, sin total con pagos, con total), la
-   invitación a 375 px sin desbordar, y una acción hecha con pagos y sin total
-   en la tarjeta.
+7. **Validación** en móvil (375×812) y escritorio: la tarjeta con
+   *"S/ 1,380 puestos de S/ 1,200"*, el texto más largo, sin desbordar ni
+   truncar —si salta de línea, se mide el alto y se acepta—; el diálogo en sus tres formas (sin total y vacío, sin total con
+   pagos, con total); la línea del Reparto con diferencia de S/ 1; la
+   invitación a 375 px.
 
 ## 10. Preguntas abiertas para el arquitecto
 
-Las que la implementación ya contestó se borraron con la consolidación. Quedan
-tres:
+Las tres que quedaban, contestadas por el arquitecto:
 
-1. **Validar `pagadoPorId` en el servidor.** ¿Se comprueba que el userId sea
-   miembro de la organización antes de escribirlo, o se acepta tal cual? No es
-   una fuga entre bodas (el `boda_id` lo pone el servidor), pero sí permite
-   escribir un userId cualquiera en una fila de esta boda. Comprobarlo cuesta
-   una llamada a Clerk por pago; `listarMiembros` ya existe y está en `cache`.
-2. **Con qué se guarda el total de la invitación** (§3.5). ¿`editarAccion`, que
-   ya existe y recibe la acción entera desde el formulario, o una acción de
-   servidor mínima que solo escriba `monto`? La primera no obliga a nada nuevo;
-   la segunda no arrastra el resto de campos desde un diálogo que no los tiene.
-3. **El Reparto es cliente y lee los pagos de la boda entera.** Recorre todos
-   los pagos y todas las acciones en cada render. ¿Importa con cien pagos?
-   Probablemente no; dicho por si acaso.
+1. **Validar `pagadoPorId` en el servidor.** Se acepta tal cual, sin
+   comprobarlo contra los miembros de la organización. No es una fuga entre
+   bodas —el `boda_id` lo pone el servidor— y el daño de un userId inventado
+   queda dentro de la propia boda: el Reparto lo dibuja como "Por repartir",
+   que es exactamente lo que ya hace con quien salió de la boda (§7). Lo
+   reabriría tener una pantalla que muestre ids ajenos, o un pago que se pueda
+   escribir desde fuera del diálogo.
+2. **Con qué se guarda el total de la invitación** (§3.5). Con `ponerTotal`,
+   una acción de servidor mínima que escribe solo `acciones.monto` y
+   `actualizadaEl`. `editarAccion` exige el formulario entero y el diálogo de
+   pagos no tiene esos campos: pasarlos vacíos borraría meta, semana y
+   responsable.
+3. **El Reparto es cliente y recorre los pagos de la boda entera.** Se deja
+   como está. Con cien pagos son dos recorridos y un `Map` por render, por
+   debajo de lo que cuesta pintar la sección. Lo reabriría una boda con miles
+   de pagos, que no es el caso de uso.

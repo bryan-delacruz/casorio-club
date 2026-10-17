@@ -334,7 +334,7 @@ function Campos({
           )}
           {cuestaDinero && (
             <div className="min-w-0 space-y-2">
-              <Label htmlFor="monto">Cuánto calculas (S/)</Label>
+              <Label htmlFor="monto">Cuánto estimas (S/)</Label>
               <Input
                 id="monto"
                 name="monto"
@@ -346,7 +346,7 @@ function Campos({
                 defaultValue={accion?.monto ?? ""}
                 aria-describedby="ayuda-monto"
               />
-              {/* El monto es lo calculado, no un hecho: se puede no saber
+              {/* El monto es el estimado, no un hecho: se puede no saber
                   todavía y los pagos lo van sumando (docs/pagos.md §3.4). */}
               <p id="ayuda-monto" className="text-muted-foreground text-xs">
                 Si todavía no lo sabes, déjalo en blanco y anota los pagos.

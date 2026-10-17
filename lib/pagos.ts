@@ -4,8 +4,8 @@
  * React.
  *
  * Lo que sale de un bolsillo se compara en céntimos enteros: sumar y restar
- * `numeric` en coma flotante arrastra medio céntimo, y medio céntimo dispara
- * el umbral del desbalance por error (§4.2).
+ * `numeric` en coma flotante arrastra medio céntimo, y medio céntimo es justo
+ * la cifra del corte de la línea del desbalance (§4.2).
  */
 
 /** Lo que necesita esta lógica de una fila de `pagos`. */
@@ -24,22 +24,6 @@ export type PagoLite = {
  * miembro caen aquí (docs/pagos.md §7).
  */
 export const POR_REPARTIR = "por-repartir";
-
-/**
- * A partir de cuánto por debajo de su parte se nombra a alguien en la línea
- * del desbalance, en soles (docs/pagos.md §4.2).
- *
- * Es un juicio de producto, no un dato: vive aquí y no dentro del componente
- * para poder probarlo con otro valor y subirlo en un solo sitio.
- */
-export const UMBRAL_DESBALANCE = 50;
-
-/**
- * Desde cuánto de más se avisa que lo puesto pasó lo calculado, en soles
- * (docs/pagos.md §3.4). Mismo juicio que `UMBRAL_DESBALANCE`: por debajo de
- * esa cifra el aviso aparecería y desaparecería con cada adelanto.
- */
-export const UMBRAL_DE_MAS = 50;
 
 /**
  * Soles redondeados, como los escribe toda la app. Vive aquí porque los
@@ -62,18 +46,15 @@ export function cuentaDe(monto: string | null, pagos: { monto: string }[]) {
   const pagado = pagos.reduce((s, p) => s + Number(p.monto), 0);
   const sinTotal = monto === null;
   return {
-    /** Lo calculado: lo que la pareja cree que va a costar (docs/pagos.md §3.4). */
+    /** El estimado: lo que la pareja cree que va a costar (docs/pagos.md §3.4). */
     total,
     /** Lo puesto: la suma de los pagos. */
     pagado,
     falta: Math.max(total - pagado, 0),
-    // Sin nada calculado no hay nada que pasarse: lo puesto es, por ahora, lo
-    // que cuesta.
-    deMas: sinTotal ? 0 : Math.max(pagado - total, 0),
     sinTotal,
     /**
-     * Lo que va costando: manda lo calculado hasta que lo puesto lo pasa —o
-     * no hay nada calculado—, porque esa plata ya salió (docs/pagos.md §4.3).
+     * Lo que va costando: manda el estimado hasta que lo puesto lo pasa —o
+     * no hay estimado—, porque esa plata ya salió (docs/pagos.md §4.3).
      * Es lo que suman todos los totales, y no se guarda.
      */
     costando: Math.max(total, pagado),
@@ -158,7 +139,6 @@ export type Desbalance =
 export function desbalance(
   puesto: Map<string, number>,
   miembros: { id: string }[],
-  umbral = UMBRAL_DESBALANCE,
 ): Desbalance | null {
   const n = miembros.length;
   if (n < 2) return null;
@@ -170,10 +150,14 @@ export function desbalance(
   if (conocido <= 0) return null;
 
   // La falta de cada uno es `(conocido - n · puesto) / n`. Se compara sin
-  // dividir, en enteros, para que la parte con céntimos no cuadrados no
-  // mueva el umbral.
+  // dividir, en enteros, para que la parte con céntimos no cuadrados no mueva
+  // el corte.
+  //
+  // El único corte es de 50 céntimos, y no es un juicio de producto: desde ahí
+  // `soles()` deja de escribir "S/ 0", y "puso S/ 0 más" sería falso
+  // (docs/pagos.md §4.2). Por eso va aquí dentro y no en una constante.
   const escalada = centimos.map((c) => conocido - n * c);
-  const minimo = Math.round(umbral * 100) * n;
+  const minimo = 50 * n;
   if (!escalada.some((e) => e >= minimo)) return null;
 
   if (n === 2) {
@@ -246,25 +230,27 @@ export type AccionConDinero = {
  * Lo que dice la tarjeta sobre la plata de una acción, o null cuando no hay
  * nada que decir y tampoco se dibuja la 💰 (docs/pagos.md §3.4).
  *
- * Las palabras viven aquí y no en el JSX para poder probar las siete filas
- * de la tabla de la spec. El estado viaja en la acción pero no entra en la
- * cuenta: ni "hecho" dice que no queda plata por salir, ni el saldo en cero
- * dice que la gestión esté hecha.
+ * Las palabras viven aquí y no en el JSX para poder probar los cuatro
+ * cuadrantes de la tabla de la spec. El estado viaja en la acción pero no
+ * entra en la cuenta: ni "hecho" dice que no queda plata por salir, ni el
+ * saldo en cero dice que la gestión esté hecha.
  */
 export function etiquetaDeDinero(
   accion: AccionConDinero,
   pagos: { monto: string }[],
 ): string | null {
-  const { total, pagado, falta, deMas, sinTotal } = cuentaDe(accion.monto, pagos);
+  const { total, pagado, sinTotal } = cuentaDe(accion.monto, pagos);
   // Sin plata por ningún lado no es un gasto. Un monto en cero tampoco:
   // la 💰 sale solo cuando hay plata de verdad.
   if (total <= 0 && pagado <= 0) return null;
-  // Sin total siempre es "hasta ahora", esté la acción hecha o no: pagar y
-  // terminar son ejes independientes, hay cosas que se pagan por adelantado
-  // (docs/pagos.md §3.5). Cerrar la cuenta lo hace la pareja escribiendo el total.
-  if (sinTotal || total <= 0) return `${soles(pagado)} hasta ahora`;
-  if (pagado === 0) return `${soles(total)} calculados`;
-  if (deMas >= UMBRAL_DE_MAS) return `${soles(deMas)} más de lo calculado`;
-  if (falta === 0) return `${soles(total)} pagado`;
-  return `faltan ${soles(falta)} de ${soles(total)}`;
+  // Sin estimado, "hasta ahora" marca que la cuenta sigue abierta, esté la
+  // acción hecha o no: pagar y terminar son ejes independientes, hay cosas que
+  // se pagan por adelantado (docs/pagos.md §3.5). Cerrar la cuenta la hace la
+  // pareja escribiendo el total.
+  if (sinTotal || total <= 0) return `${soles(pagado)} puestos hasta ahora`;
+  if (pagado === 0) return `${soles(total)} estimado`;
+  // Una sola plantilla para los tres casos con los dos números: a medias,
+  // completo y pasado. Ni el saldo ni el exceso se nombran, porque se deducen
+  // de los dos números (docs/pagos.md §3.4).
+  return `${soles(pagado)} puestos de ${soles(total)}`;
 }

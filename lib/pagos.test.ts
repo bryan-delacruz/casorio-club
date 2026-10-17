@@ -5,7 +5,6 @@ import {
   cuentaDe,
   etiquetaDeDinero,
   pagosPorAccion,
-  UMBRAL_DE_MAS,
   desbalance,
   etiquetaDePago,
   partes,
@@ -36,7 +35,6 @@ test("cuentaDe: sin monto no hay nada que pagar", () => {
     total: 0,
     pagado: 0,
     falta: 0,
-    deMas: 0,
     sinTotal: true,
     costando: 0,
   });
@@ -47,7 +45,6 @@ test("cuentaDe: con monto y sin pagos falta todo", () => {
     total: 250,
     pagado: 0,
     falta: 250,
-    deMas: 0,
     sinTotal: false,
     costando: 250,
   });
@@ -59,7 +56,6 @@ test("cuentaDe: pagado parcial", () => {
     total: 250,
     pagado: 150.5,
     falta: 99.5,
-    deMas: 0,
     sinTotal: false,
     costando: 250,
   });
@@ -67,23 +63,22 @@ test("cuentaDe: pagado parcial", () => {
 
 test("cuentaDe: pagado exacto deja el saldo en cero", () => {
   assert.equal(cuentaDe("250.00", [{ monto: "250.00" }]).falta, 0);
-  assert.equal(cuentaDe("250.00", [{ monto: "250.00" }]).deMas, 0);
 });
 
 test("cuentaDe: pagado de más no baja de cero", () => {
   const c = cuentaDe("250.00", [{ monto: "300.00" }]);
   assert.equal(c.pagado, 300);
   assert.equal(c.falta, 0);
-  assert.equal(c.deMas, 50);
+  assert.equal(c.costando, 300);
 });
 
-test("cuentaDe: sin monto, lo puesto no es exceso de nada", () => {
+test("cuentaDe: sin monto, lo puesto es lo que va costando", () => {
   const c = cuentaDe(null, [{ monto: "450.00" }]);
-  assert.deepEqual([c.sinTotal, c.deMas, c.costando], [true, 0, 450]);
+  assert.deepEqual([c.sinTotal, c.falta, c.costando], [true, 0, 450]);
 });
 
-test("cuentaDe: costando = max(lo calculado, lo puesto) en los cuatro cruces", () => {
-  // Pagar más de lo calculado es el caso que motiva el max: esa plata ya
+test("cuentaDe: costando = max(el estimado, lo puesto) en los cuatro cruces", () => {
+  // Pagar más del estimado es el caso que motiva el max: esa plata ya
   // salió, así que manda lo puesto.
   assert.equal(cuentaDe("1200.00", [{ monto: "1380.00" }]).costando, 1380);
   assert.equal(cuentaDe("1200.00", [{ monto: "450.00" }]).costando, 1200);
@@ -93,7 +88,7 @@ test("cuentaDe: costando = max(lo calculado, lo puesto) en los cuatro cruces", (
 });
 
 // ---------------------------------------------------------------------------
-// etiquetaDeDinero: las siete filas de docs/pagos.md §3.4
+// etiquetaDeDinero: los cuatro cuadrantes de docs/pagos.md §3.4
 // ---------------------------------------------------------------------------
 
 const accionDinero = (
@@ -106,57 +101,57 @@ test("etiquetaDeDinero: sin monto y sin pagos no dice nada y no hay 💰", () =>
   assert.equal(etiquetaDeDinero(accionDinero(null, "hecho"), []), null);
 });
 
-test("etiquetaDeDinero: sin monto y con pagos, por hacer o haciendo, 'hasta ahora'", () => {
+test("etiquetaDeDinero: sin estimado y con pagos, la cuenta sigue abierta", () => {
   const pagados = [{ monto: "450.00" }];
-  assert.equal(etiquetaDeDinero(accionDinero(null), pagados), "S/ 450 hasta ahora");
+  assert.equal(etiquetaDeDinero(accionDinero(null), pagados), "S/ 450 puestos hasta ahora");
   assert.equal(
     etiquetaDeDinero(accionDinero(null, "haciendo"), pagados),
-    "S/ 450 hasta ahora",
+    "S/ 450 puestos hasta ahora",
   );
 });
 
-test("etiquetaDeDinero: sin monto y con pagos, hecha o por hacer dicen lo mismo", () => {
+test("etiquetaDeDinero: sin estimado y con pagos, hecha o por hacer dicen lo mismo", () => {
   const pagados = [{ monto: "450.00" }];
   const porHacer = etiquetaDeDinero(accionDinero(null, "por_hacer"), pagados);
   const hecha = etiquetaDeDinero(accionDinero(null, "hecho"), pagados);
   assert.equal(hecha, porHacer);
-  assert.equal(hecha, "S/ 450 hasta ahora");
+  assert.equal(hecha, "S/ 450 puestos hasta ahora");
 });
 
-test("etiquetaDeDinero: monto sin pagos, nada es real todavía", () => {
-  assert.equal(etiquetaDeDinero(accionDinero("1200.00"), []), "S/ 1,200 calculados");
+test("etiquetaDeDinero: estimado sin pagos, nada es real todavía", () => {
+  assert.equal(etiquetaDeDinero(accionDinero("1200.00"), []), "S/ 1,200 estimado");
 });
 
-test("etiquetaDeDinero: monto con pago parcial dice lo que falta", () => {
+test("etiquetaDeDinero: estimado con pago parcial dice los dos números", () => {
   assert.equal(
     etiquetaDeDinero(accionDinero("1200.00"), [{ monto: "450.00" }]),
-    "faltan S/ 750 de S/ 1,200",
+    "S/ 450 puestos de S/ 1,200",
   );
 });
 
-test("etiquetaDeDinero: pagado exacto", () => {
+test("etiquetaDeDinero: pagado exacto, la misma plantilla", () => {
   assert.equal(
     etiquetaDeDinero(accionDinero("1200.00"), [{ monto: "1200.00" }]),
-    "S/ 1,200 pagado",
+    "S/ 1,200 puestos de S/ 1,200",
   );
 });
 
-test("etiquetaDeDinero: lo puesto pasa lo calculado desde el umbral", () => {
+test("etiquetaDeDinero: lo puesto por encima del estimado, sin palabra de exceso", () => {
+  const texto = etiquetaDeDinero(accionDinero("1200.00"), [{ monto: "1380.00" }]);
+  assert.equal(texto, "S/ 1,380 puestos de S/ 1,200");
+  // El exceso se deduce de los dos números: no se nombra (docs/pagos.md §3.4).
+  assert.equal(/m.s|exceso|pasa/.test(texto ?? ""), false);
+});
+
+test("etiquetaDeDinero: el estado no entra en ninguna fila", () => {
+  const pagados = [{ monto: "450.00" }];
   assert.equal(
-    etiquetaDeDinero(accionDinero("1200.00"), [{ monto: "1380.00" }]),
-    "S/ 180 más de lo calculado",
+    etiquetaDeDinero(accionDinero("1200.00", "hecho"), pagados),
+    etiquetaDeDinero(accionDinero("1200.00", "por_hacer"), pagados),
   );
-  // Justo en el umbral avisa; justo por debajo, no: una línea que aparece y
-  // desaparece con cada adelanto es ruido.
   assert.equal(
-    etiquetaDeDinero(accionDinero("1200.00"), [{ monto: String(1200 + UMBRAL_DE_MAS) }]),
-    "S/ 50 más de lo calculado",
-  );
-  assert.equal(
-    etiquetaDeDinero(accionDinero("1200.00"), [
-      { monto: String(1200 + UMBRAL_DE_MAS - 0.01) },
-    ]),
-    "S/ 1,200 pagado",
+    etiquetaDeDinero(accionDinero("1200.00", "hecho"), pagados),
+    "S/ 450 puestos de S/ 1,200",
   );
 });
 
@@ -271,9 +266,33 @@ test("desbalance: null sin ningún pago con pagador conocido", () => {
   assert.equal(desbalance(puestoDe({ [POR_REPARTIR]: 900 }), miembros("ana", "bryan")), null);
 });
 
-test("desbalance: null cuando nadie va por debajo del umbral", () => {
-  // 100 contra 60: la que va por detrás lo está en 20, menos de 50.
-  assert.equal(desbalance(puestoDe({ ana: 100, bryan: 60 }), miembros("ana", "bryan")), null);
+test("desbalance: null en empate exacto", () => {
+  // Nadie por debajo, ni un céntimo: el silencio es la buena noticia.
+  assert.equal(desbalance(puestoDe({ ana: 500, bryan: 500 }), miembros("ana", "bryan")), null);
+});
+
+test("desbalance: null cuando la mayor falta no llega a 50 céntimos", () => {
+  // S/ 0.40 de diferencia es una falta de 20 céntimos: la línea diría "S/ 0".
+  assert.equal(
+    desbalance(puestoDe({ ana: 100.4, bryan: 100 }), miembros("ana", "bryan")),
+    null,
+  );
+  // S/ 0.99 de diferencia: falta de 49.5 céntimos, justo por debajo del corte.
+  assert.equal(
+    desbalance(puestoDe({ ana: 100.99, bryan: 100 }), miembros("ana", "bryan")),
+    null,
+  );
+});
+
+test("desbalance: se dibuja con una falta de 50 céntimos, que son S/ 1 de diferencia", () => {
+  const d = desbalance(puestoDe({ ana: 101, bryan: 100 }), miembros("ana", "bryan"));
+  assert.deepEqual(d, { tipo: "dos", porDelante: "ana", porDetras: "bryan", diferencia: 1 });
+});
+
+test("desbalance: con dos, S/ 20 de diferencia ya no se tapa con ningún umbral", () => {
+  // Antes un umbral de S/ 50 lo callaba; ahora si hay diferencia, se dice.
+  const d = desbalance(puestoDe({ ana: 100, bryan: 60 }), miembros("ana", "bryan"));
+  assert.deepEqual(d, { tipo: "dos", porDelante: "ana", porDetras: "bryan", diferencia: 40 });
 });
 
 test("desbalance: con dos devuelve la diferencia entre los dos, no la mitad", () => {
@@ -313,24 +332,25 @@ test("desbalance: con tres, quien no pagó nada entra con su parte entera", () =
 });
 
 test("desbalance: lo de Por repartir no entra en el cálculo", () => {
-  // Con los 1000 anónimos dentro, la parte subiría a 550 y Bryan también
-  // saldría por debajo; sin ellos, la parte es 50 y nadie llega al umbral.
-  const puesto = puestoDe({ bryan: 100, ana: 0, luis: 0, [POR_REPARTIR]: 1000 });
-  assert.equal(desbalance(puesto, miembros("bryan", "ana", "luis")), null);
+  // Sin los anónimos es empate exacto y no hay línea. Con los 1000 dentro, la
+  // parte subiría a 1000 y las dos saldrían por debajo en 500.
+  const puesto = puestoDe({ bryan: 500, ana: 500, [POR_REPARTIR]: 1000 });
+  assert.equal(desbalance(puesto, miembros("bryan", "ana")), null);
 });
 
-test("desbalance: omite de la lista a quien va por debajo en menos del umbral", () => {
-  // 1200 conocidos entre cuatro, parte 300: a Ana le faltan 290, a Nora 280
-  // y a Luis 80, que no llega al umbral.
+test("desbalance: omite de la lista a quien va por debajo en menos de 50 céntimos", () => {
+  // 1200.40 conocidos entre cuatro, parte 300.10: a Ana le faltan 290.10, a
+  // Nora 280.10 y a Luis 0.30, que no llega al corte aunque la línea se
+  // dibuje por las otras dos.
   const d = desbalance(
-    puestoDe({ bryan: 790, ana: 10, luis: 380, nora: 20 }),
+    puestoDe({ bryan: 870.6, ana: 10, luis: 299.8, nora: 20 }),
     miembros("bryan", "ana", "luis", "nora"),
   );
   assert.deepEqual(d, {
     tipo: "varios",
     faltan: [
-      { id: "ana", falta: 290 },
-      { id: "nora", falta: 280 },
+      { id: "ana", falta: 290.1 },
+      { id: "nora", falta: 280.1 },
     ],
   });
 });
@@ -345,12 +365,6 @@ test("desbalance: tres pagos de 333.33 no desvían el cálculo", () => {
     miembros("ana", "bryan", "luis"),
   );
   assert.equal(desbalance(puesto, miembros("ana", "bryan", "luis")), null);
-});
-
-test("desbalance: el umbral se puede pasar por parámetro", () => {
-  const puesto = puestoDe({ ana: 100, bryan: 60 });
-  assert.equal(desbalance(puesto, miembros("ana", "bryan")), null);
-  assert.equal(desbalance(puesto, miembros("ana", "bryan"), 10)?.tipo, "dos");
 });
 
 // ---------------------------------------------------------------------------

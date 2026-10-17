@@ -23,7 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { cuentaDe, etiquetaDePago, POR_REPARTIR, UMBRAL_DE_MAS } from "@/lib/pagos";
+import { cuentaDe, etiquetaDePago, POR_REPARTIR } from "@/lib/pagos";
 import { borrarPago, ponerTotal, registrarPago, registrarPagoRepartido } from "./acciones-servidor";
 import { diaCorto, hoy, soles, type Miembro } from "./tipos";
 
@@ -55,7 +55,7 @@ export function PagosAccion({
   // Null = la fila de fichas está cerrada. Solo aparece con tres o más
   // miembros: con dos no hay a quién elegir (docs/pagos.md §3.2).
   const [elegidos, setElegidos] = useState<string[] | null>(null);
-  const { total, pagado, falta, deMas } = cuentaDe(accion.monto, pagos);
+  const { total, pagado, falta } = cuentaDe(accion.monto, pagos);
   // Sin pagador conocido se lee "Por repartir", la misma etiqueta del
   // selector y del Reparto: quien salió de la boda deja su pago aquí
   // (docs/pagos.md §7). El capitalize solo va en las personas, porque "Por
@@ -134,7 +134,7 @@ export function PagosAccion({
 
   const descripcion =
     total > 0
-      ? `Calculas ${soles(total)}. Anota aquí cada vez que salga plata.`
+      ? `Estimado ${soles(total)}. Anota aquí cada vez que salga plata.`
       : pagos.length === 0
         ? "Todavía no sabes cuánto cuesta. Anota lo que vayas pagando y el total se irá sumando."
         : null;
@@ -150,7 +150,7 @@ export function PagosAccion({
           <DialogTitle className="font-display text-xl font-normal">
             {accion.titulo}
           </DialogTitle>
-          {/* "Calculas" y no "cuesta": el monto es lo que la pareja cree que
+          {/* "Estimado" y no "cuesta": el monto es lo que la pareja cree que
               va a costar, no un hecho (docs/pagos.md §3.4). Sin monto y sin
               pagos se invita a anotar; con pagos el número grande y la
               invitación de abajo ya lo cuentan, y repetirlo sería ruido. */}
@@ -177,14 +177,13 @@ export function PagosAccion({
                 {falta > 0 ? soles(falta) : "Todo pagado"}
               </p>
               <p className="text-muted-foreground text-sm">
+                {/* La misma cadena que la tarjeta, palabra por palabra, con
+                    "falta · " delante mientras falte plata (docs/pagos.md
+                    §3.4). Con cero pagos no se repite el estimado: el número
+                    grande ya lo dice. */}
                 {pagado === 0
                   ? "sin pagar todavía"
-                  : falta > 0
-                    ? `falta · ${soles(pagado)} puestos de ${soles(total)}`
-                    : deMas >= UMBRAL_DE_MAS
-                      ? // Lo de más se dice donde pasó, y solo desde el umbral.
-                        `${soles(pagado)} puestos · ${soles(deMas)} más de lo calculado`
-                      : `${soles(pagado)} en ${pagos.length} ${pagos.length === 1 ? "pago" : "pagos"}`}
+                  : `${falta > 0 ? "falta · " : ""}${soles(pagado)} puestos de ${soles(total)}`}
               </p>
             </div>
 

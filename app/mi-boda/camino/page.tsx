@@ -18,7 +18,7 @@ export default async function CaminoPage() {
   // `?por=`. Un enlace viejo con `?por=hito` simplemente se ignora.
   //
   // Los pagos entran porque los totales suman lo que va costando cada acción,
-  // `max(lo calculado, lo puesto)` (docs/pagos.md §4.3): sin ellos el monto de
+  // `max(el estimado, lo puesto)` (docs/pagos.md §4.3): sin ellos el monto de
   // una meta diría una cosa en el Mapa y otra aquí.
   const [acciones, miembros, dependencias, boda, metas, pagos] = await Promise.all([
     listarAcciones(),

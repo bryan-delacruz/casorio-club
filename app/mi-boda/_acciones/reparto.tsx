@@ -61,7 +61,7 @@ export function Reparto({
     return cuenta;
   };
 
-  // Lo que va costando cada acción, no su monto: `max(lo calculado, lo
+  // Lo que va costando cada acción, no su monto: `max(el estimado, lo
   // puesto)` (docs/pagos.md §4.3). Así una acción pagada sin monto deja de
   // valer S/ 0, y "ya pagados" nunca sale mayor que el número grande.
   const porAccion = pagosPorAccion(pagos);
