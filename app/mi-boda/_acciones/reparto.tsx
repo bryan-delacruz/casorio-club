@@ -64,11 +64,13 @@ export function Reparto({
   // Lo que va costando cada acción, no su monto: `max(el estimado, lo
   // puesto)` (docs/pagos.md §4.3). Así una acción pagada sin monto deja de
   // valer S/ 0, y "ya pagados" nunca sale mayor que el número grande.
+  // `total` y `hecho` se acumulan en céntimos enteros y se dividen una sola
+  // vez al pintar: sumar soles acción por acción arrastra la coma flotante.
   const porAccion = pagosPorAccion(pagos);
   for (const a of lista) {
-    const { costando } = cuentaDe(a.monto, porAccion.get(a.id) ?? []);
-    if (costando <= 0) continue;
-    fila(a.responsableId ?? POR_REPARTIR).total += costando;
+    const { centimos } = cuentaDe(a.monto, porAccion.get(a.id) ?? []);
+    if (centimos.costando <= 0) continue;
+    fila(a.responsableId ?? POR_REPARTIR).total += centimos.costando;
   }
 
   // Lo pagado va por su cuenta y se reparte sobre TODOS los pagos: quien puso
@@ -76,7 +78,7 @@ export function Reparto({
   // después, y quien pagó sin responder por nada también tiene fila — antes su
   // pago se perdía de la cuenta (docs/pagos.md §2).
   const puesto = repartoDePagos(pagos, miembros);
-  for (const [id, centimos] of puesto) fila(id).hecho += centimos / 100;
+  for (const [id, centimos] of puesto) fila(id).hecho += centimos;
 
   if (cuentas.size === 0) return null;
 
@@ -90,7 +92,7 @@ export function Reparto({
   const total = filas.reduce((s, f) => s + f.total, 0);
   const hecho = filas.reduce((s, f) => s + f.hecho, 0);
   const crudos = filas.map((f) => f.total);
-  const monto = reparte(crudos, Math.round(total));
+  const monto = reparte(crudos, Math.round(total / 100));
   const porcentaje = reparte(crudos, 100);
   const juntos = miembros.length > 2 ? "Entre todos" : "Entre los dos";
   const nombreDe = (id: string) => pila(miembros.find((m) => m.id === id)?.nombre ?? "");
@@ -100,11 +102,11 @@ export function Reparto({
     <section className="mb-7">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <p className="font-display text-[1.75rem] leading-9">
-          {soles(total)}
+          {soles(total / 100)}
         </p>
         <h2 className="text-muted-foreground">
           {juntos}
-          {hecho > 0 && `, ${soles(hecho)} ya pagados`}
+          {hecho > 0 && `, ${soles(hecho / 100)} ya pagados`}
         </h2>
       </div>
 

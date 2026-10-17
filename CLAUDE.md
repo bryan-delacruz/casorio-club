@@ -210,74 +210,52 @@ Spec-Driven: **la spec en `docs/*.md` manda sobre el código**. Si algo cambia,
 primero se actualiza la spec. Cada documento declara su estado
 ("aprobada e implementada").
 
-Orquestado por tres agentes especialistas en `.claude/agents/`. Ningún agente ve
-a los otros: **el relevo entre ellos es un archivo del repo**, no una
-conversación.
-
-| Agente | Rol | Entregable |
-| --- | --- | --- |
-| `po-bodas` | Product Owner, dominio de bodas civiles en Perú | spec en `docs/*.md` |
-| `arquitecto-senior` | Desarrollador senior, Next.js 16 / Clerk / Neon / shadcn | código y pruebas |
-| `validador-ux` | Validación de UX/UI en el navegador, solo lectura | informe de hallazgos medidos |
+Se trabaja **sin agentes**. Hubo tres especialistas en `.claude/agents/` (un
+Product Owner, un arquitecto y un validador de UX) y se retiraron: cada relevo
+arrancaba en frío, había que volver a escribirle el contexto que este archivo ya
+da, y una pasada tardaba de 10 a 14 minutos. El trabajo se hace directo, en la
+conversación, con las lecciones que ese ciclo dejó medidas y que siguen valiendo.
 
 ## Ciclo de un cambio
 
-1. **Decidir.** `po-bodas` escribe o actualiza la spec en `docs/`, con el
-   alcance y lo que queda fuera.
-2. **Construir.** `arquitecto-senior` implementa esa spec, con las pruebas
-   `node:test` sobre las funciones puras de `lib/` que la spec pide.
-3. **Validar.** `validador-ux` comprueba en el navegador cada pantalla afectada
-   en móvil (375×812) y escritorio.
-4. **Cerrar el lazo.** Los hallazgos vuelven al agente que corresponde: de
-   producto al PO, técnicos al arquitecto. Se repite el paso 3 hasta que no
-   queden hallazgos abiertos.
+1. **Decidir.** Se escribe o actualiza la spec en `docs/`, con el alcance y lo
+   que queda fuera. La pregunta de producto va primero.
+2. **Construir.** Se implementa esa spec, con las pruebas `node:test` sobre las
+   funciones puras de `lib/` que la spec pide.
+3. **Validar.** Se comprueba en el navegador cada pantalla afectada en móvil
+   (375×812) y escritorio, midiendo con JavaScript.
+4. **Cerrar el lazo.** Lo que falle se arregla y se vuelve al paso 3.
 
-Los pasos 1 y 2 van **en serie**: dos agentes que escriben nunca tocan los
-mismos archivos a la vez. El paso 3 es de solo lectura y puede correr en
-paralelo con otra lectura.
+## Lo que el ciclo enseñó
 
-## Eficiencia del ciclo
-
-Medido en la sesión que estrenó este ciclo: seis corridas, ~62 min y ~750k
-tokens, y el mayor desperdicio no fue lentitud sino trabajo tirado — se
-construyó una agrupación entera y después se retiró.
+Medido: seis corridas, ~62 min y ~750k tokens, y el mayor desperdicio no fue
+lentitud sino trabajo tirado — se construyó una agrupación entera y después se
+retiró. Estas reglas valen con agentes o sin ellos:
 
 - **La pregunta de producto va antes que el modelo de dominio.** Antes de
-  especificar cómo se guarda o cómo se agrupa algo, el PO responde qué necesita
+  especificar cómo se guarda o cómo se agrupa algo, responde qué necesita
   entender y hacer una pareja. Al revés se construye y se tira.
 - **Dos maneras de ver los mismos datos son una de más.** Una vista nueva se
   justifica solo si contesta una pregunta que ninguna otra pantalla contesta.
-- **Los encargos van en delta, no en resumen del repo.** Este archivo ya da el
-  mapa del código, los comandos y la arquitectura, y los agentes lo cargan al
-  arrancar. El encargo dice qué cambia, qué archivos y qué decisiones ya están
-  tomadas; nada más.
-- **Un defecto ya medido se arregla, no se reproduce.** Si el encargo trae el
-  número, está comprobado.
-- **Leer en paralelo, escribir en serie.** El validador puede correr mientras el
-  PO escribe en `docs/`: uno lee la pantalla, el otro escribe documentos. Dos
-  que escriben código, nunca a la vez.
-- **Modelo según el trabajo.** El PO y el arquitecto deciden y diseñan: Opus.
-  Una revalidación, que es instrumentar y medir lo que ya se sabe dónde mirar,
-  va en Sonnet.
-- **Presupuesto del validador**: ~60 llamadas en una pasada completa, ~25 en una
-  revalidación. Al llegar al tope entrega lo que tiene y dice qué no miró.
-  Censa por muestra: lo que el cambio tocó, más los peores casos que encuentre.
-- **Una pasada, un cambio coherente, hasta ~6 archivos.** El arquitecto tarda de
-  10 a 14 minutos cuando el encargo mete dos temas; con la lista ya escrita y en
-  Sonnet, 33 segundos. El alcance manda más que el modelo.
+- **Un defecto ya medido se arregla, no se reproduce.** Si ya hay número, está
+  comprobado.
+- **Una pasada, un cambio coherente, hasta ~6 archivos.** El alcance manda más
+  que cualquier otra cosa: dos temas en el mismo cambio es lo que lo alarga.
 - **Verificación una vez, al final**: `pnpm lint`, `pnpm test`, `npx tsc --noEmit`.
   `pnpm build` solo si el cambio toca rutas, `next.config.ts` o fronteras
   servidor/cliente: es lo más lento que hay.
-- **Informes de ~250 palabras**, con la estructura fija que cada agente lleva en
-  su archivo. Y al relevar un informe al usuario: los hallazgos y las decisiones,
-  no el informe entero.
+- **Medir cuesta menos que mirar.** Una captura de pantalla vale varias páginas
+  de texto; `read_page`, `get_page_text` y `getBoundingClientRect` cuestan poco
+  y además son exactos.
+- **Lo exploratorio lo mira el usuario.** "¿Se ve bien?" se contesta en su
+  navegador y en una frase. Medir con números se reserva para contrastes,
+  píxeles, estados límite y regresiones.
 
 ## Estilo telegráfico
 
-Todo lo que se escribe entre agentes va en estilo telegráfico: sin artículos,
+Lo que se escribe en la conversación va en estilo telegráfico: sin artículos,
 sin relleno, sin cortesías, frases cortas, una idea por frase, voz activa, mismo
-término para la misma cosa. Aplica a los **encargos** que el orquestador manda a
-un agente y a los **informes** que el agente devuelve.
+término para la misma cosa.
 
 Intactos y exactos, siempre: números con unidades, textos literales vistos en
 pantalla, rutas, nombres de función y de API, comandos, y errores citados tal
@@ -294,8 +272,9 @@ el del repositorio, y el comentario explica el *por qué*.
 ## El servidor de desarrollo es del usuario
 
 `pnpm dev` lo levanta el usuario y lo deja corriendo. **No lo arranques ni lo
-pares**, ni tú ni ningún agente: un segundo servidor falla por el puerto
-ocupado, y pararlo le quita al usuario lo que estaba mirando.
+pares**: un segundo servidor falla por el puerto ocupado, y pararlo le quita al
+usuario lo que estaba mirando. Si hay que reiniciarlo —por ejemplo, porque
+Turbopack sirve una compilación vieja—, pídeselo.
 
 Un servidor corriendo no cuesta nada mientras nadie lo lea. Lo que cuesta es
 mirar, y por orden de precio: una captura de pantalla vale varias páginas de

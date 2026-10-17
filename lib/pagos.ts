@@ -42,22 +42,32 @@ export const aCentimos = (monto: string) => Math.round(Number(monto) * 100);
  * diferencia se ve en la lista de pagos, no como un número negativo.
  */
 export function cuentaDe(monto: string | null, pagos: { monto: string }[]) {
-  const total = monto ? Number(monto) : 0;
-  const pagado = pagos.reduce((s, p) => s + Number(p.monto), 0);
-  const sinTotal = monto === null;
+  // Se suma y se compara en céntimos enteros, nunca en coma flotante: sumar
+  // "0.10" tres veces da 0.30000000000000004, así que `falta === 0` fallaba
+  // justo cuando la cuenta estaba cuadrada. La división final es una sola.
+  const totalC = monto ? aCentimos(monto) : 0;
+  const pagadoC = pagos.reduce((s, p) => s + aCentimos(p.monto), 0);
+  const faltaC = Math.max(totalC - pagadoC, 0);
+  const costandoC = Math.max(totalC, pagadoC);
   return {
     /** El estimado: lo que la pareja cree que va a costar (docs/pagos.md §3.4). */
-    total,
+    total: totalC / 100,
     /** Lo puesto: la suma de los pagos. */
-    pagado,
-    falta: Math.max(total - pagado, 0),
-    sinTotal,
+    pagado: pagadoC / 100,
+    falta: faltaC / 100,
+    sinTotal: monto === null,
     /**
      * Lo que va costando: manda el estimado hasta que lo puesto lo pasa —o
      * no hay estimado—, porque esa plata ya salió (docs/pagos.md §4.3).
      * Es lo que suman todos los totales, y no se guarda.
      */
-    costando: Math.max(total, pagado),
+    costando: costandoC / 100,
+    /**
+     * Los mismos números en céntimos enteros. Quien sume varias acciones usa
+     * estos y divide una sola vez al final: dividir antes de sumar vuelve a
+     * meter la coma flotante que este cambio quita.
+     */
+    centimos: { total: totalC, pagado: pagadoC, falta: faltaC, costando: costandoC },
   };
 }
 

@@ -38,6 +38,7 @@ test("cuentaDe: sin monto no hay nada que pagar", () => {
     falta: 0,
     sinTotal: true,
     costando: 0,
+    centimos: { total: 0, pagado: 0, falta: 0, costando: 0 },
   });
 });
 
@@ -48,6 +49,7 @@ test("cuentaDe: con monto y sin pagos falta todo", () => {
     falta: 250,
     sinTotal: false,
     costando: 250,
+    centimos: { total: 25000, pagado: 0, falta: 25000, costando: 25000 },
   });
 });
 
@@ -59,7 +61,24 @@ test("cuentaDe: pagado parcial", () => {
     falta: 99.5,
     sinTotal: false,
     costando: 250,
+    centimos: { total: 25000, pagado: 15050, falta: 9950, costando: 25000 },
   });
+});
+
+test("cuentaDe: tres pagos de 0.10 cuadran la cuenta exacta", () => {
+  // En coma flotante 0.10 + 0.10 + 0.10 da 0.30000000000000004, así que
+  // `falta` salía negativa-cero-no y la cuenta nunca se cerraba.
+  const c = cuentaDe("0.30", [{ monto: "0.10" }, { monto: "0.10" }, { monto: "0.10" }]);
+  assert.equal(c.centimos.pagado, 30);
+  assert.equal(c.falta, 0);
+  assert.equal(c.centimos.falta, 0);
+});
+
+test("cuentaDe: los céntimos no arrastran al sumar varias acciones", () => {
+  const acciones = Array.from({ length: 10 }, () => cuentaDe("0.07", []));
+  const enCentimos = acciones.reduce((s, c) => s + c.centimos.costando, 0);
+  assert.equal(enCentimos, 70);
+  assert.equal(enCentimos / 100, 0.7);
 });
 
 test("cuentaDe: pagado exacto deja el saldo en cero", () => {
