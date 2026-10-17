@@ -408,10 +408,7 @@ export function Mapa({
       <section className="bg-muted/40 rounded-lg p-4">
         <h2 className="font-display text-lg">Qué toca ahora</h2>
         {nadaEnElCamino ? (
-          <div className="mt-2 space-y-3">
-            <p className="text-muted-foreground text-sm">Todavía no hay nada con fecha.</p>
-            {faltaPlan && <EmpezarPlan />}
-          </div>
+          <p className="text-muted-foreground mt-2 text-sm">Todavía no hay nada con fecha.</p>
         ) : banda.length === 0 ? (
           <p className="text-muted-foreground mt-2 text-sm">
             {motivoBandaVacia(lista) === "todo_hecho"
@@ -439,6 +436,14 @@ export function Mapa({
                 y {candidatas.length - banda.length} más abajo
               </p>
             )}
+          </div>
+        )}
+        {/* Fuera del ternario: la plantilla se ofrece mientras falte alguna
+            meta del plan, haya o no cosas en el camino (docs/plantillas.md §8).
+            Dentro de la banda para no alterar el orden de §5.2. */}
+        {faltaPlan && (
+          <div className="mt-3">
+            <EmpezarPlan />
           </div>
         )}
       </section>

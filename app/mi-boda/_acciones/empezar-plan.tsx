@@ -38,6 +38,9 @@ export function EmpezarPlan({ variante = "outline" }: { variante?: "outline" | "
     <div className="space-y-1">
       <Button
         variant={variante}
+        // Destino táctil de 44 px sin cambiar el dibujo de 32: el pseudo-elemento
+        // suma 6 px arriba y abajo, como el círculo de estado de la banda.
+        className="relative before:absolute before:inset-x-0 before:-inset-y-[6px]"
         disabled={enviando}
         onClick={() =>
           iniciar(async () => {
