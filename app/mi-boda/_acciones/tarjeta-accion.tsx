@@ -3,21 +3,12 @@
 import { useState } from "react";
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { Check, Clock, Coins, Diamond, MoreHorizontal, Pencil, Trash2, Wallet } from "lucide-react";
+import { Check, Clock, Coins, Diamond } from "lucide-react";
 import type { Estado } from "./acciones-servidor";
-import type { Accion, Pago } from "@/db/schema";
+import type { Accion, Dependencia, Pago } from "@/db/schema";
 import { AvatarPersona } from "@/components/avatar-persona";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { cuentaDe, etiquetaDeDinero } from "@/lib/pagos";
-import { EditarAccion } from "./formulario-accion";
-import { PagosAccion } from "./pagos-accion";
+import { MenuAccion } from "./menu-accion";
 import {
   ESTADOS,
   REQUIERE,
@@ -45,6 +36,7 @@ export function TarjetaAccion({
   pagos = [],
   otras = [],
   metas = [],
+  dependencias = [],
   requiere,
   titulos,
   destinos = [],
@@ -60,6 +52,8 @@ export function TarjetaAccion({
   pagos?: Pago[];
   otras?: Accion[];
   metas?: MetaLite[];
+  /** Todas las de la boda: el diálogo del orden necesita el grafo entero. */
+  dependencias?: Dependencia[];
   requiere?: Set<string>;
   titulos?: Map<string, string>;
   /** Los carriles y las ideas sueltas: a dónde se puede mandar esta tarjeta. */
@@ -80,9 +74,8 @@ export function TarjetaAccion({
     id: accion.id,
     disabled: !arrastrable,
   });
-  const [editando, setEditando] = useState(false);
-  const [viendoPagos, setViendoPagos] = useState(false);
 
+  const [viendoPagos, setViendoPagos] = useState(false);
   const hecha = accion.estado === "hecho";
   const haciendo = accion.estado === "haciendo";
   const { pagado, falta, sinTotal } = cuentaDe(accion.monto, pagos);
@@ -90,7 +83,6 @@ export function TarjetaAccion({
   // todavía no se sepa el total (docs/pagos.md §3.4). El texto decide
   // también si se dibuja la 💰: null es "no hay nada que decir".
   const dinero = etiquetaDeDinero(accion, pagos);
-  const otros = destinos.filter((d) => d.id !== destinoActual);
   const conMenu = arrastrable && Boolean(onMover || onBorrar);
   const meta = accion.metaId ? metas.find((m) => m.id === accion.metaId) : undefined;
 
@@ -138,56 +130,22 @@ export function TarjetaAccion({
         </p>
 
         {conMenu && (
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              onPointerDown={(e) => e.stopPropagation()}
-              aria-label="Opciones"
-              className="text-muted-foreground/50 hover:text-foreground focus-visible:text-foreground focus-visible:ring-ring -mt-0.5 -mr-1 cursor-pointer rounded p-0.5 outline-none focus-visible:ring-2"
-            >
-              <MoreHorizontal className="size-4" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onSelect={() => setEditando(true)}>
-                <Pencil /> Cambiar
-              </DropdownMenuItem>
-              {/* Siempre: es la única puerta para empezar a pagar algo cuyo
-                  total todavía no se sabe (docs/pagos.md §3.4). */}
-              <DropdownMenuItem onSelect={() => setViendoPagos(true)}>
-                <Wallet /> Pagos
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel>Estado</DropdownMenuLabel>
-              {ESTADOS.filter((e) => e.id !== accion.estado).map((e) => (
-                <DropdownMenuItem
-                  key={e.id}
-                  onSelect={() => onAlternar?.(accion.id, e.id)}
-                >
-                  {e.nombre}
-                </DropdownMenuItem>
-              ))}
-              {otros.length > 0 && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuLabel>Mover a</DropdownMenuLabel>
-                </>
-              )}
-              {otros.map((d) => (
-                <DropdownMenuItem
-                  key={d.id}
-                  onSelect={() => onMover?.(accion.id, d.id)}
-                >
-                  {d.nombre}
-                </DropdownMenuItem>
-              ))}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                variant="destructive"
-                onSelect={() => onBorrar?.(accion.id)}
-              >
-                <Trash2 /> Borrar
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <MenuAccion
+            accion={accion}
+            miembros={miembros}
+            pagos={pagos}
+            otras={otras}
+            metas={metas}
+            dependencias={dependencias}
+            destinos={destinos}
+            destinoActual={destinoActual}
+            onAlternar={onAlternar}
+            onMover={onMover}
+            onBorrar={onBorrar}
+            pagosAbiertos={viendoPagos}
+            onPagosAbiertosChange={setViendoPagos}
+            className="-mt-0.5 -mr-1 p-0.5"
+          />
         )}
       </div>
 
@@ -239,9 +197,6 @@ export function TarjetaAccion({
         </div>
       )}
 
-      {/* Fuera del menú: dentro se desmontaría al cerrarse el menú. Se monta
-          solo mientras está abierto para que los campos partan del valor
-          guardado cada vez. */}
       {requiere && requiere.size > 0 && titulos && (
         <p className="text-muted-foreground mt-2 pl-6 text-xs">
           {REQUIERE}{" "}
@@ -252,26 +207,6 @@ export function TarjetaAccion({
         </p>
       )}
 
-      {conMenu && editando && (
-        <EditarAccion
-          accion={accion}
-          miembros={miembros}
-          metas={metas}
-          otras={otras}
-          requiere={requiere ?? new Set()}
-          abierto={editando}
-          onAbiertoChange={setEditando}
-        />
-      )}
-      {conMenu && viendoPagos && (
-        <PagosAccion
-          accion={accion}
-          pagos={pagos}
-          miembros={miembros}
-          abierto={viendoPagos}
-          onAbiertoChange={setViendoPagos}
-        />
-      )}
     </div>
   );
 }

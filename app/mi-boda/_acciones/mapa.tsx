@@ -105,8 +105,6 @@ function LineaBanda({
   miembro,
   miembros,
   metas,
-  otras,
-  requiere,
   semanasHastaLaBoda,
   onAlternar,
 }: {
@@ -115,8 +113,6 @@ function LineaBanda({
   miembro?: Miembro;
   miembros: Miembro[];
   metas: MetaLite[];
-  otras: Accion[];
-  requiere: Set<string>;
   semanasHastaLaBoda: number | null;
   onAlternar: (id: string, estado: Estado) => void;
 }) {
@@ -166,8 +162,6 @@ function LineaBanda({
           accion={accion}
           miembros={miembros}
           metas={metas}
-          otras={otras}
-          requiere={requiere}
           abierto={editando}
           onAbiertoChange={setEditando}
         />
@@ -346,6 +340,7 @@ export function Mapa({
         otras={lista.filter((o) => o.id !== a.id)}
         metas={metas}
         requiere={requiereDe.get(a.id)}
+        dependencias={dependencias}
         titulos={titulos}
         destinos={destinos}
         destinoActual={destinoActual}
@@ -425,8 +420,6 @@ export function Mapa({
                 miembro={a.responsableId ? porId.get(a.responsableId) : undefined}
                 miembros={miembros}
                 metas={metas}
-                otras={lista.filter((o) => o.id !== a.id)}
-                requiere={requiereDe.get(a.id) ?? new Set()}
                 semanasHastaLaBoda={semanasHastaLaBoda}
                 onAlternar={alAlternar}
               />

@@ -134,6 +134,8 @@ pantallas no puedan divergir.
 Todo cálculo de orden, fechas, totales o dependencias vive en `lib/` como
 función pura y se prueba con `node:test`. No metas ese cálculo en un componente.
 
+- `lib/dependencias.ts` — el orden entre acciones: candidatas por meta, las
+  que harían círculo, y la detección de ciclos (`docs/dependencias.md`).
 - `lib/metas.ts` — orden topológico de dependencias, cadena principal, "lista
   para empezar", resumen de meta, orden derivado de metas, plantillas
   (`PLAN_COMPLETO`, que compone `REGISTRO_CIVIL`; ver `docs/plantillas.md`).
@@ -175,7 +177,20 @@ La meta es el **único** agrupador en las dos pantallas.
   arrastre, obligatoria para teclado y táctil, y la vía principal en el celular.
 - **Camino** (`/mi-boda/camino`, `camino.tsx`) — Gantt agrupado por meta, sin
   selector (`?por=` se ignora), con flechas de dependencia, cadena principal
-  resaltada, choques en rojo y hitos como rombo.
+  resaltada, choques en rojo y hitos como rombo. **También se edita**: cada
+  fila lleva el mismo menú ⋯ que la tarjeta del Mapa (`menu-accion.tsx`), sin
+  "Mover a" porque el carril es la meta.
+
+El orden entre acciones se arma en su propio diálogo, no al fondo del
+formulario, y se abre desde las dos pantallas (`docs/dependencias.md`). Las dos
+direcciones —"qué va antes" y "qué espera a esto"— se guardan juntas en una
+sola escritura, y el círculo se rechaza sobre el grafo entero: editar los dos
+sentidos a la vez puede cerrarlo por fuera de la acción que se está tocando.
+
+Toda escritura de `acciones-servidor.ts` revalida con `revalidarBoda()`, que
+pasa `type: "layout"`. `revalidatePath("/mi-boda")` invalida **solo** esa
+página, así que dejaba `/mi-boda/camino` con datos viejos en cuanto el Camino
+pudo escribir.
 
 ### Demo
 

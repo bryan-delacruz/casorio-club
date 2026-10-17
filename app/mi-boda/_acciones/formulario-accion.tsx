@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition, type Dispatch, type ReactNode, type SetStateAction } from "react";
+import { useRef, useState, useTransition, type ReactNode } from "react";
 import { Info, Plus } from "lucide-react";
 import { toast } from "sonner";
 import type { Accion } from "@/db/schema";
@@ -36,10 +36,8 @@ import {
   crearAccion,
   crearMeta,
   editarAccion,
-  guardarDependencias,
 } from "./acciones-servidor";
-import { Checkbox } from "@/components/ui/checkbox";
-import { SIN_META, type MetaLite, type Miembro } from "./tipos";
+import { DIALOGO, PIE, SIN_META, type MetaLite, type Miembro } from "./tipos";
 
 /**
  * Cuándo cae la acción respecto de la boda. No se guarda en ninguna parte: es
@@ -108,15 +106,6 @@ export const cuandoDe = (semanas: number | null | undefined): Cuando | null =>
 
 const SIN_RESPONSABLE = "sin-responsable";
 const NUEVA_META = "nueva-meta";
-
-/**
- * Más ancho que el diálogo por defecto: los campos cortos van de a dos y el
- * formulario no se estira hacia abajo. La altura máxima y el scroll los pone
- * el propio DialogContent; el pie queda pegado abajo para que "Guardar" esté
- * siempre a la vista, aunque la lista de dependencias sea larga.
- */
-const DIALOGO = "sm:max-w-lg";
-const PIE = "bg-popover sticky -bottom-4 -mx-4 mt-6 border-t px-4 pt-3 pb-4";
 
 /**
  * Un solo formulario para anotar y para corregir.
@@ -569,88 +558,6 @@ export function NuevaAccion({
 }
 
 /**
- * De qué depende esta acción.
- *
- * Marcas todas las que quieras y se guardan con el resto al dar a Guardar.
- * Antes cada casilla iba sola al servidor y elegir cinco eran cinco esperas.
- */
-function Necesita({
-  otras,
-  marcadas,
-  setMarcadas,
-}: {
-  otras: Accion[];
-  marcadas: Set<string>;
-  setMarcadas: Dispatch<SetStateAction<Set<string>>>;
-}) {
-  const [filtro, setFiltro] = useState("");
-
-  if (otras.length === 0) return null;
-
-  const texto = filtro.trim().toLowerCase();
-  const vistas = texto
-    ? otras.filter((o) => o.titulo.toLowerCase().includes(texto))
-    : otras;
-
-  // Con la forma de función y no `new Set(marcadas)`: marcar varias seguidas
-  // leía el conjunto de antes y solo se quedaba la última.
-  function alternar(id: string) {
-    setMarcadas((antes) => {
-      const copia = new Set(antes);
-      if (copia.has(id)) copia.delete(id);
-      else copia.add(id);
-      return copia;
-    });
-  }
-
-  return (
-    <div className="mt-4 space-y-2">
-      <div className="flex items-baseline justify-between gap-3">
-        <Label>Qué tiene que estar listo antes</Label>
-        {marcadas.size > 0 && (
-          <button
-            type="button"
-            onClick={() => setMarcadas(new Set())}
-            className="text-muted-foreground hover:text-foreground cursor-pointer text-xs"
-          >
-            Quitar {marcadas.size}
-          </button>
-        )}
-      </div>
-
-      {/* El buscador aparece cuando la lista ya no se abarca de un vistazo. */}
-      {otras.length > 6 && (
-        <Input
-          value={filtro}
-          onChange={(e) => setFiltro(e.target.value)}
-          placeholder="Buscar entre las demás"
-          className="h-8"
-        />
-      )}
-
-      {/* relative: el Checkbox de Radix deja un <input> oculto absolute junto a
-          la casilla. Sin un contenedor posicionado, ese input se ubica respecto
-          del diálogo, escapa de esta lista con scroll y estira el diálogo. */}
-      <div className="border-border relative max-h-40 overflow-y-auto rounded-md border">
-        {vistas.length === 0 ? (
-          <p className="text-muted-foreground px-3 py-2 text-sm">Ninguna se llama así.</p>
-        ) : (
-          vistas.map((o) => (
-            <label
-              key={o.id}
-              className="hover:bg-muted/50 flex cursor-pointer items-center gap-2.5 px-3 py-2 text-sm"
-            >
-              <Checkbox checked={marcadas.has(o.id)} onCheckedChange={() => alternar(o.id)} />
-              <span className="min-w-0 flex-1 truncate">{o.titulo}</span>
-            </label>
-          ))
-        )}
-      </div>
-    </div>
-  );
-}
-
-/**
  * Editar. Va controlado desde fuera porque lo abre el menú de la tarjeta, y
  * un diálogo dentro de un menú se desmonta cuando el menú se cierra.
  */
@@ -658,16 +565,12 @@ export function EditarAccion({
   accion,
   miembros,
   metas = [],
-  otras,
-  requiere,
   abierto,
   onAbiertoChange,
 }: {
   accion: Accion;
   miembros: Miembro[];
   metas?: MetaLite[];
-  otras: Accion[];
-  requiere: Set<string>;
   abierto: boolean;
   onAbiertoChange: (v: boolean) => void;
 }) {
@@ -676,7 +579,6 @@ export function EditarAccion({
   const [esHito, setEsHito] = useState(accion.esHito);
   const [meta, setMeta] = useState(accion.metaId ?? SIN_META);
   const [cuando, setCuando] = useState(cuandoDe(accion.inicioSemanas));
-  const [marcadas, setMarcadas] = useState(() => new Set(requiere));
   const [enviando, iniciar] = useTransition();
 
   function enviar(form: FormData) {
@@ -685,15 +587,10 @@ export function EditarAccion({
     iniciar(async () => {
       try {
         await guardarConMeta(meta, form, (metaId) => editarAccion(accion.id, { ...datos, metaId }));
-        await guardarDependencias(accion.id, [...marcadas]);
         onAbiertoChange(false);
         toast.success("Guardado.");
       } catch (e) {
-        toast.error(
-          e instanceof Error && e.message === "Eso haría un círculo"
-            ? "Alguna de esas ya te espera a ti. Lo demás quedó guardado."
-            : mensajeDe(e, "No se pudo guardar. Intenta otra vez."),
-        );
+        toast.error(mensajeDe(e, "No se pudo guardar. Intenta otra vez."));
       }
     });
   }
@@ -723,8 +620,6 @@ export function EditarAccion({
             esHito={esHito}
             setEsHito={setEsHito}
           />
-
-          <Necesita otras={otras} marcadas={marcadas} setMarcadas={setMarcadas} />
 
           <DialogFooter className={PIE}>
             <Button type="submit" disabled={enviando}>

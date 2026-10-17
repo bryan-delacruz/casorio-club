@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, or, sql } from "drizzle-orm";
 import { auth } from "@clerk/nextjs/server";
 import { getDb } from "@/db";
 import { acciones, bodas, dependencias, metas, pagos } from "@/db/schema";
@@ -13,6 +13,7 @@ import {
   semanaPorDefecto,
   semanasHastaLaBoda,
 } from "@/lib/metas";
+import { conNuevas, tieneCiclo } from "@/lib/dependencias";
 import { partes, puestosSiExcede } from "@/lib/pagos";
 import { listarMiembros } from "./datos";
 import { IDEAS, SIN_META, type Destino } from "./tipos";
@@ -32,12 +33,25 @@ async function bodaActiva() {
 export type Estado = "por_hacer" | "haciendo" | "hecho";
 
 /**
+ * Refresca las dos pantallas y la cabecera.
+ *
+ * El tipo `layout` y no la ruta sola: `revalidatePath("/mi-boda")` invalida
+ * **solo** esa página, así que una escritura hecha desde `/mi-boda/camino`
+ * dejaba el Camino con datos viejos hasta recargar a mano. Se veía al editar
+ * el orden desde ahí (docs/dependencias.md §9.1). Las dos pantallas leen la
+ * misma tabla, así que toda escritura las afecta a las dos, y la cuenta
+ * regresiva vive en el layout.
+ */
+function revalidarBoda() {
+  revalidatePath("/mi-boda", "layout");
+}
+
+/**
  * Pone o quita el día de la boda (docs/fecha-de-la-boda.md §4.4).
  *
  * Devuelve cuántas acciones quedaron en una semana que ya pasó para que el
  * aviso lo cuente, pero no mueve ninguna: las semanas son relativas y las puso
- * la pareja a mano. Se revalida el layout entero porque la cuenta regresiva
- * vive en la cabecera y se ve en todas las rutas de /mi-boda.
+ * la pareja a mano.
  */
 export async function guardarFechaBoda(
   fecha: string | null,
@@ -57,7 +71,7 @@ export async function guardarFechaBoda(
     });
 
   const suyas = await getDb().select().from(acciones).where(eq(acciones.bodaId, bodaId));
-  revalidatePath("/mi-boda", "layout");
+  revalidarBoda();
   return { yaPasaron: cuantasYaPasaron(suyas, semanasHastaLaBoda(limpia)) };
 }
 
@@ -70,65 +84,68 @@ function esFechaValida(fecha: string) {
 }
 
 /**
- * Deja las dependencias de una acción exactamente en esta lista.
+ * Deja el orden de una acción exactamente en lo elegido, en los dos sentidos
+ * (docs/dependencias.md §8).
  *
- * Se guarda el conjunto entero y no una a una porque así se elige todo de
- * golpe y se manda una sola vez. Rechaza el círculo: si alguna de las nuevas
- * ya depende de esta, directa o por una cadena, las dos se quedarían
- * esperándose para siempre.
+ * - `antes`: lo que esta acción requiere.
+ * - `despues`: lo que requiere a esta acción.
+ *
+ * Una sola escritura y no dos encadenadas: el diálogo elige las dos listas de
+ * golpe, y partirlo dejaría media edición guardada cuando la otra mitad
+ * cierra un círculo.
+ *
+ * Rechaza el círculo sobre el grafo **resultante completo**, no solo sobre lo
+ * que pasa por esta acción: marcar en las dos listas a la vez puede cerrarlo
+ * por un camino que sale de aquí y vuelve por otras acciones (§6).
  */
-export async function guardarDependencias(accionId: string, requiere: string[]) {
+export async function guardarDependenciasDe(
+  accionId: string,
+  antes: string[],
+  despues: string[],
+): Promise<{ error?: string }> {
   const { bodaId } = await bodaActiva();
-  const pedidas = [...new Set(requiere)].filter((id) => id !== accionId);
+  const pedidas = [...new Set([...antes, ...despues])].filter((id) => id !== accionId);
 
+  // Solo acciones de esta boda, la propia incluida: un id de otra boda se
+  // descarta en silencio, y uno inventado no escribe nada.
   const suyas = await getDb()
     .select({ id: acciones.id })
     .from(acciones)
-    .where(
-      and(
-        eq(acciones.bodaId, bodaId),
-        inArray(acciones.id, [accionId, ...pedidas]),
-      ),
-    );
+    .where(and(eq(acciones.bodaId, bodaId), inArray(acciones.id, [accionId, ...pedidas])));
   const validas = new Set(suyas.map((a) => a.id));
-  if (!validas.has(accionId)) throw new Error("Esa acción no es de esta boda");
-  const limpias = pedidas.filter((id) => validas.has(id));
+  if (!validas.has(accionId)) return { error: "Esa cosa no es de esta boda." };
+
+  const limpias = (lista: string[]) =>
+    [...new Set(lista)].filter((id) => id !== accionId && validas.has(id));
+  const nuevoAntes = limpias(antes);
+  const nuevoDespues = limpias(despues);
 
   const todas = await getDb()
-    .select()
+    .select({ accionId: dependencias.accionId, requiereId: dependencias.requiereId })
     .from(dependencias)
     .where(eq(dependencias.bodaId, bodaId));
 
-  // El grafo sin las de esta acción, más las que se piden ahora.
-  const porQuien = new Map<string, string[]>();
-  for (const d of todas) {
-    if (d.accionId === accionId) continue;
-    porQuien.set(d.accionId, [...(porQuien.get(d.accionId) ?? []), d.requiereId]);
+  if (tieneCiclo(conNuevas(accionId, nuevoAntes, nuevoDespues, todas))) {
+    return { error: "Ese orden se muerde la cola. Revisa lo que marcaste." };
   }
 
-  // ¿Se llega desde alguna de las nuevas de vuelta a esta acción?
-  const vistos = new Set<string>();
-  const pila = [...limpias];
-  while (pila.length) {
-    const actual = pila.pop()!;
-    if (actual === accionId) throw new Error("Eso haría un círculo");
-    if (vistos.has(actual)) continue;
-    vistos.add(actual);
-    pila.push(...(porQuien.get(actual) ?? []));
-  }
-
-  await getDb()
+  const db = getDb();
+  await db
     .delete(dependencias)
     .where(
-      and(eq(dependencias.bodaId, bodaId), eq(dependencias.accionId, accionId)),
+      and(
+        eq(dependencias.bodaId, bodaId),
+        or(eq(dependencias.accionId, accionId), eq(dependencias.requiereId, accionId)),
+      ),
     );
-  if (limpias.length > 0) {
-    await getDb()
-      .insert(dependencias)
-      .values(limpias.map((requiereId) => ({ bodaId, accionId, requiereId })));
-  }
+  const filas = [
+    ...nuevoAntes.map((requiereId) => ({ bodaId, accionId, requiereId })),
+    ...nuevoDespues.map((otra) => ({ bodaId, accionId: otra, requiereId: accionId })),
+  ];
+  if (filas.length > 0) await db.insert(dependencias).values(filas);
 
-  revalidatePath("/mi-boda");
+  revalidarBoda();
+  return {};
 }
 
 /**
@@ -176,7 +193,7 @@ export async function registrarPago(datos: {
     nota: datos.nota,
   });
 
-  revalidatePath("/mi-boda");
+  revalidarBoda();
   return {};
 }
 
@@ -241,7 +258,7 @@ export async function registrarPagoRepartido(
       })),
     );
 
-  revalidatePath("/mi-boda");
+  revalidarBoda();
   return {};
 }
 
@@ -250,7 +267,7 @@ export async function borrarPago(id: string) {
   await getDb()
     .delete(pagos)
     .where(and(eq(pagos.id, id), eq(pagos.bodaId, bodaId)));
-  revalidatePath("/mi-boda");
+  revalidarBoda();
 }
 
 export async function crearAccion(datos: {
@@ -290,7 +307,7 @@ export async function crearAccion(datos: {
     orden: siguiente,
   });
 
-  revalidatePath("/mi-boda");
+  revalidarBoda();
 }
 
 /**
@@ -332,7 +349,7 @@ export async function editarAccion(
     })
     .where(and(eq(acciones.id, id), eq(acciones.bodaId, bodaId)));
 
-  revalidatePath("/mi-boda");
+  revalidarBoda();
 }
 
 /**
@@ -366,7 +383,7 @@ export async function ponerTotal(
     .where(and(eq(pagos.accionId, accionId), eq(pagos.bodaId, bodaId)));
   const puestos = puestosSiExcede(valor.toFixed(2), pagosDeLaAccion);
 
-  revalidatePath("/mi-boda");
+  revalidarBoda();
   return puestos ? { puestos } : {};
 }
 
@@ -388,7 +405,7 @@ export async function ponerEnSemana(id: string, inicioSemanas: number | null) {
     .set({ inicioSemanas: semana, actualizadaEl: new Date() })
     .where(and(eq(acciones.id, id), eq(acciones.bodaId, bodaId)));
 
-  revalidatePath("/mi-boda");
+  revalidarBoda();
 }
 
 /**
@@ -424,7 +441,7 @@ export async function moverAccion(id: string, destino: Destino): Promise<{ error
       .update(acciones)
       .set({ inicioSemanas: null, actualizadaEl: new Date() })
       .where(and(eq(acciones.id, id), eq(acciones.bodaId, bodaId)));
-    revalidatePath("/mi-boda");
+    revalidarBoda();
     return {};
   }
 
@@ -454,7 +471,7 @@ export async function moverAccion(id: string, destino: Destino): Promise<{ error
     .set({ metaId, inicioSemanas: semana, actualizadaEl: new Date() })
     .where(and(eq(acciones.id, id), eq(acciones.bodaId, bodaId)));
 
-  revalidatePath("/mi-boda");
+  revalidarBoda();
   return {};
 }
 
@@ -464,7 +481,7 @@ export async function cambiarEstado(id: string, estado: Estado) {
     .update(acciones)
     .set({ estado, actualizadaEl: new Date() })
     .where(and(eq(acciones.id, id), eq(acciones.bodaId, bodaId)));
-  revalidatePath("/mi-boda");
+  revalidarBoda();
 }
 
 export async function borrarAccion(id: string) {
@@ -472,7 +489,7 @@ export async function borrarAccion(id: string) {
   await getDb()
     .delete(acciones)
     .where(and(eq(acciones.id, id), eq(acciones.bodaId, bodaId)));
-  revalidatePath("/mi-boda");
+  revalidarBoda();
 }
 
 // ---------------------------------------------------------------------------
@@ -515,7 +532,7 @@ export async function crearMeta(titulo: string): Promise<{ id?: string; error?: 
       .insert(metas)
       .values({ bodaId, titulo: limpio, orden: siguiente })
       .returning({ id: metas.id });
-    revalidatePath("/mi-boda");
+    revalidarBoda();
     return { id: meta.id };
   } catch (e) {
     if (esDuplicado(e)) return { error: `Ya tienen una meta llamada "${limpio}".` };
@@ -536,7 +553,7 @@ export async function renombrarMeta(id: string, titulo: string): Promise<{ error
     if (esDuplicado(e)) return { error: `Ya tienen una meta llamada "${limpio}".` };
     throw e;
   }
-  revalidatePath("/mi-boda");
+  revalidarBoda();
   return {};
 }
 
@@ -544,7 +561,7 @@ export async function renombrarMeta(id: string, titulo: string): Promise<{ error
 export async function borrarMeta(id: string) {
   const { bodaId } = await bodaActiva();
   await getDb().delete(metas).where(and(eq(metas.id, id), eq(metas.bodaId, bodaId)));
-  revalidatePath("/mi-boda");
+  revalidarBoda();
 }
 
 /**
@@ -666,7 +683,7 @@ export async function empezarPlan(): Promise<{
     })),
   ];
 
-  revalidatePath("/mi-boda");
+  revalidarBoda();
   return {
     resumen: plan.resumen,
     yaPasaron: cuantasYaPasaron(

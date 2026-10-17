@@ -3,10 +3,9 @@
 > **Spec (SDD).** Este documento manda sobre el código de las metas, los días
 > clave y el camino: si algo cambia, primero se actualiza aquí.
 >
-> **Estado:** §1–§10 y §14–§15, **aprobadas e implementadas**. §11 (un solo
-> enfoque entendible: "hito" pasa a **día clave** en pantalla y el orden entre
-> metas se deriva) y §13, su orden de implementación, **aprobadas, pendientes de
-> implementar**.
+> **Estado:** aprobada e implementada. El orden entre acciones —cómo se arma y
+> dónde se edita— se mudó a `docs/dependencias.md`, que manda sobre eso y
+> corrige dos renglones de §14.
 >
 > **Glosario.** En el código, en la base y en esta spec la marca se llama
 > **hito** (`es_hito`, `proximoHito`, `tira-hito.tsx`, `docs/metas.md`). En
@@ -457,6 +456,8 @@ siguiente, que es la verdad incómoda que hay que ver.
   duracion })`, con su opción ya marcada. Desde "Sin meta" llega sin meta. Desde
   el botón **Anotar** del celular y desde la bandeja de ideas llega vacío.
 - Este campo es **el único sitio donde se escribe la semana a mano**.
+- **No** lleva la lista de dependencias: el orden tiene su propio diálogo
+  (`docs/dependencias.md` §4), alcanzable desde el menú ⋯ de las dos pantallas.
 - El diálogo nunca supera la pantalla, las acciones de servidor devuelven
   `{ error }` en vez de lanzar, y si guardar falla después de crear una meta
   nueva, esa meta se borra.
@@ -812,7 +813,9 @@ abierto por toque y por teclado; más las cinco mediciones de §11.6.
   boda mueve todo con ella, que es lo que pasa de verdad.
 - **Duraciones en días**, y etapas con inicio y fin propios.
 - **Reordenar a mano** dentro de un carril o de un grupo.
-- **Editar dependencias arrastrando** en el Mapa.
+- **Editar dependencias arrastrando**, en el Mapa o entre barras del Camino.
+  Editarlas **sí** se puede, con la lista de `docs/dependencias.md`; lo que
+  queda fuera es la vía del arrastre.
 - **Validar o avisar si un título se escribe en infinitivo.** La pareja nombra sus
   acciones como quiera; solo se arreglan los nombres de la plantilla.
 - **Cualquier segunda agrupación**: por día clave, por responsable, por estado,
@@ -831,7 +834,9 @@ abierto por toque y por teclado; más las cinco mediciones de §11.6.
 - **Celebrar el cierre** con confeti, insignia o cambio de color. La tira de
   cierre es una línea sobria. Si se quiere celebrar, es materia de
   `docs/compartir.md`.
-- **Un botón de anotar en el Camino.** El Camino se mira.
+- **Un botón de anotar en el Camino.** Se anota en el Mapa. El Camino sí se
+  edita: tiene menú ⋯ por fila (`docs/dependencias.md` §9.1), pero no crea
+  acciones nuevas.
 - **Juntar el Mapa y el Camino** o renombrar las vistas.
 - **El contrato de Bernie.** Intacto.
 
