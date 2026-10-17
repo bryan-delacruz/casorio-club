@@ -20,7 +20,7 @@ export type AccionCamino = {
  * Una acción que ya está en el camino: tiene semana puesta.
  *
  * El tipo existe para que el compilador atrape la idea suelta en vez de
- * confiar en que cada llamador filtró antes (docs/metas.md §2.2): `inicioDe`,
+ * confiar en que cada llamador filtró antes (docs/metas.md §2): `inicioDe`,
  * `finDe` y `etapas` solo aceptan esto, y el filtro se hace una vez, en el
  * borde, con `enCamino`.
  */
@@ -218,6 +218,77 @@ export function resumenMeta(
     fin: conSemanas.length ? Math.min(...conSemanas.map(finDe)) : null,
     monto: acciones.reduce((s, a) => s + cuentaDe(a.monto, pagos.get(a.id) ?? []).costando, 0),
   };
+}
+
+// ---------------------------------------------------------------------------
+// El orden de las metas, derivado (docs/metas.md §11.3)
+// ---------------------------------------------------------------------------
+
+/** Lo mínimo para ordenar una meta: su id y los dos desempates de la fila. */
+export type MetaOrdenable = { id: string; orden: number; creadaEl: Date | string | number };
+
+const enMs = (f: Date | string | number) => (f instanceof Date ? f.getTime() : new Date(f).getTime());
+
+/**
+ * El orden de los carriles del Mapa (§7) y de los grupos del Camino (§5).
+ *
+ * Se deriva de las acciones y no se guarda: una precedencia propia de la meta
+ * sería una segunda fuente de verdad capaz de contradecir las semanas de sus
+ * acciones, que es el error que costó retirar `momento` (§2). Manda la semana
+ * de inicio más temprana de sus acciones —más semanas es más lejos de la
+ * boda—, y `metas.orden` queda solo como desempate.
+ *
+ * Las ideas sueltas no tienen semana, así que no cuentan: una meta que solo
+ * las tiene va al final junto a la que no tiene ninguna acción.
+ */
+export function ordenarMetas<T extends MetaOrdenable>(metas: T[], acciones: AccionCamino[]): T[] {
+  const masTemprana = new Map<string, number>();
+  for (const a of enCamino(acciones)) {
+    if (!a.metaId) continue;
+    const previa = masTemprana.get(a.metaId);
+    if (previa === undefined || inicioDe(a) > previa) masTemprana.set(a.metaId, inicioDe(a));
+  }
+  return [...metas].sort((a, b) => {
+    const sa = masTemprana.get(a.id);
+    const sb = masTemprana.get(b.id);
+    if (sa !== sb) {
+      if (sa === undefined) return 1;
+      if (sb === undefined) return -1;
+      return sb - sa;
+    }
+    return a.orden - b.orden || enMs(a.creadaEl) - enMs(b.creadaEl);
+  });
+}
+
+/**
+ * A quién espera esta meta: las metas de las acciones que las suyas
+ * requieren. Alimenta la línea "↳ después de …" de la barra resumen (§11.3).
+ *
+ * Devuelve las metas dadas, filtradas y **en el orden en que llegan**: quien
+ * llama recibe la lista ya ordenada por `ordenarMetas` (se ordena una sola vez
+ * al leerlas, en `datos.ts`), así que respetar ese orden basta para unirlas
+ * con " y ".
+ *
+ * Un requisito hacia una acción borrada o sin meta no cuenta, y tampoco el que
+ * se queda dentro de la misma meta: eso ya se dibuja como flecha. Dos metas que
+ * se esperan entre sí se nombran mutuamente: esto describe lo que la pareja
+ * encadenó, no valida una regla.
+ */
+export function metasQueEspera<T extends { id: string }>(
+  metaId: string,
+  acciones: AccionCamino[],
+  requisitos: Requisito[],
+  metas: T[],
+): T[] {
+  const metaDe = new Map(acciones.map((a) => [a.id, a.metaId]));
+  const espera = new Set<string>();
+  for (const r of requisitos) {
+    if (metaDe.get(r.accionId) !== metaId) continue;
+    const previa = metaDe.get(r.requiereId);
+    if (!previa || previa === metaId) continue;
+    espera.add(previa);
+  }
+  return metas.filter((m) => espera.has(m.id));
 }
 
 // ---------------------------------------------------------------------------

@@ -57,7 +57,10 @@ export default async function MiBodaPage() {
 
   /**
    * Los carriles del Mapa (docs/metas.md §7): una meta cada uno, en el orden
-   * que la pareja les dio, y "Sin meta" al final. Sin ninguna meta queda un
+   * derivado que ya trae `listarMetas` (ordenarMetas, §11.3), y "Sin meta" al
+   * final. Derivarlo en el servidor es además lo que evita que un carril salte
+   * bajo el dedo: el arrastre solo cambia el estado local y el orden nuevo
+   * llega con el revalidate, ya soltada la tarjeta. Sin ninguna meta queda un
    * carril único, "Todo lo anotado". Lo resuelve el servidor, que ya sabe si
    * la boda tiene metas, para que el cliente no decida la estructura.
    */

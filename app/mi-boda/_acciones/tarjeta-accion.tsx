@@ -200,7 +200,7 @@ export function TarjetaAccion({
           )}
           {accion.esHito && (
             <span className="text-muted-foreground flex items-center gap-1 text-xs">
-              <Diamond className="size-3.5" /> hito
+              <Diamond className="size-3.5" /> día clave
             </span>
           )}
           {accion.cuestaTiempo && (

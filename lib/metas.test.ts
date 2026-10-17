@@ -10,7 +10,9 @@ import {
   etapas,
   finDe,
   listasParaEmpezar,
+  metasQueEspera,
   nombreDeHitos,
+  ordenarMetas,
   ordenPorDependencia,
   ordenPorSemana,
   planPlantilla,
@@ -496,4 +498,158 @@ test("ya pasaron: solo lo del camino, sin hacer, con la semana ya vencida", () =
   assert.equal(cuantasYaPasaron(lista, 2), 3);
   // Sin fecha de boda no hay con qué comparar: no se avisa de nada.
   assert.equal(cuantasYaPasaron(lista, null), 0);
+});
+
+// ---------------------------------------------------------------------------
+// El orden de las metas, derivado (docs/metas.md §11.3)
+// ---------------------------------------------------------------------------
+
+/** Una meta con lo que hace falta para ordenarla. */
+const meta = (id: string, orden = 0, creadaEl = "2026-01-01T00:00:00Z") => ({
+  id,
+  titulo: id,
+  orden,
+  creadaEl: new Date(creadaEl),
+});
+
+test("ordenarMetas: manda la semana de inicio más temprana de sus acciones", () => {
+  const metas = [meta("ceremonia"), meta("ahorro"), meta("recepcion")];
+  const acciones = [
+    accion("a1", 30, 1, { metaId: "ahorro" }),
+    accion("a2", 10, 1, { metaId: "ahorro" }),
+    accion("c1", 12, 1, { metaId: "ceremonia" }),
+    accion("r1", 4, 1, { metaId: "recepcion" }),
+  ];
+  assert.deepEqual(
+    ordenarMetas(metas, acciones).map((m) => m.id),
+    ["ahorro", "ceremonia", "recepcion"],
+  );
+});
+
+test("ordenarMetas: la meta sin acciones y la que solo tiene ideas sueltas van al final", () => {
+  const metas = [meta("vacia"), meta("soloIdeas"), meta("conCamino")];
+  const acciones = [
+    accion("c1", 8, 1, { metaId: "conCamino" }),
+    idea("i1", { metaId: "soloIdeas" }),
+    idea("i2", { metaId: "soloIdeas" }),
+  ];
+  const orden = ordenarMetas(metas, acciones).map((m) => m.id);
+  assert.equal(orden[0], "conCamino");
+  assert.deepEqual(orden.slice(1).sort(), ["soloIdeas", "vacia"]);
+});
+
+test("ordenarMetas: las ideas sueltas no cuentan para la semana de su meta", () => {
+  const metas = [meta("papeleo"), meta("fiesta")];
+  // La idea suelta de "fiesta" no la adelanta: solo cuenta su acción en el camino.
+  const acciones = [
+    accion("p1", 20, 1, { metaId: "papeleo" }),
+    idea("f0", { metaId: "fiesta" }),
+    accion("f1", 6, 1, { metaId: "fiesta" }),
+  ];
+  assert.deepEqual(
+    ordenarMetas(metas, acciones).map((m) => m.id),
+    ["papeleo", "fiesta"],
+  );
+});
+
+test("ordenarMetas: a igualdad desempata por orden y luego por creadaEl", () => {
+  const metas = [
+    meta("tercera", 5, "2026-01-01T00:00:00Z"),
+    meta("segunda", 1, "2026-03-01T00:00:00Z"),
+    meta("primera", 1, "2026-02-01T00:00:00Z"),
+  ];
+  const acciones = metas.map((m, i) => accion(`a${i}`, 9, 1, { metaId: m.id }));
+  assert.deepEqual(
+    ordenarMetas(metas, acciones).map((m) => m.id),
+    ["primera", "segunda", "tercera"],
+  );
+  // Sin acciones todas empatan en "al final", y el desempate es el mismo.
+  assert.deepEqual(
+    ordenarMetas(metas, []).map((m) => m.id),
+    ["primera", "segunda", "tercera"],
+  );
+});
+
+test("ordenarMetas: no muta la lista que recibe", () => {
+  const metas = [meta("b"), meta("a")];
+  const acciones = [accion("a1", 30, 1, { metaId: "a" })];
+  ordenarMetas(metas, acciones);
+  assert.deepEqual(metas.map((m) => m.id), ["b", "a"]);
+});
+
+test("metasQueEspera: nombra las metas de lo que sus acciones requieren", () => {
+  const metas = [meta("ahorro"), meta("registro"), meta("recepcion")];
+  const acciones = [
+    accion("a1", 30, 1, { metaId: "ahorro" }),
+    accion("r1", 12, 1, { metaId: "registro" }),
+    accion("f1", 4, 1, { metaId: "recepcion" }),
+  ];
+  const deps: Requisito[] = [
+    { accionId: "r1", requiereId: "a1" },
+    { accionId: "f1", requiereId: "r1" },
+  ];
+  assert.deepEqual(metasQueEspera("registro", acciones, deps, metas).map((m) => m.titulo), ["ahorro"]);
+  assert.deepEqual(metasQueEspera("recepcion", acciones, deps, metas).map((m) => m.titulo), ["registro"]);
+  // Nadie la precede: no hay "↳ después de".
+  assert.deepEqual(metasQueEspera("ahorro", acciones, deps, metas), []);
+});
+
+test("metasQueEspera: dos se nombran en el orden en que llegan las metas", () => {
+  const metas = [meta("ahorro"), meta("registro"), meta("recepcion")];
+  const acciones = [
+    accion("a1", 30, 1, { metaId: "ahorro" }),
+    accion("r1", 12, 1, { metaId: "registro" }),
+    accion("f1", 4, 1, { metaId: "recepcion" }),
+  ];
+  const deps: Requisito[] = [
+    { accionId: "f1", requiereId: "r1" },
+    { accionId: "f1", requiereId: "a1" },
+  ];
+  assert.deepEqual(
+    metasQueEspera("recepcion", acciones, deps, metas).map((m) => m.titulo),
+    ["ahorro", "registro"],
+  );
+});
+
+test("metasQueEspera: no cuenta la propia meta, la acción sin meta ni la borrada", () => {
+  const metas = [meta("registro"), meta("recepcion")];
+  const acciones = [
+    accion("r1", 12, 1, { metaId: "registro" }),
+    accion("r2", 10, 1, { metaId: "registro" }),
+    accion("suelta", 20, 1, { metaId: null }),
+  ];
+  const deps: Requisito[] = [
+    // Dentro de la misma meta: ya se dibuja como flecha.
+    { accionId: "r2", requiereId: "r1" },
+    // "Sin meta" no es una fase.
+    { accionId: "r1", requiereId: "suelta" },
+    // La acción ya no existe: se ignora, igual que en queTocaAhora.
+    { accionId: "r1", requiereId: "borrada" },
+    // Quien requiere no es de esta boda/meta: no aporta nada.
+    { accionId: "fantasma", requiereId: "r1" },
+  ];
+  assert.deepEqual(metasQueEspera("registro", acciones, deps, metas), []);
+});
+
+test("metasQueEspera: un ciclo entre metas devuelve cada una a la otra, sin excepción", () => {
+  const metas = [meta("ahorro"), meta("recepcion")];
+  const acciones = [
+    accion("a1", 30, 1, { metaId: "ahorro" }),
+    accion("f1", 20, 1, { metaId: "recepcion" }),
+  ];
+  const deps: Requisito[] = [
+    { accionId: "f1", requiereId: "a1" },
+    { accionId: "a1", requiereId: "f1" },
+  ];
+  assert.deepEqual(metasQueEspera("recepcion", acciones, deps, metas).map((m) => m.id), ["ahorro"]);
+  assert.deepEqual(metasQueEspera("ahorro", acciones, deps, metas).map((m) => m.id), ["recepcion"]);
+});
+
+test("metasQueEspera: una dependencia hacia una idea suelta sí nombra su meta", () => {
+  // La precedencia existe aunque lo requerido todavía no tenga sitio: la
+  // pareja ya dijo que una fase espera a la otra.
+  const metas = [meta("ahorro"), meta("recepcion")];
+  const acciones = [idea("a0", { metaId: "ahorro" }), accion("f1", 10, 1, { metaId: "recepcion" })];
+  const deps: Requisito[] = [{ accionId: "f1", requiereId: "a0" }];
+  assert.deepEqual(metasQueEspera("recepcion", acciones, deps, metas).map((m) => m.id), ["ahorro"]);
 });

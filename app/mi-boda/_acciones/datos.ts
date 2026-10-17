@@ -5,6 +5,7 @@ import { auth, clerkClient } from "@clerk/nextjs/server";
 import { getDb } from "@/db";
 import { acciones, bodas, dependencias, gastosBernie, metas, pagos, type Pago } from "@/db/schema";
 import { integracionDisponible } from "@/lib/bernie/config";
+import { ordenarMetas } from "@/lib/metas";
 import { personaDe } from "@/lib/persona";
 
 /**
@@ -46,7 +47,7 @@ export const listarAcciones = cache(async () => {
   if (!orgId) return [];
   const bodaId = orgId;
   // Por tiempo: lo más temprano primero (más semanas = más lejos de la boda) y
-  // las ideas sueltas al final. A igualdad, por llegada (docs/metas.md §14.4).
+  // las ideas sueltas al final. A igualdad, por llegada (docs/metas.md §15, pregunta 5).
   return getDb()
     .select()
     .from(acciones)
@@ -101,12 +102,26 @@ export const listarPagos = cache(async (): Promise<Pago[]> => {
   return filas.map((p) => ({ ...p, deBernie: deBernie.has(p.id) }));
 });
 
+/**
+ * Las metas en el orden derivado de sus acciones (docs/metas.md §11.3).
+ *
+ * Se ordena aquí y no en cada pantalla porque el Mapa y el Camino tienen que
+ * coincidir siempre: si una llamara a `ordenarMetas` y la otra no, los
+ * carriles y los grupos dejarían de ir en el mismo orden. `metas.orden` sigue
+ * en el `ORDER BY` como desempate, igual que `creada_el`; lo decide la
+ * consulta y `ordenarMetas` lo respeta por ser un sort estable.
+ */
 export const listarMetas = cache(async () => {
   const { orgId } = await auth();
   if (!orgId) return [];
-  return getDb()
-    .select()
-    .from(metas)
-    .where(eq(metas.bodaId, orgId))
-    .orderBy(asc(metas.orden), asc(metas.creadaEl));
+  const [filas, lista] = await Promise.all([
+    getDb()
+      .select()
+      .from(metas)
+      .where(eq(metas.bodaId, orgId))
+      .orderBy(asc(metas.orden), asc(metas.creadaEl)),
+    // Memoizada en la misma petición: la página ya la pide.
+    listarAcciones(),
+  ]);
+  return ordenarMetas(filas, lista);
 });

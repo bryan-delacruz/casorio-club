@@ -23,23 +23,25 @@ export const TODO_LO_ANOTADO = "Todo lo anotado";
  * ninguna meta (docs/metas.md §5, §7). Compartida para que no se
  * desincronicen.
  */
-export const INVITA_META = "Agrupa lo que va junto: crea una meta.";
+export const INVITA_META =
+  "Agrupa lo que va junto en metas: ahorro, registro civil, ceremonia, recepción.";
 
 /**
  * Solo en el Mapa, y una sola vez, cuando no hay ningún hito (§5.3, §8.1).
  *
- * Nombra el ejemplo porque es el primer sitio donde la pareja se encuentra la
- * palabra: "hito" es la única del producto que no se entiende sola.
+ * Nombra el ejemplo porque es el primer sitio donde la pareja se encuentra el
+ * concepto; en pantalla se llama "día clave" para que la etiqueta ya contenga
+ * la definición y no haya que explicarla en cada aparición (§11.2).
  */
 export const INVITA_HITO =
-  "Marca como hito el día que más importa, tu ceremonia civil, y verás cuánto falta.";
+  "Marca tu día clave, la ceremonia civil, y verás cuánto falta.";
 
 /**
  * El callejón del hito que es idea suelta: la casilla está marcada, no se ve
  * nada y nadie dice que falta la semana (docs/metas.md §5.3.1). Solo en el
  * Mapa: en el Camino ese hito no está dibujado.
  */
-export const HITO_SIN_SEMANA = "Ponle una semana a tu hito y verás cuánto falta.";
+export const HITO_SIN_SEMANA = "Ponle una semana a tu día clave y verás cuánto falta.";
 
 /**
  * Cómo se nombra una dependencia que no se dibuja con flecha (docs/metas.md

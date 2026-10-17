@@ -12,6 +12,7 @@ import {
   finDe,
   inicioDe,
   listasParaEmpezar,
+  metasQueEspera,
   ordenPorDependencia,
   REGISTRO_CIVIL,
   resumenMeta,
@@ -54,6 +55,8 @@ type Grupo = {
   acciones: EnCamino[];
   /** Una línea debajo del título, cuando hay algo que explicar. */
   nota?: string;
+  /** Las metas que esta espera, derivadas de las dependencias (§11.3). */
+  despuesDe: string[];
 };
 
 export function Camino({
@@ -163,8 +166,9 @@ export function Camino({
     );
   });
 
-  // Una sola agrupación: por meta, en su orden, y lo que no tiene meta al
-  // final (docs/metas.md §5). Sin ninguna meta queda un solo grupo, con la
+  // Una sola agrupación: por meta, en el orden derivado que ya trae la lista
+  // (ordenarMetas en datos.ts, §11.3), y lo que no tiene meta al final
+  // (docs/metas.md §5). Sin ninguna meta queda un solo grupo, con la
   // invitación a crear la primera.
   const sueltasDeMeta = ordenPorDependencia(
     enCalendario.filter((a) => !a.metaId || !metas.some((m) => m.id === a.metaId)),
@@ -181,8 +185,11 @@ export function Camino({
               enCalendario.filter((a) => a.metaId === m.id),
               dependencias,
             ),
+            // Con 60 acciones y un puñado de metas esto es una pasada por las
+            // dependencias por meta: no vale precalcularlo en un mapa.
+            despuesDe: metasQueEspera(m.id, acciones, dependencias, metas).map((x) => x.titulo),
           })),
-          { clave: SIN_META, titulo: NOMBRE_SIN_META, meta: false, acciones: sueltasDeMeta },
+          { clave: SIN_META, titulo: NOMBRE_SIN_META, meta: false, acciones: sueltasDeMeta, despuesDe: [] },
         ]
       : [
           {
@@ -191,6 +198,7 @@ export function Camino({
             meta: false,
             acciones: sueltasDeMeta,
             nota: INVITA_META,
+            despuesDe: [],
           },
         ];
 
@@ -260,10 +268,10 @@ export function Camino({
           <span className="bg-primary/15 h-3 w-5 rounded-sm" /> Hecho
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="ring-primary h-3 w-5 rounded-sm ring-2" /> Cadena principal
+          <span className="ring-primary h-3 w-5 rounded-sm ring-2" /> Lo que no se puede atrasar
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="bg-foreground/70 size-2.5 rotate-45" /> Hito
+          <span className="bg-foreground/70 size-2.5 rotate-45" /> Día clave
         </span>
         <span className="flex items-center gap-1.5">
           <Sparkles className="text-primary size-3.5" /> Lista para empezar
@@ -393,9 +401,21 @@ function Seccion({
           // Barra resumen de la meta: su rango completo y cuánto va hecho.
           <div className="grid items-center gap-y-1" style={rejilla}>
             {lineas}
-            <div style={{ gridColumn: "var(--nombre)", gridRow: 1 }} className="sm:bg-background sticky left-0 z-20 flex min-w-0 items-center gap-1.5 pr-3">
-              <Flag className="text-primary size-3.5 shrink-0" aria-hidden />
-              <h3 title={grupo.titulo} className="font-display truncate text-base">{grupo.titulo}</h3>
+            <div style={{ gridColumn: "var(--nombre)", gridRow: 1 }} className="sm:bg-background sticky left-0 z-20 min-w-0 pr-3">
+              <div className="flex min-w-0 items-center gap-1.5">
+                <Flag className="text-primary size-3.5 shrink-0" aria-hidden />
+                <h3 title={grupo.titulo} className="font-display truncate text-base">{grupo.titulo}</h3>
+              </div>
+              {/* El orden lógico, hecho visible: a quién espera esta meta
+                  (§11.3). Truncado, con el nombre completo en `title`. */}
+              {grupo.despuesDe.length > 0 && (
+                <p
+                  title={`después de ${grupo.despuesDe.join(" y ")}`}
+                  className="text-muted-foreground truncate text-xs"
+                >
+                  ↳ después de {grupo.despuesDe.join(" y ")}
+                </p>
+              )}
             </div>
             <div
               style={{
@@ -477,7 +497,7 @@ function Seccion({
                   data-barra={a.id}
                   style={{ gridColumn: `${inicio + 1} / span 1`, gridRow: "var(--fila-barra)" }}
                   className="z-10 flex h-5 items-center justify-center sm:h-7"
-                  title={`${a.titulo} (hito)`}
+                  title={`${a.titulo} (día clave)`}
                 >
                   <span
                     className={`size-3 rotate-45 sm:size-3.5 rounded-[2px] ${

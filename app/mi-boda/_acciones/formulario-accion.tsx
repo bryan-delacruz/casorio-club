@@ -61,26 +61,26 @@ const CUANDOS: { id: Cuando; nombre: string }[] = [
  * Popover y no tooltip porque un tooltip no tiene ruta táctil. El icono lleva
  * `aria-label` y su área de toque crece con el mismo pseudo-elemento que el
  * control "Cuándo": 44 px de alto y 35 px de ancho, porque hacia la izquierda
- * solo se come el hueco de 6 px — más invadiría la palabra "hito" y tocarla
+ * solo se come el hueco de 6 px — más invadiría la palabra "día clave" y tocarla
  * abriría la ayuda en vez de mover el interruptor.
  */
 function AyudaHito() {
   return (
     <Popover>
       <PopoverTrigger
-        aria-label="Qué es un hito"
+        aria-label="Qué es un día clave"
         className="text-muted-foreground hover:text-foreground focus-visible:ring-ring relative cursor-pointer rounded-full outline-none before:absolute before:-top-[0.9375rem] before:-right-[0.9375rem] before:-bottom-[0.9375rem] before:-left-1.5 before:content-[''] focus-visible:ring-2"
       >
         <Info className="size-3.5" aria-hidden />
       </PopoverTrigger>
       <PopoverContent align="start" collisionPadding={16} className="max-w-[calc(100vw-3rem)]">
-        <p className="font-medium">Un hito es un día, no un trabajo.</p>
+        <p className="font-medium">Un día clave marca un día, no un trabajo.</p>
         <p className="text-muted-foreground">
           El caso claro es la ceremonia civil: un día concreto que parte tu boda en antes y
           después.
         </p>
         <p className="text-muted-foreground">
-          No son hitos las cosas que te toman tiempo: juntar las partidas, esperar el
+          No son días clave las cosas que te toman tiempo: juntar las partidas, esperar el
           certificado médico, elegir a los testigos. Esas duran, y por eso llevan semanas.
         </p>
         <div className="text-muted-foreground">
@@ -88,7 +88,7 @@ function AyudaHito() {
           <ul className="mt-1 list-disc space-y-0.5 pl-4">
             <li>aparece arriba con su cuenta regresiva;</li>
             <li>en el camino se dibuja como un rombo;</li>
-            <li>desaparece &ldquo;Cuántas dura&rdquo;, porque un hito no dura.</li>
+            <li>desaparece &ldquo;Cuántas dura&rdquo;, porque un día clave no dura.</li>
           </ul>
         </div>
       </PopoverContent>
@@ -216,7 +216,7 @@ function Campos({
           {meta === NUEVA_META && (
             <Input
               name="metaNueva"
-              placeholder="Registro civil"
+              placeholder="Ahorro, ceremonia, recepción…"
               maxLength={60}
               aria-label="Nombre de la meta nueva"
               required
@@ -257,7 +257,7 @@ function Campos({
         <div className="flex items-center gap-1.5">
           <label className="flex cursor-pointer items-center gap-2 text-sm">
             <Switch checked={esHito} onCheckedChange={setEsHito} />
-            Es un hito
+            Es un día clave
           </label>
           <AyudaHito />
         </div>
@@ -266,7 +266,7 @@ function Campos({
       {/* Quien enciende sin leer nada también se lleva la consecuencia. */}
       {esHito && (
         <p className="text-muted-foreground text-xs">
-          Un hito no dura: marca el día. Lo verás arriba con su cuenta regresiva.
+          Un día clave no dura: marca el día. Lo verás arriba con su cuenta regresiva.
         </p>
       )}
 
