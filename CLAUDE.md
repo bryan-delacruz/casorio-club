@@ -227,7 +227,7 @@ conversación.
 2. **Construir.** `arquitecto-senior` implementa esa spec, con las pruebas
    `node:test` sobre las funciones puras de `lib/` que la spec pide.
 3. **Validar.** `validador-ux` comprueba en el navegador cada pantalla afectada
-   en móvil (375×812) y escritorio, en claro y en oscuro.
+   en móvil (375×812) y escritorio.
 4. **Cerrar el lazo.** Los hallazgos vuelven al agente que corresponde: de
    producto al PO, técnicos al arquitecto. Se repite el paso 3 hasta que no
    queden hallazgos abiertos.
@@ -313,8 +313,11 @@ Un cambio no está terminado hasta que todo esto se cumple y se puede mostrar:
 
 - `pnpm lint` y `pnpm test` pasan, con la salida real a la vista.
 - La spec en `docs/` refleja lo implementado.
-- Cada pantalla afectada está validada en móvil y escritorio, en claro y en
-  oscuro, con valores medidos por JavaScript y no por capturas.
+- Cada pantalla afectada está validada en móvil y escritorio, con valores
+  medidos por JavaScript y no por capturas. **El modo oscuro no entra en la
+  puerta**: `app/globals.css` define `.dark`, nada lo activa y `next-themes`
+  está instalado sin usar, así que ninguna pareja puede llegar ahí y validarlo
+  sería inventar. Vuelve a la puerta el día que se pueda alcanzar.
 - Estados vacío, de carga y de error cubiertos, no solo el caso feliz.
 - Ruta de teclado y táctil donde haya arrastre con `dnd-kit`.
 - Sin errores de consola ni peticiones fallidas en las pantallas tocadas.
