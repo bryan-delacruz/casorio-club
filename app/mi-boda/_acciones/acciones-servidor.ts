@@ -13,7 +13,7 @@ import {
   semanaPorDefecto,
   semanasHastaLaBoda,
 } from "@/lib/metas";
-import { partes } from "@/lib/pagos";
+import { partes, puestosSiExcede } from "@/lib/pagos";
 import { listarMiembros } from "./datos";
 import { IDEAS, SIN_META, type Destino } from "./tipos";
 
@@ -340,9 +340,13 @@ export async function editarAccion(
  * invitación del diálogo de pagos. Aparte de `editarAccion`, que exige el
  * formulario entero. No se compara con lo puesto: si queda por debajo, la
  * acción dirá "S/ N puestos de S/ M" con lo puesto por encima del estimado, y
- * es verdad.
+ * es verdad. Guarda siempre; solo devuelve `puestos` para que el cliente avise
+ * (§3.5.1), con la suma hecha aquí y filtrada por `boda_id`.
  */
-export async function ponerTotal(accionId: string, monto: string): Promise<{ error?: string }> {
+export async function ponerTotal(
+  accionId: string,
+  monto: string,
+): Promise<{ error?: string; puestos?: string }> {
   const { bodaId } = await bodaActiva();
   const valor = Number(monto);
   if (!monto.trim() || !Number.isFinite(valor) || valor <= 0) {
@@ -356,8 +360,14 @@ export async function ponerTotal(accionId: string, monto: string): Promise<{ err
     .returning({ id: acciones.id });
   if (guardada.length === 0) return { error: "Esa acción ya no está." };
 
+  const pagosDeLaAccion = await getDb()
+    .select({ monto: pagos.monto })
+    .from(pagos)
+    .where(and(eq(pagos.accionId, accionId), eq(pagos.bodaId, bodaId)));
+  const puestos = puestosSiExcede(valor.toFixed(2), pagosDeLaAccion);
+
   revalidatePath("/mi-boda");
-  return {};
+  return puestos ? { puestos } : {};
 }
 
 /**

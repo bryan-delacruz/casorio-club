@@ -216,7 +216,13 @@ export function resumenMeta(
     hechas: acciones.filter((a) => a.estado === "hecho").length,
     inicio: conSemanas.length ? Math.max(...conSemanas.map(inicioDe)) : null,
     fin: conSemanas.length ? Math.min(...conSemanas.map(finDe)) : null,
-    monto: acciones.reduce((s, a) => s + cuentaDe(a.monto, pagos.get(a.id) ?? []).costando, 0),
+    // En céntimos y se divide una vez: sumar soles acción por acción arrastra
+    // la coma flotante y el total de la meta se desvía (docs/pagos.md §4.3).
+    monto:
+      acciones.reduce(
+        (s, a) => s + cuentaDe(a.monto, pagos.get(a.id) ?? []).centimos.costando,
+        0,
+      ) / 100,
   };
 }
 

@@ -114,11 +114,15 @@ export function PagosAccion({
     const monto = String(form.get("total") ?? "").trim();
     if (!monto) return;
     iniciar(async () => {
-      const r = await ponerTotal(accion.id, monto).catch(() => ({
+      const r = await ponerTotal(accion.id, monto).catch((): { error: string; puestos?: undefined } => ({
         error: "No se pudo guardar. Intenta otra vez.",
       }));
       if (r?.error) return void toast.error(r.error);
-      toast.success("Guardado.");
+      toast.success(
+        r?.puestos
+          ? `Guardado. Ya hay ${soles(Number(r.puestos))} puestos, más que el total de ${soles(Number(monto))}.`
+          : "Guardado.",
+      );
     });
   }
 
