@@ -177,9 +177,20 @@ La meta es el **único** agrupador en las dos pantallas.
   arrastre, obligatoria para teclado y táctil, y la vía principal en el celular.
 - **Camino** (`/mi-boda/camino`, `camino.tsx`) — Gantt agrupado por meta, sin
   selector (`?por=` se ignora), con flechas de dependencia, cadena principal
-  resaltada, choques en rojo y hitos como rombo. **También se edita**: cada
-  fila lleva el mismo menú ⋯ que la tarjeta del Mapa (`menu-accion.tsx`), sin
-  "Mover a" porque el carril es la meta.
+  resaltada, choques en rojo y hitos como rombo. **También se edita, y desde el
+  propio gráfico**: cada fila lleva el mismo menú ⋯ que la tarjeta del Mapa
+  (`menu-accion.tsx`), sin "Mover a" porque el carril es la meta; el bloque se
+  arrastra de lado para cambiar de semana, se une a otro tirando una flecha
+  desde su asa, y la flecha se pulsa para deshacer la unión
+  (`docs/dependencias.md` §10, §10.1).
+
+Arrastrar en el Camino es **horizontal y escribe la semana**; arrastrar en el
+Mapa es entre carriles y escribe la meta. Nunca al revés. El ancho de columna
+se mide en el DOM porque `--col-semana` vale 36 px desde `sm` y 0 en el
+celular, y la aritmética del signo vive probada en `semanaAlArrastrar`: el eje
+va hacia la boda a la derecha y `inicio_semanas` cuenta hacia atrás, así que
+arrastrar a la derecha **resta** semanas. El asa de unir no existe por debajo
+de `sm`: a 375 px una columna mide unos 16 px. Ahí la vía es el menú ⋯.
 
 El orden entre acciones se arma en su propio diálogo, no al fondo del
 formulario, y se abre desde las dos pantallas (`docs/dependencias.md`). Las dos

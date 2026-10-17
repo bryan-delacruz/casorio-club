@@ -4,8 +4,7 @@
 > entre acciones: cómo se arman, dónde se editan y qué se rechaza. Si algo
 > cambia, primero se actualiza aquí.
 >
-> **Estado:** §1–§9, aprobadas, pendientes de implementar. §10 (mover la barra
-> en el Camino) es la segunda pasada y tiene su propio alcance.
+> **Estado:** aprobada e implementada.
 >
 > Depende de `docs/metas.md` (§3 el modelo de datos, §5 el Camino, §7 el Mapa,
 > §8 el formulario, §11.3 el orden derivado de las metas). No repite lo que ese
@@ -50,6 +49,9 @@ acciones de la boda. Tres defectos medidos contra el uso real:
 6. Una sola escritura: `guardarDependenciasDe(accionId, antes, despues)`, con un
    único rechazo de círculo sobre el grafo resultante.
 7. Se **retira** la lista de casillas del formulario de acción.
+8. **Manipulación directa en el gráfico**: el bloque se arrastra por la línea
+   del tiempo (§10) y se une a otro tirando una flecha desde su asa (§10.1),
+   que se deshace pulsando la flecha.
 
 **No entra** (§11).
 
@@ -174,6 +176,7 @@ componente.
 | `candidatas(id, acciones, requisitos, metas, lado)` | los grupos de §4.2, cada candidata con `prohibida` |
 | `conNuevas(id, antes, despues, requisitos)` | el conjunto de aristas resultante (§5) |
 | `tieneCiclo(requisitos)` | si un conjunto de aristas se muerde la cola |
+| `semanaAlArrastrar(inicio, deltaX, ancho)` | dónde cae un bloque arrastrado (§10) |
 
 - `alcanzaDesde` es iterativa, con pila y conjunto de vistos: una boda con 60
   acciones encadenadas desborda la recursión mucho antes que la memoria.
@@ -185,7 +188,14 @@ componente.
 
 ```ts
 guardarDependenciasDe(accionId: string, antes: string[], despues: string[])
+agregarDependencia(accionId: string, requiereId: string)
+quitarDependencia(accionId: string, requiereId: string)
+ponerEnSemana(id: string, inicioSemanas: number | null)
 ```
+
+Las dos del medio son de una sola arista, para el arrastre (§10.1). Las tres
+primeras rechazan el círculo con el mismo `tieneCiclo` sobre el grafo
+resultante. Todas devuelven `{ error }`.
 
 - Reemplaza `guardarDependencias(accionId, requiere)`, que se retira con su
   único sitio de uso.
@@ -226,26 +236,87 @@ se descubre.
 - No arranca ningún arrastre: `onPointerDown` detiene la propagación. Hoy la
   fila no arrastra, pero §10 la hará arrastrar.
 
-## 10. Segunda pasada: mover la barra en el Camino
+## 10. Mover el bloque por la línea del tiempo
 
-Alcance aparte, **no** en esta pasada. Se escribe aquí para que no se invente
-dos veces:
+La lista y el diálogo contestan *qué va antes*. No contestan *cuándo*, y el
+Camino es la pantalla donde el cuándo se ve: una barra fuera de sitio se
+reconoce de un vistazo y hasta ahora había que ir al formulario y teclear un
+número. El bloque se arrastra.
 
-- Arrastre **horizontal** de la barra con `dnd-kit`, encajando en la columna de
-  semana, escribiendo `inicio_semanas` con `ponerEnSemana`.
-- Ruta sin arrastre obligatoria, en el mismo menú ⋯: `Una semana antes` /
-  `Una semana después`, y flechas del teclado sobre la barra enfocada.
+- Arrastre **horizontal** de la barra o del rombo, con `dnd-kit`.
+- **Encaja en la columna de semana** mientras se arrastra, con un modificador
+  propio (`porSemanas`): sin él parecería que algo puede quedar entre dos
+  semanas, y la semana es la unidad.
+- Escribe `inicio_semanas` con `ponerEnSemana`, que ya existía y ahora devuelve
+  `{ error }` en vez de callarse.
+- La aritmética vive en `semanaAlArrastrar` (`lib/dependencias.ts`), probada:
+  el eje va de la semana más lejana a la izquierda hacia la boda a la derecha y
+  `inicio_semanas` se cuenta hacia atrás, así que **arrastrar a la derecha
+  resta semanas**. Es un signo que se invierte sin que se note.
+- El ancho de columna **se mide en el DOM** (`gridTemplateColumns` del eje):
+  `--col-semana` vale 36 px desde `sm` y 0 en el celular, donde las columnas se
+  reparten el ancho con `1fr`. Con el valor fijo el arrastre encajaría en la
+  semana equivocada justo en la pantalla más pequeña.
+- Tope de **±260 semanas**, el mismo que aplica `ponerEnSemana`.
+- **Optimista**: la barra se mueve antes de que el servidor conteste.
+- Ruta **sin arrastre**, obligatoria: en el menú ⋯, bajo "Cuándo", `Una semana
+  antes` / `Una semana después`. Solo en el Camino: en el Mapa la semana no
+  está en pantalla y moverla a ciegas no diría nada. No aparece para una idea
+  suelta, que no tiene semana que mover.
+- **Solo con ratón** (`MouseSensor`), y la razón está medida: a 375 px una
+  columna mide **16.75 px**, así que con el dedo no se puede apuntar a una
+  semana. Peor: un arrastre táctil obligaría a `touch-action: none` en la
+  barra, y entonces un deslizamiento que empiece encima de una barra no haría
+  nada — ni la movería ni desplazaría el Gantt. En táctil la vía es el menú ⋯
+  → "Cuándo", que además mueve exactamente una semana.
+- La **duración no se estira** arrastrando el borde. Sigue en el formulario.
 - Deja de ser verdad que el formulario es el único sitio donde se escribe la
-  semana (`docs/metas.md` §8). Ese renglón se corrige en esa pasada, no en esta.
-- La duración **no** se estira arrastrando el borde. Sigue en el formulario.
+  semana (`docs/metas.md` §8, ya corregido).
+
+### 10.1 Unir dos bloques tirando una flecha
+
+Armar el orden desde el gráfico, que es donde el orden se ve.
+
+- Cada bloque lleva un **asa** en su **borde derecho**. La dependencia es
+  fin-a-inicio, así que se tira desde donde esto **acaba** hasta donde
+  **empieza** lo que lo espera: se lee de izquierda a derecha, en el mismo
+  sentido que el eje.
+- Soltar sobre otro bloque escribe `(accionId: el destino, requiereId: el
+  origen)`. El destino pasa a esperar al origen.
+- Mientras se tira, los demás bloques se **resaltan** como destinos posibles y
+  el de debajo del cursor más fuerte; el origen se atenúa.
+- Una sola arista, con `agregarDependencia(accionId, requiereId)`. **No**
+  `guardarDependenciasDe`: mandar las dos listas completas borraría lo que el
+  diálogo no estaba mirando.
+- El círculo se rechaza igual, sobre el grafo resultante: *"Ese orden se muerde
+  la cola: esa ya te espera a ti."* Soltar dos veces sobre el mismo bloque no
+  es error (`onConflictDoNothing`: la clave primaria es el par).
+- **Deshacer desde el gráfico**: la flecha se pulsa y se quita
+  (`quitarDependencia`). Crear tirando una flecha y tener que abrir un diálogo
+  para quitarla sería cojo. La flecha mide 1 px, así que debajo lleva un trazo
+  transparente de 14 px que es el que recibe el clic, con `role="button"`,
+  `aria-label` y Enter/Espacio.
+- El lienzo SVG mantiene `pointer-events` apagado y lo enciende solo en cada
+  flecha: si no, robaría los clics de las barras que tiene debajo.
+- Las flechas son **optimistas**: aparecen y desaparecen antes de que el
+  servidor conteste. Todo lo que se deriva de ellas —cadena principal, "lista
+  para empezar", el orden de las metas— son funciones puras sobre la misma
+  lista, así que las tres cosas se actualizan a la vez.
+- Solo se dibujan flechas **dentro de un grupo**; una dependencia que cruza
+  metas se nombra en texto ("↳ requiere …"). Por eso el asa **no** es la única
+  vía: para unir con algo de otra meta está el diálogo.
+- **Solo desde `sm`.** A 375 px una columna mide unos 16 px y el asa taparía la
+  barra entera. En el celular la vía es el menú ⋯ → "Qué va antes". Esto es una
+  limitación declarada, no un descuido: la ruta accesible y la táctil son la
+  lista, y el asa es un atajo de ratón encima.
 
 ## 11. Qué queda fuera
 
-- **Arrastrar de una barra a otra para crear la dependencia.** Se evaluó y se
-  descartó para esta pasada: a 375 px la columna de semana mide 36 px y apuntar
-  a la barra de destino con el dedo no es fiable. La lista es la ruta principal
-  y además es la accesible. Si se reabre, es encima de la lista, nunca en su
-  lugar.
+- **Arrastrar con el dedo**, el bloque o el asa. Queda fuera por el ancho de
+  columna medido —16.75 px a 375 px— y no por principio (§10, §10.1). En
+  táctil la vía es el menú ⋯, que además es exacta.
+- **Estirar la duración** arrastrando el borde del bloque.
+- **Arrastrar en vertical** para cambiar de meta. Eso es el Mapa.
 - **Dependencias entre metas**, como dato propio. Se derivan (`docs/metas.md`
   §11.3) y eso no cambia.
 - **Tipos de dependencia** (inicio-inicio, fin-fin, con holgura). Solo
@@ -285,6 +356,10 @@ En `lib/dependencias.test.ts`, con `node:test`:
 14. `tieneCiclo` es verdadero en un ciclo de dos y en uno de tres.
 15. El caso que motiva §6: editar las dos listas a la vez cierra un círculo
     entre **otras dos** acciones y `tieneCiclo` lo atrapa.
+16. `semanaAlArrastrar`: a la derecha resta, a la izquierda suma, encaja en la
+    semana más cercana, no mueve por debajo de media columna, cruza la boda al
+    otro lado, funciona con la columna estrecha del celular, topa en ±260, y
+    sin ancho medido no divide por cero.
 
 ## 13. Puerta de calidad
 
@@ -294,6 +369,12 @@ Lo de `CLAUDE.md`, y además:
   no supera la pantalla, las dos listas tienen scroll propio y el botón Guardar
   queda a la vista.
 - El menú ⋯ del Camino validado en las dos anchuras, con su área táctil medida.
+- El arrastre del bloque validado con el ancho de columna real, que **no** es
+  el de la variable CSS: 42.39 px a 1440, 36 px a 1024 y 16.75 px a 375, por
+  el `1fr`. Un valor fijo habría encajado en la semana equivocada.
+- El Gantt sigue desplazándose con el dedo, también empezando sobre una barra.
+- El asa y la flecha pulsable validadas en escritorio; el asa **no** existe por
+  debajo de `sm` y eso se comprueba, no se supone.
 - Estados cubiertos: boda con una sola acción, lista con más de 6 candidatas
   (buscador), búsqueda sin resultados, candidata deshabilitada visible con su
   motivo, y el rechazo del círculo desde el servidor.

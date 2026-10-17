@@ -202,3 +202,29 @@ export function tieneCiclo(requisitos: Requisito[]) {
   }
   return false;
 }
+
+/**
+ * La semana donde cae un bloque tras arrastrarlo (docs/dependencias.md §10).
+ *
+ * El eje del Camino va de la semana más lejana a la izquierda a la boda y lo
+ * de después a la derecha, y `inicioSemanas` se cuenta **hacia atrás**. Así
+ * que arrastrar a la derecha acerca a la boda, o sea **resta** semanas. Es un
+ * signo que se invierte sin que se note, y de ahí que viva aquí y no dentro
+ * del componente.
+ *
+ * `anchoSemana` es el ancho real de una columna, medido en el DOM: vale 36 px
+ * desde `sm` y en el celular las columnas se reparten el ancho con `1fr`.
+ *
+ * El tope de ±260 es el mismo que aplica `ponerEnSemana`: cinco años a cada
+ * lado. Sin él, un arrastre con el ratón fuera de la pantalla mandaría un
+ * bloque a la semana 4000 y el Gantt quedaría con miles de columnas vacías.
+ */
+export function semanaAlArrastrar(
+  inicioSemanas: number,
+  deltaX: number,
+  anchoSemana: number,
+) {
+  if (!Number.isFinite(anchoSemana) || anchoSemana <= 0) return inicioSemanas;
+  const pasos = Math.round(deltaX / anchoSemana);
+  return Math.max(-260, Math.min(260, inicioSemanas - pasos));
+}

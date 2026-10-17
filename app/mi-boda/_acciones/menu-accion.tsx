@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowDownUp, MoreHorizontal, Pencil, Trash2, Wallet } from "lucide-react";
+import { ArrowDownUp, ChevronLeft, ChevronRight, MoreHorizontal, Pencil, Trash2, Wallet } from "lucide-react";
 import type { Accion, Dependencia, Pago } from "@/db/schema";
 import {
   DropdownMenu,
@@ -42,6 +42,7 @@ export function MenuAccion({
   onAlternar,
   onMover,
   onBorrar,
+  onMoverSemana,
   pagosAbiertos,
   onPagosAbiertosChange,
   className = "",
@@ -59,6 +60,12 @@ export function MenuAccion({
   onAlternar?: (id: string, estado: Estado) => void;
   onMover?: (id: string, destino: Destino) => void;
   onBorrar?: (id: string) => void;
+  /**
+   * La ruta sin arrastre para la línea del tiempo
+   * (docs/dependencias.md §10). Solo la pasa el Camino: en el Mapa la semana
+   * no está en pantalla, así que moverla a ciegas no diría nada.
+   */
+  onMoverSemana?: (id: string, semanas: number) => void;
   /**
    * Los pagos, controlados desde fuera. La tarjeta del Mapa tiene un atajo
    * propio —el chip de la plata— que abre este mismo diálogo, y montarlo dos
@@ -101,6 +108,24 @@ export function MenuAccion({
           <DropdownMenuItem onSelect={() => setViendoOrden(true)}>
             <ArrowDownUp /> {ORDEN.menu}
           </DropdownMenuItem>
+          {/* La semana, sin arrastre: obligatorio para teclado y lector de
+              pantalla, y en el celular es la vía principal. */}
+          {onMoverSemana && accion.inicioSemanas !== null && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>Cuándo</DropdownMenuLabel>
+              <DropdownMenuItem
+                onSelect={() => onMoverSemana(accion.id, accion.inicioSemanas! + 1)}
+              >
+                <ChevronLeft /> Una semana antes
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => onMoverSemana(accion.id, accion.inicioSemanas! - 1)}
+              >
+                <ChevronRight /> Una semana después
+              </DropdownMenuItem>
+            </>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuLabel>Estado</DropdownMenuLabel>
           {ESTADOS.filter((e) => e.id !== accion.estado).map((e) => (

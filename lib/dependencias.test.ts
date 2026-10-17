@@ -7,6 +7,7 @@ import {
   esperanA,
   prohibidas,
   requiereDe,
+  semanaAlArrastrar,
   tieneCiclo,
 } from "./dependencias.ts";
 import type { Requisito } from "./metas.ts";
@@ -231,5 +232,46 @@ describe("tieneCiclo", () => {
   it("no denuncia una cadena donde el último solo es destino", () => {
     // El caso que un Kahn mal sembrado rompe: "a" nunca aparece como accionId.
     assert.equal(tieneCiclo([req("c", "b"), req("b", "a")]), false);
+  });
+});
+
+describe("semanaAlArrastrar", () => {
+  it("a la derecha acerca a la boda: resta semanas", () => {
+    assert.equal(semanaAlArrastrar(12, 36, 36), 11);
+    assert.equal(semanaAlArrastrar(12, 36 * 4, 36), 8);
+  });
+
+  it("a la izquierda aleja de la boda: suma semanas", () => {
+    assert.equal(semanaAlArrastrar(12, -36, 36), 13);
+    assert.equal(semanaAlArrastrar(12, -36 * 3, 36), 15);
+  });
+
+  it("encaja en la semana más cercana, no entre dos", () => {
+    assert.equal(semanaAlArrastrar(12, 17, 36), 12);
+    assert.equal(semanaAlArrastrar(12, 19, 36), 11);
+  });
+
+  it("un arrastre que no llega a media columna no mueve nada", () => {
+    assert.equal(semanaAlArrastrar(12, 4, 36), 12);
+    assert.equal(semanaAlArrastrar(12, 0, 36), 12);
+  });
+
+  it("cruza la boda y sigue hacia el otro lado", () => {
+    assert.equal(semanaAlArrastrar(1, 36 * 3, 36), -2);
+  });
+
+  it("funciona con la columna estrecha del celular", () => {
+    assert.equal(semanaAlArrastrar(12, 16, 16), 11);
+    assert.equal(semanaAlArrastrar(12, 48, 16), 9);
+  });
+
+  it("topa en cinco años a cada lado", () => {
+    assert.equal(semanaAlArrastrar(12, -36 * 400, 36), 260);
+    assert.equal(semanaAlArrastrar(12, 36 * 400, 36), -260);
+  });
+
+  it("sin ancho medido no mueve nada, en vez de dividir por cero", () => {
+    assert.equal(semanaAlArrastrar(12, 500, 0), 12);
+    assert.equal(semanaAlArrastrar(12, 500, NaN), 12);
   });
 });
