@@ -221,10 +221,17 @@ describe("tieneCiclo", () => {
     );
   });
 
-  it("es verdadero en un ciclo de dos, de tres y contra sí misma", () => {
+  it("es verdadero en un ciclo de dos y en uno de tres", () => {
     assert.equal(tieneCiclo([req("a", "b"), req("b", "a")]), true);
     assert.equal(tieneCiclo([req("a", "b"), req("b", "c"), req("c", "a")]), true);
-    assert.equal(tieneCiclo([req("a", "a")]), true);
+  });
+
+  it("una auto-arista se ignora, no denuncia el grafo entero", () => {
+    // Una fila (X, X) de datos viejos no debe bloquear la edición del orden
+    // de acciones que no tienen nada que ver con X.
+    assert.equal(tieneCiclo([req("x", "x")]), false);
+    assert.equal(tieneCiclo([req("x", "x"), req("c", "b"), req("b", "a")]), false);
+    assert.equal(tieneCiclo([req("x", "x"), req("a", "b"), req("b", "a")]), true);
   });
 
   it("atrapa el círculo que cierran las dos listas juntas", () => {

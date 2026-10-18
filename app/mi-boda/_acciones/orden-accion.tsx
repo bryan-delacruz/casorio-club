@@ -80,13 +80,21 @@ export function OrdenAccion({
 
   function guardar() {
     iniciar(async () => {
-      const { error } = await guardarDependenciasDe(accion.id, [...antes], [...despues]);
-      if (error) {
-        toast.error(error);
-        return;
+      try {
+        const { error } = await guardarDependenciasDe(accion.id, [...antes], [...despues]);
+        if (error) {
+          toast.error(error);
+          return;
+        }
+        onAbiertoChange(false);
+        toast.success("Guardado.");
+      } catch {
+        // La acción devuelve `{ error }`, pero la sesión puede haber caducado
+        // con el diálogo abierto y eso sí lanza. Sin esto, el rechazo tumba
+        // la pantalla en vez de avisar, y el diálogo se queda abierto con lo
+        // marcado para reintentar.
+        toast.error("No se pudo guardar. Intenta otra vez.");
       }
-      onAbiertoChange(false);
-      toast.success("Guardado.");
     });
   }
 

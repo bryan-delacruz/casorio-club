@@ -43,6 +43,7 @@ export function MenuAccion({
   onMover,
   onBorrar,
   onMoverSemana,
+  inerte = false,
   pagosAbiertos,
   onPagosAbiertosChange,
   className = "",
@@ -67,6 +68,12 @@ export function MenuAccion({
    */
   onMoverSemana?: (id: string, semanas: number) => void;
   /**
+   * Apagado del todo, también para el teclado. `pointer-events-none` en la
+   * clase apaga el ratón pero deja el disparador en el tabulador, y entonces
+   * Enter lo abría igual (docs/dependencias.md §10.2).
+   */
+  inerte?: boolean;
+  /**
    * Los pagos, controlados desde fuera. La tarjeta del Mapa tiene un atajo
    * propio —el chip de la plata— que abre este mismo diálogo, y montarlo dos
    * veces daría dos formularios sobre los mismos pagos. Sin estas dos props,
@@ -89,6 +96,9 @@ export function MenuAccion({
         <DropdownMenuTrigger
           // Sin esto, abrir el menú empezaría un arrastre.
           onPointerDown={(e) => e.stopPropagation()}
+          disabled={inerte}
+          tabIndex={inerte ? -1 : undefined}
+          aria-hidden={inerte || undefined}
           aria-label={`Opciones de ${accion.titulo}`}
           className={`text-muted-foreground/60 hover:text-foreground focus-visible:text-foreground focus-visible:ring-ring cursor-pointer rounded outline-none focus-visible:ring-2 ${className}`}
         >

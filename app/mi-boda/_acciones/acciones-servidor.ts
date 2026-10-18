@@ -130,7 +130,7 @@ export async function guardarDependenciasDe(
   }
 
   const db = getDb();
-  await db
+  const borrar = db
     .delete(dependencias)
     .where(
       and(
@@ -142,7 +142,13 @@ export async function guardarDependenciasDe(
     ...nuevoAntes.map((requiereId) => ({ bodaId, accionId, requiereId })),
     ...nuevoDespues.map((otra) => ({ bodaId, accionId: otra, requiereId: accionId })),
   ];
-  if (filas.length > 0) await db.insert(dependencias).values(filas);
+  // En un batch, que Neon corre como una transacción: borrar y volver a
+  // escribir en dos viajes dejaba la acción SIN NINGUNA dependencia, en los
+  // dos sentidos, si la inserción fallaba —por ejemplo porque la otra persona
+  // de la boda acababa de borrar una de las acciones elegidas—.
+  await (filas.length > 0
+    ? db.batch([borrar, db.insert(dependencias).values(filas)])
+    : borrar);
 
   revalidarBoda();
   return {};

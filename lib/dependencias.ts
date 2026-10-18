@@ -187,9 +187,14 @@ export function tieneCiclo(requisitos: Requisito[]) {
   const requiere = requiereDe(requisitos);
   // Todo nodo entra, también el que solo es destino: sin él en el mapa, quien
   // lo requiere no se vacía nunca y una cadena sana se denunciaría como ciclo.
+  // La auto-arista se **ignora**, no denuncia el grafo entero: una sola fila
+  // (X, X) de datos viejos —la clave primaria es el par, así que la base no la
+  // impide— bloqueaba toda edición de orden de esa boda, hasta la de acciones
+  // que no tenían nada que ver con X. `requiereDe` ya la descarta, así que
+  // basta con no sembrarla aquí.
   const pendientes = new Map<string, Set<string>>();
   for (const r of requisitos) {
-    if (r.accionId === r.requiereId) return true;
+    if (r.accionId === r.requiereId) continue;
     if (!pendientes.has(r.accionId)) pendientes.set(r.accionId, new Set(requiere.get(r.accionId)));
     if (!pendientes.has(r.requiereId)) pendientes.set(r.requiereId, new Set(requiere.get(r.requiereId)));
   }

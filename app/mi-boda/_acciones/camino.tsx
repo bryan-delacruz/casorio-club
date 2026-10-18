@@ -150,8 +150,14 @@ export function Camino({
     if (!suya || suya.inicioSemanas === null || semanas === suya.inicioSemanas) return;
     iniciar(async () => {
       aplicar({ id, inicioSemanas: semanas });
-      const { error } = await ponerEnSemana(id, semanas);
-      if (error) toast.error(error);
+      try {
+        const { error } = await ponerEnSemana(id, semanas);
+        if (error) toast.error(error);
+      } catch {
+        // La sesión pudo caducar con la pantalla abierta: sin esto el
+        // rechazo tumba la sección entera en vez de avisar.
+        toast.error("No se pudo mover. Intenta otra vez.");
+      }
     });
   }
 
@@ -159,16 +165,24 @@ export function Camino({
   function alUnir(quien: string, requisito: string) {
     iniciar(async () => {
       aplicarDep({ accionId: quien, requiereId: requisito });
-      const { error } = await agregarDependencia(quien, requisito);
-      if (error) toast.error(error);
+      try {
+        const { error } = await agregarDependencia(quien, requisito);
+        if (error) toast.error(error);
+      } catch {
+        toast.error("No se pudo unir. Intenta otra vez.");
+      }
     });
   }
 
   function alDesunir(quien: string, requisito: string) {
     iniciar(async () => {
       aplicarDep({ quita: true, accionId: quien, requiereId: requisito });
-      const { error } = await quitarDependencia(quien, requisito);
-      if (error) toast.error(error);
+      try {
+        const { error } = await quitarDependencia(quien, requisito);
+        if (error) toast.error(error);
+      } catch {
+        toast.error("No se pudo soltar. Intenta otra vez.");
+      }
     });
   }
 
@@ -227,7 +241,14 @@ export function Camino({
   // La acción elegida puede haberse borrado desde el menú: entonces no hay
   // barra, y el estado viejo no estorba.
   const elegida = eleccion ? acciones.find((a) => a.id === eleccion.id) : undefined;
-  const unidas = elegida ? unidasA(elegida.id, dependencias) : new Set<string>();
+  // Solo las uniones con algo **dibujado**: una dependencia con una idea
+  // suelta existe y es legítima (docs/dependencias.md §4.1), pero no tiene
+  // fila que tocar, y ofrecer "Quitar unión" para ella dejaba a la pareja en
+  // un modo sin ningún destino. Esas se sueltan desde el diálogo.
+  const enElGantt = new Set(enCamino(acciones).map((a) => a.id));
+  const unidas = elegida
+    ? new Set([...unidasA(elegida.id, dependencias)].filter((id) => enElGantt.has(id)))
+    : new Set<string>();
 
   /**
    * A qué filas se puede tocar ahora, según lo que la barra esté pidiendo.
@@ -865,6 +886,11 @@ function Seccion({
                     // se corta cuando el nombre no cabe en su columna.
                     title={a.titulo}
                     aria-pressed={esElegida}
+                    // Durante el segundo toque la fila entera es el control,
+                    // así que el título sale del tabulador: dos botones
+                    // anidados dejarían al lector de pantalla sin saber cuál
+                    // confirma la unión.
+                    tabIndex={esObjetivo ? -1 : 0}
                     onClick={(e) => {
                       if (esObjetivo) return;
                       e.stopPropagation();
@@ -895,6 +921,10 @@ function Seccion({
                     onAlternar={onAlternar}
                     onBorrar={onBorrar}
                     onMoverSemana={onMoverSemana}
+                    // `pointer-events-none` apaga el ratón pero NO saca del
+                    // tabulador: sin `inerte` el teclado abría el menú en
+                    // mitad del segundo toque.
+                    inerte={Boolean(pidiendo)}
                     className={`relative shrink-0 before:absolute before:-inset-[14px] before:content-[''] ${
                       pidiendo ? "pointer-events-none opacity-30" : ""
                     }`}
