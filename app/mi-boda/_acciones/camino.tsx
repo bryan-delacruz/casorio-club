@@ -227,18 +227,25 @@ export function Camino({
   const elegida = eleccion ? acciones.find((a) => a.id === eleccion.id) : undefined;
   const unidas = elegida ? unidasA(elegida.id, dependencias) : new Set<string>();
 
-  /** A qué filas se puede tocar ahora, según lo que la barra esté pidiendo. */
-  const objetivos =
+  /**
+   * A qué filas se puede tocar ahora, según lo que la barra esté pidiendo.
+   *
+   * `prohibidas` recorre el grafo entero, así que se llama **una vez** y no
+   * una por fila: dentro del filtro eran sesenta recorridos por render.
+   */
+  const vedadasAlUnir =
     elegida && eleccion?.modo === "unir"
-      ? new Set(
-          enCamino(acciones)
-            .filter((a) => a.id !== elegida.id)
-            .map((a) => a.id)
-            .filter((id) => !prohibidas(elegida.id, dependencias, "despues").has(id)),
-        )
-      : elegida && eleccion?.modo === "desunir"
-        ? unidas
-        : new Set<string>();
+      ? prohibidas(elegida.id, dependencias, "despues")
+      : null;
+  const objetivos = vedadasAlUnir
+    ? new Set(
+        enCamino(acciones)
+          .filter((a) => a.id !== elegida!.id && !vedadasAlUnir.has(a.id))
+          .map((a) => a.id),
+      )
+    : elegida && eleccion?.modo === "desunir"
+      ? unidas
+      : new Set<string>();
 
   function alTocarObjetivo(id: string) {
     if (!elegida || !eleccion) return;

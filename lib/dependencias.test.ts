@@ -99,6 +99,14 @@ describe("candidatas", () => {
     { id: "m2", titulo: "La recepción" },
   ];
 
+  it("una boda con una sola acción no tiene nada que elegir", () => {
+    // El estado vacío del diálogo ("Anota algo más y podrás poner el orden")
+    // y el de la barra se deciden con esto: sin grupos no hay listas que
+    // pintar. No se puede alcanzar en el demo, así que se prueba aquí.
+    assert.deepEqual(candidatas("sola", [accion("sola", 4, "m1")], [], metas, "antes", SIN_META), []);
+    assert.deepEqual(candidatas("sola", [accion("sola", 4, "m1")], [], metas, "despues", SIN_META), []);
+  });
+
   it("nunca ofrece la propia acción", () => {
     const grupos = candidatas("a", [accion("a"), accion("b")], [], [], "despues", SIN_META);
     assert.deepEqual(
