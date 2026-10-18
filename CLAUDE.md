@@ -242,6 +242,13 @@ Al verificar la interfaz en el navegador, **mide con JavaScript**
 (`getBoundingClientRect`, `getComputedStyle`, `devicePixelRatio`), no por
 captura: las capturas traen artefactos de escalado.
 
+El modo oscuro lo decide el sistema (`prefers-color-scheme`) y no hay
+interruptor (`docs/modo-oscuro.md`). Los tokens oscuros se declaran **dos
+veces** en `app/globals.css` —bajo `.dark` y bajo la media query— porque CSS
+no deja compartir un bloque entre las dos; que no se desincronicen lo vigila
+`lib/tema.test.ts`, que además falla si un color nuevo de `:root` se queda sin
+versión oscura.
+
 # Cómo se trabaja en este proyecto
 
 Spec-Driven: **la spec en `docs/*.md` manda sobre el código**. Si algo cambia,
@@ -331,10 +338,11 @@ Un cambio no está terminado hasta que todo esto se cumple y se puede mostrar:
 - `pnpm lint` y `pnpm test` pasan, con la salida real a la vista.
 - La spec en `docs/` refleja lo implementado.
 - Cada pantalla afectada está validada en móvil y escritorio, con valores
-  medidos por JavaScript y no por capturas. **El modo oscuro no entra en la
-  puerta**: `app/globals.css` define `.dark`, nada lo activa y `next-themes`
-  está instalado sin usar, así que ninguna pareja puede llegar ahí y validarlo
-  sería inventar. Vuelve a la puerta el día que se pueda alcanzar.
+  medidos por JavaScript y no por capturas. **El modo oscuro entra en la
+  puerta** desde `docs/modo-oscuro.md`: lo activa `prefers-color-scheme` en
+  `app/globals.css`, sin JavaScript y sin interruptor, así que cualquier
+  pareja con el teléfono en oscuro llega ahí. Los contrastes se miden, no se
+  miran.
 - Estados vacío, de carga y de error cubiertos, no solo el caso feliz.
 - Ruta de teclado y táctil donde haya arrastre con `dnd-kit`.
 - Sin errores de consola ni peticiones fallidas en las pantallas tocadas.
