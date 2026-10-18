@@ -1,0 +1,130 @@
+"use client";
+
+import { ChevronLeft, ChevronRight, Link2, Unlink, X } from "lucide-react";
+import type { Accion } from "@/db/schema";
+import { Button } from "@/components/ui/button";
+import { ELEGIDO, etiquetaSemana } from "./tipos";
+
+/** Lo que la barra está pidiendo en cada momento (docs/dependencias.md §10.2). */
+export type Modo = "elegido" | "unir" | "desunir";
+
+/**
+ * La barra de abajo: manipular el Camino con el dedo.
+ *
+ * Arrastrar no sirve en el celular —a 375 px una columna de semana mide
+ * 16.75 px— y el menú ⋯ es un formulario disfrazado: no enseña el gráfico
+ * mientras decides. Aquí se toca un bloque, queda elegido y resaltado, y las
+ * acciones viven en botones de 44 px que mueven el gráfico a la vista.
+ *
+ * Unir y desunir piden el **segundo** toque sobre una fila entera, que mide
+ * el ancho de la pantalla: lo contrario de apuntar a una barra de 16 px.
+ *
+ * Existe también en escritorio, y no solo por debajo de `sm`: es la única vía
+ * para unir con algo de **otra meta**, porque el asa solo alcanza lo que tiene
+ * flecha dibujada, y las flechas no cruzan grupos.
+ */
+export function BarraEleccion({
+  accion,
+  modo,
+  puedeDesunir,
+  onSemana,
+  onModo,
+  onCerrar,
+}: {
+  accion: Accion;
+  modo: Modo;
+  /** Hay al menos una unión directa que soltar. */
+  puedeDesunir: boolean;
+  onSemana: (semanas: number) => void;
+  onModo: (modo: Modo) => void;
+  onCerrar: () => void;
+}) {
+  const pidiendo = modo !== "elegido";
+
+  return (
+    // Por encima del z-40 de la barra de secciones y del botón Anotar: mientras
+    // algo está elegido, esto manda. En el celular se apoya justo encima de la
+    // barra de secciones; desde `sm` flota centrada abajo.
+    <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-50 px-3 sm:inset-x-auto sm:bottom-4 sm:left-1/2 sm:-translate-x-1/2 sm:px-0">
+      <div
+        role="region"
+        aria-label={`Elegido: ${accion.titulo}`}
+        className="bg-popover border-border mx-auto max-w-xl rounded-lg border p-2 shadow-lg"
+      >
+        {pidiendo ? (
+          <div className="flex items-center gap-2">
+            <p className="min-w-0 flex-1 px-1 text-sm">
+              {modo === "unir" ? ELEGIDO.pidiendoUnir : ELEGIDO.pidiendoDesunir}
+            </p>
+            <Button type="button" variant="ghost" size="sm" onClick={() => onModo("elegido")}>
+              {ELEGIDO.cancelar}
+            </Button>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-baseline gap-2 px-1">
+              <p className="min-w-0 flex-1 truncate text-sm" title={accion.titulo}>
+                {accion.titulo}
+              </p>
+              <span className="text-muted-foreground shrink-0 text-xs tabular-nums">
+                {etiquetaSemana(accion.inicioSemanas)}
+              </span>
+              <button
+                type="button"
+                onClick={onCerrar}
+                aria-label={ELEGIDO.cerrar}
+                /* 16 px de icono: el pseudo-elemento le da los 44 px de área
+                   táctil sin agrandar el dibujo ni estirar la fila. */
+                className="text-muted-foreground hover:text-foreground focus-visible:ring-ring relative -mr-1 shrink-0 cursor-pointer rounded p-1 outline-none before:absolute before:-inset-[12px] before:content-[''] focus-visible:ring-2"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            <div className="mt-1.5 flex items-center gap-1.5">
+              {/* 44 px de lado, que es lo que pide un pulgar. Mueven una
+                  semana exacta, que arrastrando con el dedo no se acierta. */}
+              <button
+                type="button"
+                onClick={() => onSemana(1)}
+                aria-label={ELEGIDO.antes}
+                title={ELEGIDO.antes}
+                className="border-border hover:bg-accent focus-visible:ring-ring grid size-11 shrink-0 cursor-pointer place-items-center rounded-md border outline-none focus-visible:ring-2"
+              >
+                <ChevronLeft className="size-5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => onSemana(-1)}
+                aria-label={ELEGIDO.despues}
+                title={ELEGIDO.despues}
+                className="border-border hover:bg-accent focus-visible:ring-ring grid size-11 shrink-0 cursor-pointer place-items-center rounded-md border outline-none focus-visible:ring-2"
+              >
+                <ChevronRight className="size-5" />
+              </button>
+
+              <Button
+                type="button"
+                variant="secondary"
+                className="h-11 flex-1"
+                onClick={() => onModo("unir")}
+              >
+                <Link2 /> {ELEGIDO.unir}
+              </Button>
+              {puedeDesunir && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="h-11 flex-1"
+                  onClick={() => onModo("desunir")}
+                >
+                  <Unlink /> {ELEGIDO.desunir}
+                </Button>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}

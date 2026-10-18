@@ -204,6 +204,25 @@ export function tieneCiclo(requisitos: Requisito[]) {
 }
 
 /**
+ * Con quién está unida una acción, en los dos sentidos y solo directamente
+ * (docs/dependencias.md §10.2).
+ *
+ * Para "quitar unión" en el celular: la pareja toca un bloque y luego el otro
+ * extremo de la unión que quiere soltar, y le da igual en qué sentido apunta
+ * la flecha. Las uniones indirectas no entran: no hay ninguna flecha que
+ * tocar entre dos que solo se relacionan por una cadena.
+ */
+export function unidasA(id: string, requisitos: Requisito[]) {
+  const suyas = new Set<string>();
+  for (const r of requisitos) {
+    if (r.accionId === r.requiereId) continue;
+    if (r.accionId === id) suyas.add(r.requiereId);
+    if (r.requiereId === id) suyas.add(r.accionId);
+  }
+  return suyas;
+}
+
+/**
  * La semana donde cae un bloque tras arrastrarlo (docs/dependencias.md §10).
  *
  * El eje del Camino va de la semana más lejana a la izquierda a la boda y lo

@@ -177,6 +177,7 @@ componente.
 | `conNuevas(id, antes, despues, requisitos)` | el conjunto de aristas resultante (§5) |
 | `tieneCiclo(requisitos)` | si un conjunto de aristas se muerde la cola |
 | `semanaAlArrastrar(inicio, deltaX, ancho)` | dónde cae un bloque arrastrado (§10) |
+| `unidasA(id, requisitos)` | con quién está unida, directo y en los dos sentidos (§10.2) |
 
 - `alcanzaDesde` es iterativa, con pila y conjunto de vistos: una boda con 60
   acciones encadenadas desborda la recursión mucho antes que la memoria.
@@ -310,11 +311,51 @@ Armar el orden desde el gráfico, que es donde el orden se ve.
   limitación declarada, no un descuido: la ruta accesible y la táctil son la
   lista, y el asa es un atajo de ratón encima.
 
+### 10.2 Con el dedo: elegir, y luego tocar
+
+Arrastrar no sirve en el celular, y el menú ⋯ tampoco basta: es un formulario
+disfrazado, no enseña el gráfico mientras decides. La vía táctil es **dos
+toques**, y el segundo cae sobre una **fila entera**, que mide el ancho de la
+pantalla: lo contrario de apuntar a una barra de 16.75 px.
+
+| Paso | Qué se toca | Qué pasa |
+| --- | --- | --- |
+| 1 | El **nombre** de la fila | Queda elegido, resaltado en el gráfico, y sale la barra de abajo |
+| 2a | `◀` / `▶` de la barra | Una semana exacta, y el bloque se mueve a la vista |
+| 2b | `Unir con…` y luego una fila | Esa fila pasa a esperar a la elegida |
+| 2c | `Quitar unión` y luego una fila | Suelta esa unión, apunte como apunte |
+
+- El blanco del **primer** toque es el **nombre**, no la barra: en el celular
+  el nombre ocupa su propia línea encima del Gantt, y la barra puede medir
+  16.75 px.
+- La barra de abajo se apoya **encima de la barra de secciones**
+  (`bottom-[calc(4rem+env(safe-area-inset-bottom))]`) y va en `z-50`, por
+  encima del `z-40` de esa barra y del botón Anotar: mientras algo está
+  elegido, esto manda y tapa el botón Anotar a propósito.
+- Botones de **44 px**, también la `✕`, que logra su área con un
+  pseudo-elemento para no estirar la fila.
+- Mientras la barra pide el segundo toque: las filas que **no** valen se
+  atenúan, los menús ⋯ y las flechas **no reciben clics** —pulsarlos
+  contestaría otra pregunta— y `Cancelar` vuelve atrás.
+- Los destinos de `Unir con…` excluyen los que harían círculo, con el mismo
+  `prohibidas` de §6. Los de `Quitar unión` son las uniones **directas** en los
+  dos sentidos, con `unidasA`: no hay ninguna flecha que soltar entre dos que
+  solo se relacionan por una cadena.
+- `Quitar unión` **no aparece** si la elegida no está unida a nada.
+- **También en escritorio**, y no solo por debajo de `sm`: es la única vía para
+  unir con algo de **otra meta**, porque el asa solo alcanza lo que tiene
+  flecha dibujada y las flechas no cruzan grupos. Ahí flota centrada abajo.
+- Teclado: el nombre es un `<button>` con `aria-pressed`, y cada fila-destino
+  es un `role="button"` con `tabIndex` y Enter/Espacio.
+
 ## 11. Qué queda fuera
 
 - **Arrastrar con el dedo**, el bloque o el asa. Queda fuera por el ancho de
-  columna medido —16.75 px a 375 px— y no por principio (§10, §10.1). En
-  táctil la vía es el menú ⋯, que además es exacta.
+  columna medido —16.75 px a 375 px— y no por principio (§10, §10.1). La vía
+  táctil es §10.2, que además es exacta.
+- **Elegir varios bloques a la vez** y moverlos juntos.
+- **Deshacer** lo que la barra hace. Cada paso es una semana o una unión, y se
+  repite al revés con el mismo gesto.
 - **Estirar la duración** arrastrando el borde del bloque.
 - **Arrastrar en vertical** para cambiar de meta. Eso es el Mapa.
 - **Dependencias entre metas**, como dato propio. Se derivan (`docs/metas.md`
@@ -360,6 +401,8 @@ En `lib/dependencias.test.ts`, con `node:test`:
     semana más cercana, no mueve por debajo de media columna, cruza la boda al
     otro lado, funciona con la columna estrecha del celular, topa en ±260, y
     sin ancho medido no divide por cero.
+17. `unidasA`: recoge los dos sentidos, **no** recoge las indirectas ni las
+    ajenas, y descarta la arista de una acción contra sí misma.
 
 ## 13. Puerta de calidad
 
@@ -375,6 +418,9 @@ Lo de `CLAUDE.md`, y además:
 - El Gantt sigue desplazándose con el dedo, también empezando sobre una barra.
 - El asa y la flecha pulsable validadas en escritorio; el asa **no** existe por
   debajo de `sm` y eso se comprueba, no se supone.
+- La barra de §10.2 validada a 375 px: cabe sin desborde, se apoya encima de la
+  barra de secciones, todos sus blancos miden 44 px, y los dos toques crean y
+  sueltan una unión dejando el grafo como estaba.
 - Estados cubiertos: boda con una sola acción, lista con más de 6 candidatas
   (buscador), búsqueda sin resultados, candidata deshabilitada visible con su
   motivo, y el rechazo del círculo desde el servidor.

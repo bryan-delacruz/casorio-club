@@ -133,3 +133,23 @@ export const ORDEN = {
   buscar: "Buscar entre las demás",
   sinResultados: "Ninguna se llama así.",
 } as const;
+
+/**
+ * La barra de abajo del Camino, que es la vía táctil para manipular el
+ * gráfico (docs/dependencias.md §10.2). Arrastrar no sirve con el dedo: a
+ * 375 px una columna de semana mide 16.75 px.
+ *
+ * "Toca lo que no puede empezar antes de esto" es la misma frase que el asa
+ * del escritorio: un solo concepto, una sola redacción.
+ */
+export const ELEGIDO = {
+  antes: "Una semana antes",
+  despues: "Una semana después",
+  unir: "Unir con…",
+  desunir: "Quitar unión",
+  cerrar: "Dejar de elegir",
+  cancelar: "Cancelar",
+  pidiendoUnir: "Toca lo que no puede empezar antes de esto",
+  pidiendoDesunir: "Toca el otro extremo de la unión que quieres soltar",
+  nadaQueSoltar: "Esto no está unido a nada todavía.",
+} as const;

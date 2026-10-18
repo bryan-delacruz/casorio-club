@@ -9,6 +9,7 @@ import {
   requiereDe,
   semanaAlArrastrar,
   tieneCiclo,
+  unidasA,
 } from "./dependencias.ts";
 import type { Requisito } from "./metas.ts";
 
@@ -273,5 +274,25 @@ describe("semanaAlArrastrar", () => {
   it("sin ancho medido no mueve nada, en vez de dividir por cero", () => {
     assert.equal(semanaAlArrastrar(12, 500, 0), 12);
     assert.equal(semanaAlArrastrar(12, 500, NaN), 12);
+  });
+});
+
+describe("unidasA", () => {
+  it("recoge los dos sentidos", () => {
+    const r = [req("yo", "antes"), req("despues", "yo")];
+    assert.deepEqual([...unidasA("yo", r)].sort(), ["antes", "despues"]);
+  });
+
+  it("no recoge las uniones indirectas: no hay flecha que tocar", () => {
+    const r = [req("yo", "a"), req("a", "lejos")];
+    assert.deepEqual([...unidasA("yo", r)], ["a"]);
+  });
+
+  it("no recoge aristas ajenas", () => {
+    assert.equal(unidasA("yo", [req("a", "b")]).size, 0);
+  });
+
+  it("descarta la arista de una acción contra sí misma", () => {
+    assert.equal(unidasA("yo", [req("yo", "yo")]).size, 0);
   });
 });

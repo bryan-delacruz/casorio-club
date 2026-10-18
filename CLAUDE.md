@@ -190,7 +190,16 @@ se mide en el DOM porque `--col-semana` vale 36 px desde `sm` y 0 en el
 celular, y la aritmética del signo vive probada en `semanaAlArrastrar`: el eje
 va hacia la boda a la derecha y `inicio_semanas` cuenta hacia atrás, así que
 arrastrar a la derecha **resta** semanas. El asa de unir no existe por debajo
-de `sm`: a 375 px una columna mide unos 16 px. Ahí la vía es el menú ⋯.
+de `sm`: a 375 px una columna mide 16.75 px.
+
+Con el dedo se manipula por **elección**, no por arrastre (`barra-eleccion.tsx`,
+`docs/dependencias.md` §10.2): se toca el **nombre** de una fila, queda elegida,
+y una barra abajo mueve semanas de una en una y pide un **segundo toque sobre
+una fila entera** para unir o soltar. El segundo toque es sobre la fila y no
+sobre la barra del Gantt porque la fila mide el ancho de la pantalla. Esa barra
+existe también en escritorio: es la única vía para unir con algo de **otra
+meta**, ya que el asa solo alcanza lo que tiene flecha dibujada y las flechas no
+cruzan grupos.
 
 El orden entre acciones se arma en su propio diálogo, no al fondo del
 formulario, y se abre desde las dos pantallas (`docs/dependencias.md`). Las dos

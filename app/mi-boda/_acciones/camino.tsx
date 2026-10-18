@@ -31,7 +31,7 @@ import {
   resumenMeta,
   semanasHastaLaBoda,
 } from "@/lib/metas";
-import { prohibidas, semanaAlArrastrar } from "@/lib/dependencias";
+import { prohibidas, semanaAlArrastrar, unidasA } from "@/lib/dependencias";
 import { cuentaDe, pagosPorAccion } from "@/lib/pagos";
 import {
   agregarDependencia,
@@ -41,6 +41,7 @@ import {
   quitarDependencia,
   type Estado,
 } from "./acciones-servidor";
+import { BarraEleccion, type Modo } from "./barra-eleccion";
 import { MenuAccion } from "./menu-accion";
 import { CompartirHistoria } from "./compartir-historia";
 import { EmpezarPlan } from "./empezar-plan";
@@ -213,6 +214,46 @@ export function Camino({
   const sensores = useSensors(useSensor(MouseSensor, { activationConstraint: { distance: 4 } }));
 
   const [arrastre, setArrastre] = useState<{ tipo: string; id: string } | null>(null);
+
+  /**
+   * La vía táctil (docs/dependencias.md §10.2): se toca un bloque, queda
+   * elegido, y la barra de abajo mueve semanas y pide el segundo toque para
+   * unir o desunir. El segundo toque es sobre una **fila entera**, no sobre
+   * una barra de 16 px.
+   */
+  const [eleccion, setEleccion] = useState<{ id: string; modo: Modo } | null>(null);
+  // La acción elegida puede haberse borrado desde el menú: entonces no hay
+  // barra, y el estado viejo no estorba.
+  const elegida = eleccion ? acciones.find((a) => a.id === eleccion.id) : undefined;
+  const unidas = elegida ? unidasA(elegida.id, dependencias) : new Set<string>();
+
+  /** A qué filas se puede tocar ahora, según lo que la barra esté pidiendo. */
+  const objetivos =
+    elegida && eleccion?.modo === "unir"
+      ? new Set(
+          enCamino(acciones)
+            .filter((a) => a.id !== elegida.id)
+            .map((a) => a.id)
+            .filter((id) => !prohibidas(elegida.id, dependencias, "despues").has(id)),
+        )
+      : elegida && eleccion?.modo === "desunir"
+        ? unidas
+        : new Set<string>();
+
+  function alTocarObjetivo(id: string) {
+    if (!elegida || !eleccion) return;
+    if (eleccion.modo === "unir") alUnir(id, elegida.id);
+    if (eleccion.modo === "desunir") {
+      // Da igual en qué sentido apunte la flecha: se suelta la que haya.
+      const suya = dependencias.find(
+        (d) =>
+          (d.accionId === elegida.id && d.requiereId === id) ||
+          (d.accionId === id && d.requiereId === elegida.id),
+      );
+      if (suya) alDesunir(suya.accionId, suya.requiereId);
+    }
+    setEleccion({ id: elegida.id, modo: "elegido" });
+  }
 
   // Mientras se tira una flecha, los bloques que harían círculo no se ofrecen
   // como destino. Soltar y ver aparecer la flecha para que desaparezca con un
@@ -460,6 +501,11 @@ export function Camino({
                 metas={metas}
                 arrastre={arrastre}
                 vedadas={vedadas}
+                elegida={elegida?.id}
+                pidiendo={eleccion?.modo !== "elegido" ? (eleccion?.modo ?? null) : null}
+                objetivos={objetivos}
+                onElegir={(id) => setEleccion({ id, modo: "elegido" })}
+                onTocarObjetivo={alTocarObjetivo}
                 onAlternar={alAlternar}
                 onBorrar={alBorrar}
                 onMoverSemana={alMoverSemana}
@@ -496,6 +542,20 @@ export function Camino({
           </span>
         )}
       </div>
+
+      {elegida && eleccion && (
+        <BarraEleccion
+          accion={elegida}
+          modo={eleccion.modo}
+          puedeDesunir={unidas.size > 0}
+          onSemana={(paso) =>
+            elegida.inicioSemanas !== null &&
+            alMoverSemana(elegida.id, elegida.inicioSemanas + paso)
+          }
+          onModo={(modo) => setEleccion({ id: elegida.id, modo })}
+          onCerrar={() => setEleccion(null)}
+        />
+      )}
 
       {sueltas.length > 0 && (
         <div className="border-border rounded-lg border border-dashed p-4">
@@ -540,6 +600,11 @@ function Seccion({
   metas,
   arrastre,
   vedadas,
+  elegida,
+  pidiendo,
+  objetivos,
+  onElegir,
+  onTocarObjetivo,
   onAlternar,
   onBorrar,
   onMoverSemana,
@@ -564,6 +629,14 @@ function Seccion({
   arrastre: { tipo: string; id: string } | null;
   /** Los bloques que harían círculo con lo que se está tirando (§6). */
   vedadas: Set<string>;
+  /** Lo elegido con el dedo, resaltado en el gráfico (§10.2). */
+  elegida?: string;
+  /** La barra está pidiendo un segundo toque, o null. */
+  pidiendo: Modo | null;
+  /** Las filas que admiten ese segundo toque. */
+  objetivos: Set<string>;
+  onElegir: (id: string) => void;
+  onTocarObjetivo: (id: string) => void;
   onAlternar: (id: string, estado: Estado) => void;
   onBorrar: (id: string) => void;
   onMoverSemana: (id: string, semanas: number) => void;
@@ -695,6 +768,9 @@ function Seccion({
           // Lo que va costando, sin palabras: aquí no cabe una frase (§4.3).
           const { costando } = cuentaDe(a.monto, pagosDe.get(a.id) ?? []);
 
+          const esElegida = elegida === a.id;
+          const esObjetivo = Boolean(pidiendo) && objetivos.has(a.id);
+
           const necesita = (requiereDe.get(a.id) ?? [])
             .map((id) => porId.get(id))
             .filter((x): x is Accion => Boolean(x));
@@ -707,7 +783,33 @@ function Seccion({
           );
 
           return (
-            <div key={a.id} className="grid items-center gap-y-0.5" style={rejilla}>
+            <div
+              key={a.id}
+              // La fila entera es el blanco del segundo toque: mide el ancho
+              // de la pantalla, que es lo contrario de apuntar a una barra de
+              // 16 px (docs/dependencias.md §10.2). Lo que no se puede tocar
+              // se atenúa, para que se vea que la pregunta sigue abierta.
+              {...(esObjetivo
+                ? {
+                    role: "button",
+                    tabIndex: 0,
+                    "aria-label": `${pidiendo === "unir" ? "Unir con" : "Soltar la unión con"} ${a.titulo}`,
+                    onClick: () => onTocarObjetivo(a.id),
+                    onKeyDown: (e: React.KeyboardEvent) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        onTocarObjetivo(a.id);
+                      }
+                    },
+                  }
+                : {})}
+              className={`grid items-center gap-y-0.5 rounded ${
+                esObjetivo ? "ring-primary/50 cursor-pointer ring-1" : ""
+              } ${pidiendo && !esObjetivo && !esElegida ? "opacity-40" : ""} ${
+                esElegida ? "ring-primary ring-2" : ""
+              }`}
+              style={rejilla}
+            >
               {lineas}
 
               {/* En el celular el fondo cubre solo el texto: las flechas pasan
@@ -717,11 +819,21 @@ function Seccion({
                     una semana mide 36 px y en el celular queda fuera de la
                     vista sin hacer scroll (docs/dependencias.md §9.1). */}
                 <div className="max-sm:bg-background flex min-w-0 items-center gap-1 max-sm:w-fit max-sm:max-w-full">
-                  <p
+                  <button
+                    type="button"
+                    // El nombre es el blanco del PRIMER toque, no la barra: una
+                    // barra de una semana mide 16.75 px en el celular y el
+                    // nombre ocupa su propia línea encima (§10.2).
                     // El title va aquí y no en la barra: es este texto el que
                     // se corta cuando el nombre no cabe en su columna.
                     title={a.titulo}
-                    className={`min-w-0 truncate text-sm ${hecha ? "text-muted-foreground line-through" : ""}`}
+                    aria-pressed={esElegida}
+                    onClick={(e) => {
+                      if (esObjetivo) return;
+                      e.stopPropagation();
+                      onElegir(a.id);
+                    }}
+                    className={`focus-visible:ring-ring min-w-0 cursor-pointer truncate rounded-sm text-left text-sm outline-none focus-visible:ring-2 ${hecha ? "text-muted-foreground line-through" : ""}`}
                   >
                     {listas.has(a.id) && (
                       <Sparkles className="text-primary mr-1 inline size-3.5" aria-label="Lista para empezar" />
@@ -729,10 +841,13 @@ function Seccion({
                     {a.titulo}
                     {/* En el celular la barra es corta: el monto viaja con el nombre. */}
                     {costando > 0 && <span className="text-muted-foreground sm:hidden"> · {soles(costando)}</span>}
-                  </p>
+                  </button>
                   {/* 16 px de icono: el pseudo-elemento le da los 44 px de
                       área táctil sin agrandar el dibujo. Sin "Mover a": aquí
                       el carril es la meta, y la meta se cambia en Cambiar. */}
+                  {/* Mientras la barra pide el segundo toque, el menú se apaga:
+                      si no, un toque sobre ⋯ abriría opciones en vez de
+                      contestar la pregunta que está en pantalla. */}
                   <MenuAccion
                     accion={a}
                     miembros={miembros}
@@ -743,7 +858,9 @@ function Seccion({
                     onAlternar={onAlternar}
                     onBorrar={onBorrar}
                     onMoverSemana={onMoverSemana}
-                    className="relative shrink-0 before:absolute before:-inset-[14px] before:content-['']"
+                    className={`relative shrink-0 before:absolute before:-inset-[14px] before:content-[''] ${
+                      pidiendo ? "pointer-events-none opacity-30" : ""
+                    }`}
                   />
                 </div>
                 {(fuera.length > 0 || choques.length > 0) && (
@@ -785,7 +902,10 @@ function Seccion({
               </marker>
             </defs>
             {flechas.map((f, i) => (
-              <g key={i} className="pointer-events-auto">
+              // Mientras la barra pide el segundo toque, las flechas no
+              // reciben clics: pulsar una quitaría una unión en vez de
+              // contestar la pregunta que está en pantalla (§10.2).
+              <g key={i} className={pidiendo ? "pointer-events-none" : "pointer-events-auto"}>
                 {/* Un trazo invisible y ancho: la flecha mide 1 px y nadie
                     acierta a eso con el ratón, mucho menos con el dedo. */}
                 <path
