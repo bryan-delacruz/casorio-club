@@ -153,3 +153,25 @@ export const ELEGIDO = {
   pidiendoDesunir: "Toca el otro extremo de la unión que quieres soltar",
   nadaQueSoltar: "Esto no está unido a nada todavía.",
 } as const;
+
+/**
+ * El aviso de retraso (docs/retrasos.md §4). Dos tonos a propósito:
+ * "se pasó" es un hecho y va apagado, como el consejo del Reparto; "no llega"
+ * va en rojo, como el choque del Camino, porque es la misma clase de problema
+ * —una cuenta que no cuadra— mirando a la boda.
+ */
+export const RETRASO = {
+  /** "2 cosas se pasaron de su semana." */
+  cuantas: (n: number) =>
+    n === 1 ? "1 cosa se pasó de su semana." : `${n} cosas se pasaron de su semana.`,
+  /** "Si nada cambia, «X» se pasa 2 semanas de la boda." */
+  noLlega: (titulo: string, semanas: number) =>
+    `Si nada cambia, «${titulo}» se pasa ${semanas} ${
+      semanas === 1 ? "semana" : "semanas"
+    } de la boda.`,
+  /** En la fila del Camino, cuando no llega. */
+  filaNoLlega: (semanas: number) =>
+    `no llega: ${semanas} ${semanas === 1 ? "semana" : "semanas"} tarde`,
+  /** En la fila del Camino, cuando solo se pasó. */
+  fila: (semanas: number) => `${semanas} ${semanas === 1 ? "semana" : "semanas"} tarde`,
+} as const;

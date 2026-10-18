@@ -303,9 +303,9 @@ cosa, con un **check** en lugar del rombo y el nombre del **último hecho**:
   baja** (el más tardío en el tiempo, porque las semanas se cuentan hacia atrás).
   Desempata por orden de meta y luego por título, igual que `proximoHito`.
   Función pura: `ultimoHitoHecho(acciones, metas)`.
-- **No cuenta nada más.** Nada de "te quedan N cosas sin hacer": eso sería un
-  aviso de retraso, fuera de alcance (§14). Lo pendiente de esa etapa sale donde
-  ya salía, en "Qué toca ahora".
+- **No cuenta nada más.** Nada de "te quedan N cosas sin hacer". El retraso lo
+  cuenta su propia línea, encima de la banda (`docs/retrasos.md` §4.1), y no la
+  tira. Lo pendiente de esa etapa sale donde ya salía, en "Qué toca ahora".
 - Si dos empatan en la semana más baja, se nombran unidos por " y " con
   `nombreDeHitos`, como en la tira normal (§6.1).
 - El verbo es **"hecho"** y no "cumplido" ni "logrado": es la misma palabra del
@@ -370,7 +370,7 @@ siguiente, que es la verdad incómoda que hay que ver.
 | **Días clave de varias metas mezclados en el tiempo** | Las etapas se ordenan por semana, no por meta. Lo único visible es que el próximo puede ser de otra meta que la que estás mirando: es correcto. |
 | **Dos en la misma semana** | Una sola etapa, y la tira nombra los dos unidos por " y " en orden de meta y, a igualdad, por título ("Edicto matrimonial y Ceremonia civil · faltan 2 semanas"). |
 | **El próximo ya está `hecho`** | No es el próximo: la tira salta al siguiente sin hacer. Si no queda ninguno, tira de cierre (§5.3.1). |
-| **Uno `hecho` con cosas sin hacer en su etapa** | La tira ya no lo nombra; esas cosas siguen en "Qué toca ahora" si están desbloqueadas. No se inventa aviso de retraso (§14). |
+| **Uno `hecho` con cosas sin hacer en su etapa** | La tira ya no lo nombra; esas cosas siguen en "Qué toca ahora" si están desbloqueadas. El aviso de retraso lo da su propia línea (`docs/retrasos.md`), no la tira. |
 | **Uno que es idea suelta** | No corta nada: no tiene semana. Queda en "Todavía sin sitio". Marcar algo como día clave no lo pone en el camino. |
 | **Uno con duración > 1** | No dura: `duracionDe` lo fuerza a 1 y la etapa se corta en su semana. |
 | **Dos acciones con la misma semana** | Desempatan por dependencia y, a igualdad, por título, como `ordenPorDependencia`. |
@@ -826,9 +826,9 @@ abierto por toque y por teclado; más las cinco mediciones de §11.6.
 - **Más de 5 líneas en la banda**, filtros, "posponer", "en esto estoy hoy", o un
   orden a mano. La banda no es una lista editable: es un recordatorio.
 - **Recordatorios por correo o notificación.**
-- **Un aviso de retraso** ("esto no llega", "esta semana ya pasó y no está
-  hecho"). Hay un atraso implícito en que la banda ordene por semana descendente,
-  pero **no se pinta en rojo ni se cuenta**. Es otra spec, y la más probable.
+- **Un aviso de retraso.** Ya no queda fuera: es `docs/retrasos.md`, su propia
+  spec, como estaba previsto. La banda gana **una** línea; el resto de su
+  contenido no cambia.
 - **Varios días clave a la vez en la tira**, o un historial de los pasados. Solo
   el próximo, o el último si ya no queda ninguno.
 - **Celebrar el cierre** con confeti, insignia o cambio de color. La tira de

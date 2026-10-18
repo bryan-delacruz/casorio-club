@@ -33,6 +33,7 @@ import {
 } from "@/lib/metas";
 import { prohibidas, semanaAlArrastrar, unidasA } from "@/lib/dependencias";
 import { cuentaDe, pagosPorAccion } from "@/lib/pagos";
+import { proyeccion, type Proyectada } from "@/lib/retrasos";
 import {
   agregarDependencia,
   borrarAccion,
@@ -50,6 +51,7 @@ import {
   INVITA_META,
   NOMBRE_SIN_META,
   REQUIERE,
+  RETRASO,
   SIN_META,
   soles,
   TODO_LO_ANOTADO,
@@ -371,6 +373,9 @@ export function Camino({
   for (let s = -4; s >= ultima; s -= 4) marcas.add(s);
 
   const hoy = semanasHastaLaBoda(fechaBoda);
+  // Dónde cae de verdad lo que no está hecho (docs/retrasos.md). Sin fecha de
+  // boda devuelve vacío, así que las filas no dicen nada.
+  const retrasos = proyeccion(acciones, dependencias, hoy);
   const columnaHoy = hoy !== null && hoy <= primera && hoy >= ultima ? columnaDe(hoy) : null;
 
   // En el celular el nombre va en su propia línea encima de la barra y la
@@ -508,6 +513,7 @@ export function Camino({
                 metas={metas}
                 arrastre={arrastre}
                 vedadas={vedadas}
+                retrasos={retrasos}
                 elegida={elegida?.id}
                 pidiendo={eleccion?.modo !== "elegido" ? (eleccion?.modo ?? null) : null}
                 objetivos={objetivos}
@@ -607,6 +613,7 @@ function Seccion({
   metas,
   arrastre,
   vedadas,
+  retrasos,
   elegida,
   pidiendo,
   objetivos,
@@ -636,6 +643,8 @@ function Seccion({
   arrastre: { tipo: string; id: string } | null;
   /** Los bloques que harían círculo con lo que se está tirando (§6). */
   vedadas: Set<string>;
+  /** Lo que se pasó de su semana (docs/retrasos.md §4.2). */
+  retrasos: Map<string, Proyectada>;
   /** Lo elegido con el dedo, resaltado en el gráfico (§10.2). */
   elegida?: string;
   /** La barra está pidiendo un segundo toque, o null. */
@@ -775,6 +784,7 @@ function Seccion({
           // Lo que va costando, sin palabras: aquí no cabe una frase (§4.3).
           const { costando } = cuentaDe(a.monto, pagosDe.get(a.id) ?? []);
 
+          const atrasada = retrasos.get(a.id);
           const esElegida = elegida === a.id;
           const esObjetivo = Boolean(pidiendo) && objetivos.has(a.id);
 
@@ -788,6 +798,26 @@ function Seccion({
           const choques = enCamino(necesita).filter(
             (r) => r.estado !== "hecho" && finDe(r) < inicioDe(a),
           );
+
+          // El orden de prioridad de §4.2, resuelto una vez.
+          const segunda: { texto: string; grave: boolean; deRequisitos: boolean } | null =
+            choques.length > 0
+              ? {
+                  texto: `${REQUIERE} ${choques.map((r) => r.titulo).join(", ")}`,
+                  grave: true,
+                  deRequisitos: true,
+                }
+              : atrasada?.noLlega
+                ? { texto: RETRASO.filaNoLlega(atrasada.atraso), grave: true, deRequisitos: false }
+                : atrasada
+                  ? { texto: RETRASO.fila(atrasada.atraso), grave: false, deRequisitos: false }
+                  : fuera.length > 0
+                    ? {
+                        texto: `${REQUIERE} ${fuera.map((r) => r.titulo).join(", ")}`,
+                        grave: false,
+                        deRequisitos: true,
+                      }
+                    : null;
 
           return (
             <div
@@ -870,13 +900,26 @@ function Seccion({
                     }`}
                   />
                 </div>
-                {(fuera.length > 0 || choques.length > 0) && (
+                {/* UNA línea secundaria, nunca dos, y gana la más grave
+                    (docs/retrasos.md §4.2): choque, no llega, se pasó,
+                    requiere algo de otra meta. El `title` conserva la lista
+                    de requisitos entera, así que ganar no pierde nada. */}
+                {segunda && (
                   <p
-                    className={`max-sm:bg-background truncate text-xs max-sm:w-fit max-sm:max-w-full ${choques.length > 0 ? "text-destructive" : "text-muted-foreground"}`}
-                    title={necesita.map((r) => r.titulo).join(", ")}
+                    className={`max-sm:bg-background truncate text-xs max-sm:w-fit max-sm:max-w-full ${segunda.grave ? "text-destructive" : "text-muted-foreground"}`}
+                    // Cuando la línea ya nombra requisitos, el title solo
+                    // añade los que no cupieron; cuando gana el retraso, añade
+                    // la lista entera, que si no se perdería.
+                    title={
+                      segunda.deRequisitos
+                        ? necesita.map((r) => r.titulo).join(", ")
+                        : [segunda.texto, necesita.map((r) => r.titulo).join(", ")]
+                            .filter(Boolean)
+                            .join(" · ")
+                    }
                   >
-                    {choques.length > 0 && <TriangleAlert className="mr-1 inline size-3" />}
-                    {REQUIERE} {(choques.length > 0 ? choques : fuera).map((r) => r.titulo).join(", ")}
+                    {segunda.grave && <TriangleAlert className="mr-1 inline size-3" />}
+                    {segunda.texto}
                   </p>
                 )}
               </div>

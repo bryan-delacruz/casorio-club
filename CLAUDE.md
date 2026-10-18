@@ -134,6 +134,9 @@ pantallas no puedan divergir.
 Todo cálculo de orden, fechas, totales o dependencias vive en `lib/` como
 función pura y se prueba con `node:test`. No metas ese cálculo en un componente.
 
+- `lib/retrasos.ts` — dónde cae de verdad cada cosa si se empieza hoy, de
+  donde salen los dos avisos de `docs/retrasos.md`: "se pasó de su semana" y
+  "no llega". Son **una sola cuenta**, no dos.
 - `lib/dependencias.ts` — el orden entre acciones: candidatas por meta, las
   que harían círculo, y la detección de ciclos (`docs/dependencias.md`).
 - `lib/metas.ts` — orden topológico de dependencias, cadena principal, "lista
