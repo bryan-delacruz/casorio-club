@@ -338,8 +338,13 @@ pantalla: lo contrario de apuntar a una barra de 16.75 px.
   elegido, esto manda y tapa el botón Anotar a propósito.
 - Botones de **44 px**, también la `✕`, que logra su área con un
   pseudo-elemento para no estirar la fila.
-- Mientras la barra pide el segundo toque: las filas que **no** valen se
-  atenúan, los menús ⋯ y las flechas **no reciben clics** —pulsarlos
+- Mientras la barra pide el segundo toque: las filas que **sí** valen llevan
+  un marco de `ring-primary/70`, que se compone a 3.89:1 sobre el fondo
+  oscuro. Al 50 % daba 2.64:1 —por debajo del 3:1 que pide un borde que
+  transmite información— y en 1 px no se veía: el modo pedía tocar una fila y
+  ninguna parecía tocable. Sigue siendo más tenue que los 2 px opacos de la
+  elegida, así que la jerarquía se mantiene. Las que **no** valen se
+  atenúan al 55 %, no al 40 %, donde su nombre caía a 3.9:1; los menús ⋯ y las flechas **no reciben clics** —pulsarlos
   contestaría otra pregunta— y `Cancelar` vuelve atrás.
 - Los destinos de `Unir con…` excluyen los que harían círculo, con el mismo
   `prohibidas` de §6. Los de `Quitar unión` son las uniones **directas** en los

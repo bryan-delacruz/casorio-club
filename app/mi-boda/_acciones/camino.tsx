@@ -873,9 +873,15 @@ function Seccion({
                     },
                   }
                 : {})}
+              // El anillo al 50 % se componía a 2.64:1 sobre el fondo oscuro:
+              // por debajo del 3:1 que pide un borde que transmite
+              // información, y en 1 px era invisible. Al 70 % da 3.89:1 y
+              // sigue siendo más tenue que los 2 px opacos de la elegida, así
+              // que la jerarquía se mantiene. Y las atenuadas van al 55 %: al
+              // 40 % su nombre quedaba en 3.9:1 y no se podía leer.
               className={`grid items-center gap-y-0.5 rounded ${
-                esObjetivo ? "ring-primary/50 cursor-pointer ring-1" : ""
-              } ${pidiendo && !esObjetivo && !esElegida ? "opacity-40" : ""} ${
+                esObjetivo ? "ring-primary/70 cursor-pointer ring-1" : ""
+              } ${pidiendo && !esObjetivo && !esElegida ? "opacity-55" : ""} ${
                 esElegida ? "ring-primary ring-2" : ""
               }`}
               style={rejilla}
