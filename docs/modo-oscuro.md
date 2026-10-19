@@ -109,12 +109,47 @@ con JavaScript sobre los colores calculados, no a ojo.
 | Barra "Por hacer" | 1.40 | 1.98 | Baja en los **dos**, y **peor en claro** |
 | Tarjeta sobre fondo | 1.13 | 1.12 | Igual en los dos |
 
-**Se corrige uno solo: `--destructive` en oscuro**, de `#c4553c` a `#d97056`,
+**La paleta oscura se rehízo por relaciones, no por hex** (§5.2). Además,
+**se corrigió un token por contraste: `--destructive` en oscuro**, de `#c4553c` a `#d97056`,
 que lo lleva a 5.30:1. Es el aviso de choque y el de "no llega"
 (`docs/retrasos.md`), o sea el texto más importante de la pantalla, y era el
 único token que **empeoraba al cambiar de tema**. Nunca es fondo sólido
 —siempre `text-destructive` con un tinte al 10–20 %—, así que aclararlo no
 empeora ningún otro sitio.
+
+### 5.2 La paleta oscura copia la ESTRUCTURA del claro, no sus colores
+
+El primer intento copió hex y se veía embarrado. El diagnóstico salió de medir
+las relaciones del tema claro y comparar:
+
+| Relación | Claro | Oscuro, antes | Oscuro, ahora |
+| --- | --- | --- | --- |
+| `muted` y `accent` vs fondo | **1.00** (son el fondo) | woodland, otro color | 1.17 |
+| `card` vs fondo | 1.13 | 1.12 | **1.25** |
+| `secondary` vs fondo | 1.40 | 1.98, marrón saturado | 1.70, cálido neutro |
+| `primary` | el vino de la marca | beige sandlight | un **tinte** del vino |
+
+Lo que estaba roto no era el gusto: en claro `muted` y `accent` **son** el
+fondo —no tiñen nada, solo se separan de las superficies elevadas—, y en
+oscuro eran woodland puro, un marrón saturado aplicado a cada hover, a cada
+banda y a cada esqueleto. Eso era el barro.
+
+Dos desvíos deliberados de la estructura del claro, los dos medidos:
+
+- **`card` sube a 1.25**, por encima del 1.13 del claro: en oscuro el mismo
+  número se percibe como menos elevación, y a 1.12 la tarjeta y el fondo eran
+  la misma mancha.
+- **`muted` y `accent` no llegan a ser el fondo**, como en claro, sino que
+  quedan a 1.17. `bg-muted` dibuja los esqueletos de carga y la barra de
+  progreso: con el valor del claro serían invisibles, que es un defecto que el
+  tema claro ya tiene y que no tiene sentido copiar.
+
+Y una restricción que no se puede sortear: **el vino de la marca no cabe en
+los dos papeles**. `#49110b` es ilegible sobre fondo oscuro; aclararlo hasta
+que pase como texto (4.5:1) lo convierte en un terracota que choca con
+`--destructive`. La salida es un **tinte** de mulled wine hacia goat milk,
+`#b09b92`, que conserva el tono rojo de la marca, da 6.58:1 **en los dos
+papeles** y no se confunde con el aviso.
 
 **No se tocan la barra "Por hacer" ni la tarjeta.** Los números dicen que no
 es un defecto del modo oscuro: en claro son iguales o peores, y llevan años
@@ -130,8 +165,9 @@ dos a la vez y con su propia decisión de diseño, no de rebote.
 - **Guardar la preferencia por boda o por persona** en la base. El sistema ya
   la guarda.
 - **Un tercer tema** o temas por boda.
-- **Cambiar ningún token.** Si alguno falla el contraste se corrige **ese**, y
-  se dice cuál y por qué; no se rehace la paleta.
+- **Cambiar los seis colores de la marca.** La paleta oscura se rehízo (§5.2),
+  pero siguen siendo los mismos seis: lo que cambió es qué papel toma cada uno
+  y en qué proporción, no la guía de marca.
 - **Modo oscuro en la imagen para compartir** (§4).
 
 ## 7. Puerta de calidad
