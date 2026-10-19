@@ -110,8 +110,12 @@ con JavaScript sobre los colores calculados, no a ojo.
 | Tarjeta sobre fondo | 1.13 | 1.12 | Igual en los dos |
 
 **La paleta oscura se rehízo por relaciones, no por hex** (§5.2). Además,
-**se corrigió un token por contraste: `--destructive` en oscuro**, de `#c4553c` a `#d97056`,
-que lo lleva a 5.30:1. Es el aviso de choque y el de "no llega"
+**se corrigió un token por contraste, dos veces: `--destructive` en oscuro**, de `#c4553c` a `#d97056`,
+y de ahí a `#de7b60`. El primer ajuste lo midió contra el **fondo de página**
+y daba 5.30:1, pero "Borrar" del menú ⋯ se pinta sobre el **popover**, que es
+más claro, y ahí caía a 4.24:1: un token se mide contra la superficie donde el
+texto vive, no contra la página. Ahora da 4.71:1 sobre el popover y 5.88:1
+sobre el fondo. Es el aviso de choque y el de "no llega"
 (`docs/retrasos.md`), o sea el texto más importante de la pantalla, y era el
 único token que **empeoraba al cambiar de tema**. Nunca es fondo sólido
 —siempre `text-destructive` con un tinte al 10–20 %—, así que aclararlo no

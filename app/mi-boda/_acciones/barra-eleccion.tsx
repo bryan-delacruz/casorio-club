@@ -57,38 +57,41 @@ export function BarraEleccion({
         aria-label={`Elegido: ${accion.titulo}`}
         className="bg-popover border-border mx-auto max-w-xl rounded-lg border p-2 shadow-lg"
       >
+        {/* El título SIEMPRE está, también mientras se pide el segundo toque:
+            antes desaparecía justo cuando hacía falta, y la pregunta "toca lo
+            que no puede empezar antes de esto" se quedaba sin el "esto". */}
+        <div className="flex items-baseline gap-2 px-1">
+          <p className="min-w-0 flex-1 truncate text-sm" title={accion.titulo}>
+            {accion.titulo}
+          </p>
+          <span className="text-muted-foreground shrink-0 text-xs tabular-nums">
+            {etiquetaSemana(accion.inicioSemanas)}
+          </span>
+          {/* `area-toque` le da los 44 px sin estirar la fila; el botón mide
+              24 px, no los 16 que la utilidad supone por defecto. */}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            onClick={onCerrar}
+            aria-label={ELEGIDO.cerrar}
+            className="text-muted-foreground hover:text-foreground area-toque -mr-1 shrink-0 [--toque-tamano:24px]"
+          >
+            <X />
+          </Button>
+        </div>
+
         {pidiendo ? (
-          <div className="flex items-center gap-2">
-            <p className="min-w-0 flex-1 px-1 text-sm">
+          <div className="mt-1.5 flex items-center gap-2">
+            <p className="text-muted-foreground min-w-0 flex-1 px-1 text-sm">
               {modo === "unir" ? ELEGIDO.pidiendoUnir : ELEGIDO.pidiendoDesunir}
             </p>
-            <Button type="button" variant="ghost" size="sm" onClick={() => onModo("elegido")}>
+            <Button type="button" variant="ghost" className="h-11 shrink-0" onClick={() => onModo("elegido")}>
               {ELEGIDO.cancelar}
             </Button>
           </div>
         ) : (
           <>
-            <div className="flex items-baseline gap-2 px-1">
-              <p className="min-w-0 flex-1 truncate text-sm" title={accion.titulo}>
-                {accion.titulo}
-              </p>
-              <span className="text-muted-foreground shrink-0 text-xs tabular-nums">
-                {etiquetaSemana(accion.inicioSemanas)}
-              </span>
-              {/* `area-toque` le da los 44 px sin estirar la fila. */}
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-xs"
-                onClick={onCerrar}
-                aria-label={ELEGIDO.cerrar}
-                /* El botón mide 24 px, no los 16 que supone la utilidad. */
-                className="text-muted-foreground hover:text-foreground area-toque -mr-1 shrink-0 [--toque-tamano:24px]"
-              >
-                <X />
-              </Button>
-            </div>
-
             <div className="mt-1.5 flex items-center gap-1.5">
               {/* 44 px de lado, que es lo que pide un pulgar. Mueven una
                   semana exacta, que arrastrando con el dedo no se acierta.

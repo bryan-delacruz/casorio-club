@@ -90,6 +90,10 @@ ese aviso es suficiente.
   cerrarse el menú.
 - **Cabecera**: el título y la descripción de §3, y debajo el título de la
   acción, truncado.
+- Cada lista lleva `min-w-0`. `DialogContent` es un grid, y sin eso el hijo se
+  niega a encoger por debajo de su contenido: a 375 px medía 364 px dentro de
+  una caja de 311 y recortaba por la derecha el buscador, las semanas y el
+  botón Guardar.
 - **Dos listas**, una debajo de otra, con la misma forma: etiqueta, contador
   "Quitar {n}" cuando hay algo marcado, buscador cuando hay más de 6
   candidatas, y la lista con scroll a `max-h-40`.
@@ -278,7 +282,8 @@ número. El bloque se arrastra.
 
 Armar el orden desde el gráfico, que es donde el orden se ve.
 
-- Cada bloque lleva un **asa** en su **borde derecho**. La dependencia es
+- Cada bloque lleva un **asa** en su **borde derecho**. Dibuja 12 px y recibe
+  44 con un pseudo-elemento: 12 px es poco hasta para un ratón. La dependencia es
   fin-a-inicio, así que se tira desde donde esto **acaba** hasta donde
   **empieza** lo que lo espera: se lee de izquierda a derecha, en el mismo
   sentido que el eje.
@@ -337,7 +342,13 @@ pantalla: lo contrario de apuntar a una barra de 16.75 px.
   encima del `z-40` de esa barra y del botón Anotar: mientras algo está
   elegido, esto manda y tapa el botón Anotar a propósito.
 - Botones de **44 px**, también la `✕`, que logra su área con un
-  pseudo-elemento para no estirar la fila.
+  pseudo-elemento para no estirar la fila. El **nombre de la fila**, que es el
+  blanco del primer toque, dibuja 20 px de alto y gana los 44 con un
+  pseudo-elemento **solo vertical**: a lo ancho se queda en el texto, porque
+  extenderlo robaría los toques del menú ⋯ que tiene al lado.
+- El **título de lo elegido sigue en la barra mientras se pide el segundo
+  toque**. Antes desaparecía justo entonces, y la pregunta "toca lo que no
+  puede empezar antes de esto" se quedaba sin el "esto".
 - Mientras la barra pide el segundo toque: las filas que **sí** valen llevan
   un marco de `ring-primary/70`, que se compone a 3.89:1 sobre el fondo
   oscuro. Al 50 % daba 2.64:1 —por debajo del 3:1 que pide un borde que
