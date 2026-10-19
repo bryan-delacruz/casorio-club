@@ -4,6 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 @AGENTS.md
 
+`AGENTS.md` lo escribe y lo vuelve a poner `next dev`: no lo edites a mano.
+Si aparece como cambio sin commitear, commitéalo junto al trabajo.
+
 Casorio Club: espacio compartido para que una pareja planifique su boda civil en
 Perú. Multi-tenant con registro abierto — cualquiera crea su boda. La interfaz,
 el código y los comentarios están en español; los comentarios explican el *por
@@ -32,7 +35,7 @@ corrección cada una:
 pnpm dev          # servidor de desarrollo (puerto 3000)
 pnpm build        # build de producción
 pnpm lint         # eslint
-pnpm test         # node:test sobre lib/**/*.test.ts
+pnpm test         # node:test sobre lib/**/*.test.ts, incluido lib/bernie/
 ```
 
 `pnpm` es el gestor de paquetes; no uses `npm install`.
@@ -50,7 +53,8 @@ esquema directo, y `db/migraciones` no existe):
 ```bash
 pnpm dotenv -e .env.local -- pnpm drizzle-kit push      # aplicar db/schema.ts a Neon
 pnpm dotenv -e .env.local -- node scripts/verificar-db.mjs   # ver columnas e índices reales
-pnpm dotenv -e .env.local -- node scripts/ver-acciones.mjs
+pnpm dotenv -e .env.local -- node scripts/ver-acciones.mjs            # volcar acciones de una boda
+pnpm dotenv -e .env.local -- node scripts/rellenar-inicio-semanas.mjs # rellenar inicio_semanas vacíos
 ```
 
 ⚠️ Drizzle selecciona **todas** las columnas de una tabla, así que una columna
@@ -91,6 +95,20 @@ Derivar, no duplicar:
 - `deBernie` en un pago = derivado de `gastosBernie.pagoId`, no es columna.
 
 Dinero como `numeric(12, 2)`, nunca float.
+
+Ocho tablas en `db/schema.ts`, todas con `boda_id` salvo `bodas` (cuyo `id`
+**es** el `orgId`) y `webhooks_recibidos` (global):
+
+| Tabla | Para qué |
+| --- | --- |
+| `bodas` | la fecha; la fila se crea sola la primera vez que hace falta |
+| `metas` | nombre y orden; avance, rango y monto se derivan |
+| `acciones` | la entidad única: trámite, compra y gasto a la vez |
+| `pagos` | cada abono, con `pagado_por_id` |
+| `dependencias` | par `(accion_id, requiere_id)` |
+| `conexiones_bernie` | OAuth: refresh token cifrado, cursor, lease |
+| `gastos_bernie` | bandeja "Por asignar"; `pago_id` enlaza al pago creado |
+| `webhooks_recibidos` | idempotencia por `webhook-id` |
 
 ### El tiempo es relativo a la boda
 
@@ -142,8 +160,16 @@ función pura y se prueba con `node:test`. No metas ese cálculo en un component
 - `lib/metas.ts` — orden topológico de dependencias, cadena principal, "lista
   para empezar", resumen de meta, orden derivado de metas, plantillas
   (`PLAN_COMPLETO`, que compone `REGISTRO_CIVIL`; ver `docs/plantillas.md`).
-- `lib/historia.ts` — la imagen para compartir.
+- `lib/pagos.ts` — aritmética del Reparto: quién puso cuánto, desbalance y
+  textos cortos. Suma y resta en **céntimos enteros**, nunca en coma flotante
+  (`docs/pagos.md` §4.2).
+- `lib/fecha-boda.ts` — el día de la boda y la cuenta regresiva
+  (`docs/fecha-de-la-boda.md`). `diasHasta` vivía en `lib/historia.ts` y se
+  reexporta desde allá.
+- `lib/historia.ts` — la imagen para compartir (`docs/compartir.md`).
+- `lib/fuente-og.ts`, `lib/icono-app.tsx` — fuentes e iconos de `next/og`.
 - `lib/persona.ts` — nombre e iniciales de un miembro de Clerk.
+- `lib/clerk-localization.ts` — los textos de la interfaz de Clerk.
 - `lib/demo.ts` — la semilla de la boda de ejemplo.
 - `lib/bernie/` — OAuth PKCE, cifrado, cliente, firma de webhooks, validador de
   contrato OpenAPI, sincronización por cursor.
@@ -273,11 +299,15 @@ Spec-Driven: **la spec en `docs/*.md` manda sobre el código**. Si algo cambia,
 primero se actualiza la spec. Cada documento declara su estado
 ("aprobada e implementada").
 
-Se trabaja **sin agentes**. Hubo tres especialistas en `.claude/agents/` (un
-Product Owner, un arquitecto y un validador de UX) y se retiraron: cada relevo
-arrancaba en frío, había que volver a escribirle el contexto que este archivo ya
-da, y una pasada tardaba de 10 a 14 minutos. El trabajo se hace directo, en la
-conversación, con las lecciones que ese ciclo dejó medidas y que siguen valiendo.
+El trabajo de producto, arquitectura e implementación se hace **directo, en la
+conversación**. Hubo tres especialistas en `.claude/agents/` (un Product Owner,
+un arquitecto y un validador de UX) y se retiraron dos: cada relevo arrancaba en
+frío, había que volver a escribirle el contexto que este archivo ya da, y una
+pasada tardaba de 10 a 14 minutos.
+
+Queda uno: `validador-ux`, solo lectura, para el paso 3 del ciclo. Se invoca
+cuando hace falta medir con números una pantalla ya implementada, no para
+decidir ni para escribir código.
 
 ## Ciclo de un cambio
 
@@ -338,6 +368,10 @@ el del repositorio, y el comentario explica el *por qué*.
 pares**: un segundo servidor falla por el puerto ocupado, y pararlo le quita al
 usuario lo que estaba mirando. Si hay que reiniciarlo —por ejemplo, porque
 Turbopack sirve una compilación vieja—, pídeselo.
+
+`.claude/launch.json` declara la configuración `casorio-club` en el puerto
+3000. `preview_start {name: "casorio-club"}` **reusa** el servidor que ya
+corre; no levanta un segundo.
 
 Un servidor corriendo no cuesta nada mientras nadie lo lea. Lo que cuesta es
 mirar, y por orden de precio: una captura de pantalla vale varias páginas de
