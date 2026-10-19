@@ -141,9 +141,8 @@ export const acciones = pgTable(
   },
   (t) => [
     // Toda consulta filtra por boda; sin un índice que empiece por boda_id se
-    // escanea la tabla entera. En Neon todavía existe el viejo
-    // acciones_boda_momento_idx: se cambia por este en el paso 3 del
-    // despliegue (docs/metas.md §3.1), no en este PR.
+    // escanea la tabla entera. El viejo acciones_boda_momento_idx ya no está
+    // en Neon: se retiró con la columna `momento` (docs/metas.md §3.1).
     index("acciones_boda_orden_idx").on(t.bodaId, t.orden),
 
     // El orden EXACTO de `listarAcciones`, que es la lectura caliente: las
@@ -156,7 +155,8 @@ export const acciones = pgTable(
     // lado no sirve para este ORDER BY.
     //
     // Es un índice, no una columna: Drizzle no lo selecciona, así que puede
-    // llegar a Neon después de mergear sin romper producción.
+    // llegar a Neon después de mergear sin romper producción. Ya está
+    // aplicado con `drizzle-kit push` y verificado con scripts/verificar-db.mjs.
     index("acciones_boda_semana_idx").on(
       t.bodaId,
       sql`${t.inicioSemanas} desc nulls last`,
