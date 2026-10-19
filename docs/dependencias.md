@@ -328,6 +328,10 @@ pantalla: lo contrario de apuntar a una barra de 16.75 px.
 - El blanco del **primer** toque es el **nombre**, no la barra: en el celular
   el nombre ocupa su propia línea encima del Gantt, y la barra puede medir
   16.75 px.
+- Mientras hay algo elegido, el botón **Anotar se aparta**: flota a 5rem del
+  borde y asomaba 8 px por debajo de esta barra, lo que parecía un error de
+  dibujo. Y elegir **trae el bloque a la vista**: la barra puede tapar justo
+  la fila recién elegida, y entonces `◀` y `▶` mueven algo que no se ve.
 - La barra de abajo se apoya **encima de la barra de secciones**
   (`bottom-[calc(4rem+env(safe-area-inset-bottom))]`) y va en `z-50`, por
   encima del `z-40` de esa barra y del botón Anotar: mientras algo está

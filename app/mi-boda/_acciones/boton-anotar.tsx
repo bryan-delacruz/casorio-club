@@ -19,7 +19,11 @@ export function BotonAnotar({ miembros, metas }: { miembros: Miembro[]; metas: M
     <>
       {/* Reserva su alto al final de la página: así lo último no queda debajo. */}
       <div aria-hidden className="h-16 sm:hidden" />
-      <div className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] left-1/2 z-40 -translate-x-1/2 sm:hidden">
+      {/* Se aparta mientras hay algo elegido en el Camino: su barra se apoya
+          4rem por encima del borde y este botón flota a 5rem, así que asomaba
+          8 px por debajo y parecía un error de dibujo. Mientras se elige, la
+          barra manda y anotar no es lo que se está haciendo. */}
+      <div className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] left-1/2 z-40 -translate-x-1/2 sm:hidden has-[~*_[data-eligiendo]]:hidden [body:has([data-eligiendo])_&]:hidden">
         <NuevaAccion
           miembros={miembros}
           metas={metas}

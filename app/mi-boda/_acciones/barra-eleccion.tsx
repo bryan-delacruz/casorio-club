@@ -45,7 +45,13 @@ export function BarraEleccion({
     // Por encima del z-40 de la barra de secciones y del botón Anotar: mientras
     // algo está elegido, esto manda. En el celular se apoya justo encima de la
     // barra de secciones; desde `sm` flota centrada abajo.
-    <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-50 px-3 sm:inset-x-auto sm:bottom-4 sm:left-1/2 sm:-translate-x-1/2 sm:px-0">
+    // `data-eligiendo` no es decoración: el botón Anotar del celular flota a
+    // 5rem del borde y asomaba 8 px por debajo de esta barra. Se aparta
+    // mirando este atributo (ver `boton-anotar.tsx`).
+    <div
+      data-eligiendo
+      className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-50 px-3 sm:inset-x-auto sm:bottom-4 sm:left-1/2 sm:-translate-x-1/2 sm:px-0"
+    >
       <div
         role="region"
         aria-label={`Elegido: ${accion.titulo}`}

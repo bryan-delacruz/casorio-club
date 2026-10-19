@@ -238,6 +238,18 @@ export function Camino({
    * una barra de 16 px.
    */
   const [eleccion, setEleccion] = useState<{ id: string; modo: Modo } | null>(null);
+
+  // La barra se apoya abajo y puede tapar justo la fila que se acaba de
+  // elegir; entonces ◀ y ▶ mueven un bloque que no se ve. Se trae a la vista
+  // al elegir, y solo al elegir: hacerlo en cada cambio de semana pelearía
+  // con el scroll de quien está mirando.
+  const elegidoId = eleccion?.id ?? null;
+  useLayoutEffect(() => {
+    if (!elegidoId) return;
+    document
+      .querySelector(`[data-barra="${elegidoId}"]`)
+      ?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [elegidoId]);
   // La acción elegida puede haberse borrado desde el menú: entonces no hay
   // barra, y el estado viejo no estorba.
   const elegida = eleccion ? acciones.find((a) => a.id === eleccion.id) : undefined;
