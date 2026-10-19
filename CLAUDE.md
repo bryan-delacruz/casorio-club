@@ -245,6 +245,13 @@ copiadas. Si un patrón visual se repite en tres sitios, pasa a ser una
 utilidad con nombre en `globals.css` —como `area-toque`, que da los 44 px de
 blanco táctil sin agrandar el dibujo— y el número mágico vive una sola vez.
 
+Cuando el que se queda corto es el **primitivo** de shadcn, el arreglo va en
+`globals.css` apuntando a su `data-slot`, nunca editando `components/ui/`: así
+ningún sitio se queda fuera y una actualización de shadcn no lo pisa. Es lo
+que hace la regla de `[data-slot="dropdown-menu-item"]`, que sube los ítems de
+menú a 44 px **solo bajo `pointer: coarse`**: en escritorio 26.6 px está bien
+y estirarlos solo los haría torpes.
+
 La paleta vive en los **tokens de shadcn**. No crees utilidades de color
 propias ni clases de color a mano. La interfaz de Clerk la dibuja Clerk: textos
 por localización (`lib/clerk-localization.ts`), cero overrides de CSS.

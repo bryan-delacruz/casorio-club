@@ -356,6 +356,26 @@
   }
 }
 
+/* ---------------------------------------------------------------
+   Los ítems de menú, altos para un pulgar.
+
+   Los primitivos de shadcn llevan `py-1` y quedan en 26.6 px: bien para un
+   ratón, insuficiente para un dedo. Se arregla aquí y no en
+   `components/ui/`, que son los átomos y no se tocan: así ningún menú de la
+   app se queda fuera, y una actualización de shadcn no pisa el arreglo.
+
+   `pointer: coarse` es la condición exacta. En escritorio 26.6 px está bien
+   y estirar los menús solo los haría torpes; el tamaño sube donde se toca
+   con el dedo, que es donde el mínimo de 44 px aplica.
+   --------------------------------------------------------------- */
+@media (pointer: coarse) {
+  [data-slot="dropdown-menu-item"],
+  [data-slot="dropdown-menu-checkbox-item"],
+  [data-slot="select-item"] {
+    min-height: 44px;
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
