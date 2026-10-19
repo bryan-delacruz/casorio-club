@@ -138,8 +138,14 @@
      llega" (docs/retrasos.md), o sea el texto más importante de la pantalla.
      En claro el mismo token da 7.10:1, así que el problema era solo del tema
      oscuro. Nunca es fondo sólido —siempre `text-destructive` con un tinte al
-     10–20 %—, así que aclararlo no empeora nada. Ahora: 5.30:1. */
-  --destructive: #d97056;
+     10–20 %—, así que aclararlo no empeora nada.
+
+     Segundo ajuste, de #d97056 a #de7b60: aquel daba 5.30:1 sobre el FONDO
+     de página, pero "Borrar" del menú ⋯ se pinta sobre el popover, que es
+     más claro, y ahí caía a 4.24:1. Se mide contra la superficie donde el
+     texto vive, no contra la página. Ahora: 4.71:1 sobre el popover y
+     5.88:1 sobre el fondo. */
+  --destructive: #de7b60;
 
   --border: #ffffff1f;
   --input: #ffffff2b;
@@ -231,8 +237,14 @@
        llega" (docs/retrasos.md), o sea el texto más importante de la pantalla.
        En claro el mismo token da 7.10:1, así que el problema era solo del tema
        oscuro. Nunca es fondo sólido —siempre `text-destructive` con un tinte al
-       10–20 %—, así que aclararlo no empeora nada. Ahora: 5.30:1. */
-    --destructive: #d97056;
+       10–20 %—, así que aclararlo no empeora nada.
+
+       Segundo ajuste, de #d97056 a #de7b60: aquel daba 5.30:1 sobre el FONDO
+       de página, pero "Borrar" del menú ⋯ se pinta sobre el popover, que es
+       más claro, y ahí caía a 4.24:1. Se mide contra la superficie donde el
+       texto vive, no contra la página. Ahora: 4.71:1 sobre el popover y
+       5.88:1 sobre el fondo. */
+    --destructive: #de7b60;
 
     --border: #ffffff1f;
     --input: #ffffff2b;

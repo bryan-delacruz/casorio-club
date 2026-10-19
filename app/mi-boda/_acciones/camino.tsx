@@ -914,7 +914,13 @@ function Seccion({
                       e.stopPropagation();
                       onElegir(a.id);
                     }}
-                    className={`focus-visible:ring-ring min-w-0 cursor-pointer truncate rounded-sm text-left text-sm outline-none focus-visible:ring-2 ${hecha ? "text-muted-foreground line-through" : ""}`}
+                    // El texto mide 20 px de alto y es la vía táctil
+                    // principal. El pseudo-elemento lo sube a 44 px SOLO en
+                    // vertical: a lo ancho se queda en el texto, porque
+                    // extenderlo robaría los toques del menú ⋯ que tiene al
+                    // lado. El paso entre filas es de 52 px, así que no
+                    // invade la de arriba ni la de abajo.
+                    className={`focus-visible:ring-ring relative min-w-0 cursor-pointer truncate rounded-sm text-left text-sm outline-none before:absolute before:inset-x-0 before:-inset-y-3 before:content-[''] focus-visible:ring-2 ${hecha ? "text-muted-foreground line-through" : ""}`}
                   >
                     {listas.has(a.id) && (
                       <Sparkles className="text-primary mr-1 inline size-3.5" aria-label="Lista para empezar" />
@@ -1011,7 +1017,11 @@ function Seccion({
                   fill="none"
                   stroke="transparent"
                   strokeWidth={14}
-                  className="cursor-pointer"
+                  // Al enfocarla se enciende el propio trazo ancho: es una
+                  // `<path>` y el anillo de foco de Tailwind no la rodea.
+                  // Sin esto eran nueve paradas de tabulación INVISIBLES por
+                  // pantalla, y Enter en cualquiera quitaba una unión a ciegas.
+                  className="focus-visible:stroke-ring/40 cursor-pointer outline-none"
                   role="button"
                   tabIndex={0}
                   aria-label={`Quitar: ${f.nombre}`}
@@ -1186,7 +1196,11 @@ function Asa({ accion }: { accion: EnCamino }) {
       }}
       aria-label={`Tirar una flecha desde ${accion.titulo}`}
       title="Arrastra hasta lo que no puede empezar antes de esto"
-      className={`border-background bg-primary absolute top-1/2 -right-1.5 z-20 size-3 -translate-y-1/2 cursor-crosshair rounded-full border opacity-0 transition-opacity max-sm:hidden group-hover/bloque:opacity-100 ${
+      // El punto mide 12 px: por debajo del mínimo hasta para un ratón. El
+      // pseudo-elemento lo lleva a 44 px sin agrandar el dibujo. No usa la
+      // utilidad `area-toque` porque esa impone `position: relative` y este
+      // span ya está posicionado en el borde de la barra.
+      className={`border-background bg-primary absolute top-1/2 -right-1.5 z-20 size-3 -translate-y-1/2 cursor-crosshair rounded-full border opacity-0 transition-opacity before:absolute before:-inset-4 before:content-[''] max-sm:hidden group-hover/bloque:opacity-100 ${
         isDragging ? "opacity-100" : ""
       }`}
     />

@@ -189,7 +189,11 @@ function Lista({
   }
 
   return (
-    <div className="mt-2 space-y-2">
+    // `min-w-0` no es adorno: `DialogContent` es un grid, y sin esto el hijo
+    // se niega a encoger por debajo de su contenido. A 375 px medía 364 px
+    // dentro de una caja de 311 y recortaba por la derecha el buscador, las
+    // semanas y el botón Guardar.
+    <div className="mt-2 min-w-0 space-y-2">
       <div className="flex items-baseline justify-between gap-3">
         <Label>{etiqueta}</Label>
         {marcadas.size > 0 && (
