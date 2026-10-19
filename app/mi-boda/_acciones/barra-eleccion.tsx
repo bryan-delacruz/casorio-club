@@ -69,39 +69,48 @@ export function BarraEleccion({
               <span className="text-muted-foreground shrink-0 text-xs tabular-nums">
                 {etiquetaSemana(accion.inicioSemanas)}
               </span>
-              <button
+              {/* `area-toque` le da los 44 px sin estirar la fila. */}
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon-xs"
                 onClick={onCerrar}
                 aria-label={ELEGIDO.cerrar}
-                /* 16 px de icono: el pseudo-elemento le da los 44 px de área
-                   táctil sin agrandar el dibujo ni estirar la fila. */
-                className="text-muted-foreground hover:text-foreground focus-visible:ring-ring relative -mr-1 shrink-0 cursor-pointer rounded p-1 outline-none before:absolute before:-inset-[12px] before:content-[''] focus-visible:ring-2"
+                /* El botón mide 24 px, no los 16 que supone la utilidad. */
+                className="text-muted-foreground hover:text-foreground area-toque -mr-1 shrink-0 [--toque-tamano:24px]"
               >
-                <X className="size-4" />
-              </button>
+                <X />
+              </Button>
             </div>
 
             <div className="mt-1.5 flex items-center gap-1.5">
               {/* 44 px de lado, que es lo que pide un pulgar. Mueven una
-                  semana exacta, que arrastrando con el dedo no se acierta. */}
-              <button
+                  semana exacta, que arrastrando con el dedo no se acierta.
+                  Son `<Button variant="outline">` con el tamaño subido: el
+                  foco, el hover y el borde salen del primitivo, no de clases
+                  escritas a mano aquí. */}
+              <Button
                 type="button"
+                variant="outline"
+                size="icon"
                 onClick={() => onSemana(1)}
                 aria-label={ELEGIDO.antes}
                 title={ELEGIDO.antes}
-                className="border-border hover:bg-accent focus-visible:ring-ring grid size-11 shrink-0 cursor-pointer place-items-center rounded-md border outline-none focus-visible:ring-2"
+                className="size-11 shrink-0 [&_svg]:size-5"
               >
-                <ChevronLeft className="size-5" />
-              </button>
-              <button
+                <ChevronLeft />
+              </Button>
+              <Button
                 type="button"
+                variant="outline"
+                size="icon"
                 onClick={() => onSemana(-1)}
                 aria-label={ELEGIDO.despues}
                 title={ELEGIDO.despues}
-                className="border-border hover:bg-accent focus-visible:ring-ring grid size-11 shrink-0 cursor-pointer place-items-center rounded-md border outline-none focus-visible:ring-2"
+                className="size-11 shrink-0 [&_svg]:size-5"
               >
-                <ChevronRight className="size-5" />
-              </button>
+                <ChevronRight />
+              </Button>
 
               <Button
                 type="button"

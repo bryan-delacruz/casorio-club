@@ -322,6 +322,28 @@
   --font-heading: var(--font-fraunces), Georgia, "Times New Roman", serif;
 }
 
+/* ---------------------------------------------------------------
+   Área táctil de 44 px sin agrandar el dibujo.
+
+   Un icono de 16 px es un blanco imposible para un pulgar, pero agrandarlo
+   rompe la composición. El pseudo-elemento extiende la zona sensible sin
+   ocupar sitio. Estaba copiado a mano en tres sitios, con tres números
+   distintos calculados cada vez; aquí el 44 vive una sola vez.
+
+   Uso: `class="area-toque"` para un dibujo de 16 px, y
+   `class="area-toque [--toque-tamano:24px]"` para cualquier otro.
+   El elemento tiene que ser `relative`, que la propia utilidad pone.
+   --------------------------------------------------------------- */
+@utility area-toque {
+  position: relative;
+
+  &::before {
+    content: "";
+    position: absolute;
+    inset: calc((44px - var(--toque-tamano, 16px)) / -2);
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

@@ -234,6 +234,17 @@ mismo refresh token. Detalle completo en `docs/integracion-bernie.md`.
 
 ## Estilo
 
+**Atomic design, con los primitivos de shadcn.** Tres capas y ninguna más:
+`components/ui/` son los átomos de shadcn y no se tocan; `components/` son las
+piezas compartidas de la app (`avatar-persona`, `wordmark`, `expediente`);
+`app/mi-boda/_acciones/` son los organismos de la función, junto a su ruta.
+
+Antes de escribir un control a mano, mira si ya es un primitivo: un botón es
+`<Button variant size>`, no un `<button>` con clases de borde, hover y foco
+copiadas. Si un patrón visual se repite en tres sitios, pasa a ser una
+utilidad con nombre en `globals.css` —como `area-toque`, que da los 44 px de
+blanco táctil sin agrandar el dibujo— y el número mágico vive una sola vez.
+
 La paleta vive en los **tokens de shadcn**. No crees utilidades de color
 propias ni clases de color a mano. La interfaz de Clerk la dibuja Clerk: textos
 por localización (`lib/clerk-localization.ts`), cero overrides de CSS.

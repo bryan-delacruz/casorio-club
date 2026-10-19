@@ -130,9 +130,9 @@ function LineaBanda({
         aria-label={`${ESTADOS.find((e) => e.id === accion.estado)?.nombre}. Pasar a ${
           ESTADOS.find((e) => e.id === siguienteEstado(accion.estado))?.nombre
         }`}
-        /* 16 px y es la acción principal de la banda: el pseudo-elemento le da
-           los 44 px de área táctil sin agrandar el círculo. */
-        className={`focus-visible:ring-ring relative mt-1 grid size-4 shrink-0 cursor-pointer place-items-center rounded-full border outline-none before:absolute before:-inset-[14px] before:content-[''] focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
+        /* 16 px y es la acción principal de la banda: `area-toque` le da los
+           44 px sin agrandar el círculo. */
+        className={`focus-visible:ring-ring area-toque mt-1 grid size-4 shrink-0 cursor-pointer place-items-center rounded-full border outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
           haciendo ? "border-primary" : "border-muted-foreground/45"
         }`}
       >

@@ -925,7 +925,7 @@ function Seccion({
                     // tabulador: sin `inerte` el teclado abría el menú en
                     // mitad del segundo toque.
                     inerte={Boolean(pidiendo)}
-                    className={`relative shrink-0 before:absolute before:-inset-[14px] before:content-[''] ${
+                    className={`area-toque shrink-0 ${
                       pidiendo ? "pointer-events-none opacity-30" : ""
                     }`}
                   />
