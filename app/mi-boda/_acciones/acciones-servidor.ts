@@ -130,7 +130,7 @@ export async function guardarDependenciasDe(
   }
 
   const db = getDb();
-  await db
+  const borrar = db
     .delete(dependencias)
     .where(
       and(
@@ -142,8 +142,89 @@ export async function guardarDependenciasDe(
     ...nuevoAntes.map((requiereId) => ({ bodaId, accionId, requiereId })),
     ...nuevoDespues.map((otra) => ({ bodaId, accionId: otra, requiereId: accionId })),
   ];
-  if (filas.length > 0) await db.insert(dependencias).values(filas);
+  // En un batch, que Neon corre como una transacción: borrar y volver a
+  // escribir en dos viajes dejaba la acción SIN NINGUNA dependencia, en los
+  // dos sentidos, si la inserción fallaba —por ejemplo porque la otra persona
+  // de la boda acababa de borrar una de las acciones elegidas—.
+  await (filas.length > 0
+    ? db.batch([borrar, db.insert(dependencias).values(filas)])
+    : borrar);
 
+  revalidarBoda();
+  return {};
+}
+
+/**
+ * Las dos acciones son de esta boda. Devuelve el mensaje de error, o null.
+ *
+ * Se comprueban las dos en una consulta: una id de otra boda llegando por el
+ * POST abierto no debe poder tocar nada, y tampoco debe poder averiguar si
+ * existe (el mensaje es el mismo en los dos casos).
+ */
+async function sonDeLaBoda(bodaId: string, ids: string[]) {
+  const suyas = await getDb()
+    .select({ id: acciones.id })
+    .from(acciones)
+    .where(and(eq(acciones.bodaId, bodaId), inArray(acciones.id, ids)));
+  return suyas.length === new Set(ids).size ? null : "Esa cosa no es de esta boda.";
+}
+
+/**
+ * Une dos bloques del Camino: `accionId` pasa a requerir a `requiereId`
+ * (docs/dependencias.md §10.1).
+ *
+ * Una sola arista, y no el conjunto entero como `guardarDependenciasDe`:
+ * arrastrar de un bloque a otro dice una cosa, y mandar las dos listas
+ * completas borraría lo que el diálogo no estaba mirando.
+ *
+ * `onConflictDoNothing`: la clave primaria es el par, así que soltar dos veces
+ * sobre el mismo bloque no es un error que contarle a nadie.
+ */
+export async function agregarDependencia(
+  accionId: string,
+  requiereId: string,
+): Promise<{ error?: string }> {
+  const { bodaId } = await bodaActiva();
+  if (accionId === requiereId) return { error: "Nada puede esperarse a sí mismo." };
+  const ajena = await sonDeLaBoda(bodaId, [accionId, requiereId]);
+  if (ajena) return { error: ajena };
+
+  const todas = await getDb()
+    .select({ accionId: dependencias.accionId, requiereId: dependencias.requiereId })
+    .from(dependencias)
+    .where(eq(dependencias.bodaId, bodaId));
+
+  if (tieneCiclo([...todas, { accionId, requiereId }])) {
+    return { error: "Ese orden se muerde la cola: esa ya te espera a ti." };
+  }
+
+  await getDb()
+    .insert(dependencias)
+    .values({ bodaId, accionId, requiereId })
+    .onConflictDoNothing();
+
+  revalidarBoda();
+  return {};
+}
+
+/**
+ * Deshace esa unión. Es el camino de vuelta del arrastre: crear tirando una
+ * flecha y tener que abrir un diálogo para quitarla sería cojo.
+ */
+export async function quitarDependencia(
+  accionId: string,
+  requiereId: string,
+): Promise<{ error?: string }> {
+  const { bodaId } = await bodaActiva();
+  await getDb()
+    .delete(dependencias)
+    .where(
+      and(
+        eq(dependencias.bodaId, bodaId),
+        eq(dependencias.accionId, accionId),
+        eq(dependencias.requiereId, requiereId),
+      ),
+    );
   revalidarBoda();
   return {};
 }
@@ -392,20 +473,30 @@ export async function ponerTotal(
  * devuelve a las ideas sueltas y conserva meta, dependencias, monto, pagos y
  * responsable. No recalcula `orden` ni toca la duración.
  *
- * Queda para el formulario, que es el único sitio donde la semana se escribe
- * a mano; arrastrar en el Mapa escribe la meta con `moverAccion`.
+ * La escriben el formulario, donde se teclea el número, y el Camino, donde se
+ * arrastra el bloque por la línea del tiempo (docs/dependencias.md §10).
+ * Arrastrar en el Mapa escribe la meta con `moverAccion`, nunca la semana.
+ *
+ * El tope de ±260 semanas son cinco años a cada lado: más allá el Gantt
+ * tendría cientos de columnas vacías y el arrastre dejaría de poder apuntar.
  */
-export async function ponerEnSemana(id: string, inicioSemanas: number | null) {
+export async function ponerEnSemana(
+  id: string,
+  inicioSemanas: number | null,
+): Promise<{ error?: string }> {
   const { bodaId } = await bodaActiva();
   const semana =
     inicioSemanas === null ? null : Math.trunc(Math.max(-260, Math.min(260, inicioSemanas)));
 
-  await getDb()
+  const guardada = await getDb()
     .update(acciones)
     .set({ inicioSemanas: semana, actualizadaEl: new Date() })
-    .where(and(eq(acciones.id, id), eq(acciones.bodaId, bodaId)));
+    .where(and(eq(acciones.id, id), eq(acciones.bodaId, bodaId)))
+    .returning({ id: acciones.id });
+  if (guardada.length === 0) return { error: "Esa cosa ya no está." };
 
   revalidarBoda();
+  return {};
 }
 
 /**

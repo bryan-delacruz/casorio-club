@@ -187,9 +187,14 @@ export function tieneCiclo(requisitos: Requisito[]) {
   const requiere = requiereDe(requisitos);
   // Todo nodo entra, también el que solo es destino: sin él en el mapa, quien
   // lo requiere no se vacía nunca y una cadena sana se denunciaría como ciclo.
+  // La auto-arista se **ignora**, no denuncia el grafo entero: una sola fila
+  // (X, X) de datos viejos —la clave primaria es el par, así que la base no la
+  // impide— bloqueaba toda edición de orden de esa boda, hasta la de acciones
+  // que no tenían nada que ver con X. `requiereDe` ya la descarta, así que
+  // basta con no sembrarla aquí.
   const pendientes = new Map<string, Set<string>>();
   for (const r of requisitos) {
-    if (r.accionId === r.requiereId) return true;
+    if (r.accionId === r.requiereId) continue;
     if (!pendientes.has(r.accionId)) pendientes.set(r.accionId, new Set(requiere.get(r.accionId)));
     if (!pendientes.has(r.requiereId)) pendientes.set(r.requiereId, new Set(requiere.get(r.requiereId)));
   }
@@ -201,4 +206,49 @@ export function tieneCiclo(requisitos: Requisito[]) {
     for (const suyas of pendientes.values()) suyas.delete(libre[0]);
   }
   return false;
+}
+
+/**
+ * Con quién está unida una acción, en los dos sentidos y solo directamente
+ * (docs/dependencias.md §10.2).
+ *
+ * Para "quitar unión" en el celular: la pareja toca un bloque y luego el otro
+ * extremo de la unión que quiere soltar, y le da igual en qué sentido apunta
+ * la flecha. Las uniones indirectas no entran: no hay ninguna flecha que
+ * tocar entre dos que solo se relacionan por una cadena.
+ */
+export function unidasA(id: string, requisitos: Requisito[]) {
+  const suyas = new Set<string>();
+  for (const r of requisitos) {
+    if (r.accionId === r.requiereId) continue;
+    if (r.accionId === id) suyas.add(r.requiereId);
+    if (r.requiereId === id) suyas.add(r.accionId);
+  }
+  return suyas;
+}
+
+/**
+ * La semana donde cae un bloque tras arrastrarlo (docs/dependencias.md §10).
+ *
+ * El eje del Camino va de la semana más lejana a la izquierda a la boda y lo
+ * de después a la derecha, y `inicioSemanas` se cuenta **hacia atrás**. Así
+ * que arrastrar a la derecha acerca a la boda, o sea **resta** semanas. Es un
+ * signo que se invierte sin que se note, y de ahí que viva aquí y no dentro
+ * del componente.
+ *
+ * `anchoSemana` es el ancho real de una columna, medido en el DOM: vale 36 px
+ * desde `sm` y en el celular las columnas se reparten el ancho con `1fr`.
+ *
+ * El tope de ±260 es el mismo que aplica `ponerEnSemana`: cinco años a cada
+ * lado. Sin él, un arrastre con el ratón fuera de la pantalla mandaría un
+ * bloque a la semana 4000 y el Gantt quedaría con miles de columnas vacías.
+ */
+export function semanaAlArrastrar(
+  inicioSemanas: number,
+  deltaX: number,
+  anchoSemana: number,
+) {
+  if (!Number.isFinite(anchoSemana) || anchoSemana <= 0) return inicioSemanas;
+  const pasos = Math.round(deltaX / anchoSemana);
+  return Math.max(-260, Math.min(260, inicioSemanas - pasos));
 }

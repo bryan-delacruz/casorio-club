@@ -7,7 +7,9 @@ import {
   esperanA,
   prohibidas,
   requiereDe,
+  semanaAlArrastrar,
   tieneCiclo,
+  unidasA,
 } from "./dependencias.ts";
 import type { Requisito } from "./metas.ts";
 
@@ -96,6 +98,14 @@ describe("candidatas", () => {
     { id: "m1", titulo: "Registro civil" },
     { id: "m2", titulo: "La recepción" },
   ];
+
+  it("una boda con una sola acción no tiene nada que elegir", () => {
+    // El estado vacío del diálogo ("Anota algo más y podrás poner el orden")
+    // y el de la barra se deciden con esto: sin grupos no hay listas que
+    // pintar. No se puede alcanzar en el demo, así que se prueba aquí.
+    assert.deepEqual(candidatas("sola", [accion("sola", 4, "m1")], [], metas, "antes", SIN_META), []);
+    assert.deepEqual(candidatas("sola", [accion("sola", 4, "m1")], [], metas, "despues", SIN_META), []);
+  });
 
   it("nunca ofrece la propia acción", () => {
     const grupos = candidatas("a", [accion("a"), accion("b")], [], [], "despues", SIN_META);
@@ -211,10 +221,17 @@ describe("tieneCiclo", () => {
     );
   });
 
-  it("es verdadero en un ciclo de dos, de tres y contra sí misma", () => {
+  it("es verdadero en un ciclo de dos y en uno de tres", () => {
     assert.equal(tieneCiclo([req("a", "b"), req("b", "a")]), true);
     assert.equal(tieneCiclo([req("a", "b"), req("b", "c"), req("c", "a")]), true);
-    assert.equal(tieneCiclo([req("a", "a")]), true);
+  });
+
+  it("una auto-arista se ignora, no denuncia el grafo entero", () => {
+    // Una fila (X, X) de datos viejos no debe bloquear la edición del orden
+    // de acciones que no tienen nada que ver con X.
+    assert.equal(tieneCiclo([req("x", "x")]), false);
+    assert.equal(tieneCiclo([req("x", "x"), req("c", "b"), req("b", "a")]), false);
+    assert.equal(tieneCiclo([req("x", "x"), req("a", "b"), req("b", "a")]), true);
   });
 
   it("atrapa el círculo que cierran las dos listas juntas", () => {
@@ -231,5 +248,66 @@ describe("tieneCiclo", () => {
   it("no denuncia una cadena donde el último solo es destino", () => {
     // El caso que un Kahn mal sembrado rompe: "a" nunca aparece como accionId.
     assert.equal(tieneCiclo([req("c", "b"), req("b", "a")]), false);
+  });
+});
+
+describe("semanaAlArrastrar", () => {
+  it("a la derecha acerca a la boda: resta semanas", () => {
+    assert.equal(semanaAlArrastrar(12, 36, 36), 11);
+    assert.equal(semanaAlArrastrar(12, 36 * 4, 36), 8);
+  });
+
+  it("a la izquierda aleja de la boda: suma semanas", () => {
+    assert.equal(semanaAlArrastrar(12, -36, 36), 13);
+    assert.equal(semanaAlArrastrar(12, -36 * 3, 36), 15);
+  });
+
+  it("encaja en la semana más cercana, no entre dos", () => {
+    assert.equal(semanaAlArrastrar(12, 17, 36), 12);
+    assert.equal(semanaAlArrastrar(12, 19, 36), 11);
+  });
+
+  it("un arrastre que no llega a media columna no mueve nada", () => {
+    assert.equal(semanaAlArrastrar(12, 4, 36), 12);
+    assert.equal(semanaAlArrastrar(12, 0, 36), 12);
+  });
+
+  it("cruza la boda y sigue hacia el otro lado", () => {
+    assert.equal(semanaAlArrastrar(1, 36 * 3, 36), -2);
+  });
+
+  it("funciona con la columna estrecha del celular", () => {
+    assert.equal(semanaAlArrastrar(12, 16, 16), 11);
+    assert.equal(semanaAlArrastrar(12, 48, 16), 9);
+  });
+
+  it("topa en cinco años a cada lado", () => {
+    assert.equal(semanaAlArrastrar(12, -36 * 400, 36), 260);
+    assert.equal(semanaAlArrastrar(12, 36 * 400, 36), -260);
+  });
+
+  it("sin ancho medido no mueve nada, en vez de dividir por cero", () => {
+    assert.equal(semanaAlArrastrar(12, 500, 0), 12);
+    assert.equal(semanaAlArrastrar(12, 500, NaN), 12);
+  });
+});
+
+describe("unidasA", () => {
+  it("recoge los dos sentidos", () => {
+    const r = [req("yo", "antes"), req("despues", "yo")];
+    assert.deepEqual([...unidasA("yo", r)].sort(), ["antes", "despues"]);
+  });
+
+  it("no recoge las uniones indirectas: no hay flecha que tocar", () => {
+    const r = [req("yo", "a"), req("a", "lejos")];
+    assert.deepEqual([...unidasA("yo", r)], ["a"]);
+  });
+
+  it("no recoge aristas ajenas", () => {
+    assert.equal(unidasA("yo", [req("a", "b")]).size, 0);
+  });
+
+  it("descarta la arista de una acción contra sí misma", () => {
+    assert.equal(unidasA("yo", [req("yo", "yo")]).size, 0);
   });
 });

@@ -2,6 +2,18 @@
 
 import Link from "next/link";
 import { useLayoutEffect, useOptimistic, useRef, useState, useTransition } from "react";
+import {
+  DndContext,
+  MouseSensor,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+  type Modifier,
+} from "@dnd-kit/core";
+import { CSS } from "@dnd-kit/utilities";
 import { Flag, Sparkles, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 import type { Accion, Dependencia, Pago } from "@/db/schema";
@@ -19,8 +31,18 @@ import {
   resumenMeta,
   semanasHastaLaBoda,
 } from "@/lib/metas";
+import { prohibidas, semanaAlArrastrar, unidasA } from "@/lib/dependencias";
 import { cuentaDe, pagosPorAccion } from "@/lib/pagos";
-import { borrarAccion, cambiarEstado, type Estado } from "./acciones-servidor";
+import { proyeccion, type Proyectada } from "@/lib/retrasos";
+import {
+  agregarDependencia,
+  borrarAccion,
+  cambiarEstado,
+  ponerEnSemana,
+  quitarDependencia,
+  type Estado,
+} from "./acciones-servidor";
+import { BarraEleccion, type Modo } from "./barra-eleccion";
 import { MenuAccion } from "./menu-accion";
 import { CompartirHistoria } from "./compartir-historia";
 import { EmpezarPlan } from "./empezar-plan";
@@ -29,6 +51,7 @@ import {
   INVITA_META,
   NOMBRE_SIN_META,
   REQUIERE,
+  RETRASO,
   SIN_META,
   soles,
   TODO_LO_ANOTADO,
@@ -65,7 +88,7 @@ type Grupo = {
 export function Camino({
   acciones: iniciales,
   miembros,
-  dependencias,
+  dependencias: dependenciasGuardadas,
   fechaBoda,
   metas,
   pagos,
@@ -82,8 +105,20 @@ export function Camino({
   // patrón del Mapa, y la revalidación trae después la verdad.
   const [acciones, aplicar] = useOptimistic(
     iniciales,
-    (actual: Accion[], cambio: { id: string; estado: Estado }) =>
+    (actual: Accion[], cambio: { id: string; estado?: Estado; inicioSemanas?: number }) =>
       actual.map((a) => (a.id === cambio.id ? { ...a, ...cambio } : a)),
+  );
+  // Las flechas también se pintan antes de que el servidor conteste: una
+  // flecha que tarda media pantalla en aparecer no se siente conectada al
+  // arrastre. Todo lo que se deriva de aquí —cadena principal, "lista para
+  // empezar", el orden de las metas— son funciones puras sobre esta lista, así
+  // que el optimismo vale para las tres cosas a la vez.
+  const [dependencias, aplicarDep] = useOptimistic(
+    dependenciasGuardadas,
+    (actual: Dependencia[], c: { quita?: boolean; accionId: string; requiereId: string }) =>
+      c.quita
+        ? actual.filter((d) => !(d.accionId === c.accionId && d.requiereId === c.requiereId))
+        : [...actual, { bodaId: "", accionId: c.accionId, requiereId: c.requiereId }],
   );
   const [, iniciar] = useTransition();
 
@@ -109,6 +144,48 @@ export function Camino({
     });
   }
 
+  /** Mover un bloque por la línea del tiempo (docs/dependencias.md §10). */
+  function alMoverSemana(id: string, semanas: number) {
+    const suya = acciones.find((a) => a.id === id);
+    if (!suya || suya.inicioSemanas === null || semanas === suya.inicioSemanas) return;
+    iniciar(async () => {
+      aplicar({ id, inicioSemanas: semanas });
+      try {
+        const { error } = await ponerEnSemana(id, semanas);
+        if (error) toast.error(error);
+      } catch {
+        // La sesión pudo caducar con la pantalla abierta: sin esto el
+        // rechazo tumba la sección entera en vez de avisar.
+        toast.error("No se pudo mover. Intenta otra vez.");
+      }
+    });
+  }
+
+  /** Unir dos bloques: `quien` pasa a requerir a `requisito` (§10.1). */
+  function alUnir(quien: string, requisito: string) {
+    iniciar(async () => {
+      aplicarDep({ accionId: quien, requiereId: requisito });
+      try {
+        const { error } = await agregarDependencia(quien, requisito);
+        if (error) toast.error(error);
+      } catch {
+        toast.error("No se pudo unir. Intenta otra vez.");
+      }
+    });
+  }
+
+  function alDesunir(quien: string, requisito: string) {
+    iniciar(async () => {
+      aplicarDep({ quita: true, accionId: quien, requiereId: requisito });
+      try {
+        const { error } = await quitarDependencia(quien, requisito);
+        if (error) toast.error(error);
+      } catch {
+        toast.error("No se pudo soltar. Intenta otra vez.");
+      }
+    });
+  }
+
   const enCalendario: EnCamino[] = enCamino(acciones);
   const sueltas = acciones.filter((a) => a.inicioSemanas === null);
   const porId = new Map(acciones.map((a) => [a.id, a]));
@@ -123,6 +200,165 @@ export function Camino({
   for (const d of dependencias) {
     requiereDe.set(d.accionId, [...(requiereDe.get(d.accionId) ?? []), d.requiereId]);
   }
+
+  // El ancho real de una columna de semana, leído de la rejilla: `--col-semana`
+  // vale 36 px desde `sm` y 0 en el celular, donde las columnas se reparten el
+  // ancho con `1fr`. Sin el valor real el arrastre encajaría en la semana
+  // equivocada justo en la pantalla más pequeña.
+  const eje = useRef<HTMLDivElement>(null);
+  const [anchoSemana, setAnchoSemana] = useState(36);
+  useLayoutEffect(() => {
+    const el = eje.current;
+    if (!el) return;
+    const medir = () => {
+      const pistas = getComputedStyle(el).gridTemplateColumns.split(" ");
+      const ancho = parseFloat(pistas[1] ?? "");
+      if (Number.isFinite(ancho) && ancho > 0) setAnchoSemana(ancho);
+    };
+    medir();
+    const observador = new ResizeObserver(medir);
+    observador.observe(el);
+    return () => observador.disconnect();
+  }, []);
+
+  // Solo ratón, a propósito, y medido: a 375 px una columna de semana mide
+  // 16.75 px, así que con el dedo no se puede apuntar a una semana. Peor aún,
+  // un arrastre táctil obligaría a poner `touch-action: none` en la barra, y
+  // entonces un deslizamiento que empiece encima de una barra no haría nada:
+  // ni la movería ni desplazaría el Gantt. En táctil la vía es el menú ⋯ →
+  // "Cuándo", que además mueve exactamente una semana.
+  const sensores = useSensors(useSensor(MouseSensor, { activationConstraint: { distance: 4 } }));
+
+  const [arrastre, setArrastre] = useState<{ tipo: string; id: string } | null>(null);
+
+  /**
+   * La vía táctil (docs/dependencias.md §10.2): se toca un bloque, queda
+   * elegido, y la barra de abajo mueve semanas y pide el segundo toque para
+   * unir o desunir. El segundo toque es sobre una **fila entera**, no sobre
+   * una barra de 16 px.
+   */
+  const [eleccion, setEleccion] = useState<{ id: string; modo: Modo } | null>(null);
+
+  // La barra se apoya abajo y puede tapar justo la fila que se acaba de
+  // elegir; entonces ◀ y ▶ mueven un bloque que no se ve. Se trae a la vista
+  // al elegir, y solo al elegir: hacerlo en cada cambio de semana pelearía
+  // con el scroll de quien está mirando.
+  const elegidoId = eleccion?.id ?? null;
+  useLayoutEffect(() => {
+    if (!elegidoId) return;
+    document
+      .querySelector(`[data-barra="${elegidoId}"]`)
+      ?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [elegidoId]);
+  // La acción elegida puede haberse borrado desde el menú: entonces no hay
+  // barra, y el estado viejo no estorba.
+  const elegida = eleccion ? acciones.find((a) => a.id === eleccion.id) : undefined;
+  // Solo las uniones con algo **dibujado**: una dependencia con una idea
+  // suelta existe y es legítima (docs/dependencias.md §4.1), pero no tiene
+  // fila que tocar, y ofrecer "Quitar unión" para ella dejaba a la pareja en
+  // un modo sin ningún destino. Esas se sueltan desde el diálogo.
+  const enElGantt = new Set(enCamino(acciones).map((a) => a.id));
+  const unidas = elegida
+    ? new Set([...unidasA(elegida.id, dependencias)].filter((id) => enElGantt.has(id)))
+    : new Set<string>();
+
+  /**
+   * A qué filas se puede tocar ahora, según lo que la barra esté pidiendo.
+   *
+   * `prohibidas` recorre el grafo entero, así que se llama **una vez** y no
+   * una por fila: dentro del filtro eran sesenta recorridos por render.
+   */
+  const vedadasAlUnir =
+    elegida && eleccion?.modo === "unir"
+      ? prohibidas(elegida.id, dependencias, "despues")
+      : null;
+  const objetivos = vedadasAlUnir
+    ? new Set(
+        enCamino(acciones)
+          .filter((a) => a.id !== elegida!.id && !vedadasAlUnir.has(a.id))
+          .map((a) => a.id),
+      )
+    : elegida && eleccion?.modo === "desunir"
+      ? unidas
+      : new Set<string>();
+
+  function alTocarObjetivo(id: string) {
+    if (!elegida || !eleccion) return;
+    if (eleccion.modo === "unir") alUnir(id, elegida.id);
+    if (eleccion.modo === "desunir") {
+      // Da igual en qué sentido apunte la flecha: se suelta la que haya.
+      const suya = dependencias.find(
+        (d) =>
+          (d.accionId === elegida.id && d.requiereId === id) ||
+          (d.accionId === id && d.requiereId === elegida.id),
+      );
+      if (suya) alDesunir(suya.accionId, suya.requiereId);
+    }
+    setEleccion({ id: elegida.id, modo: "elegido" });
+  }
+
+  // Mientras se tira una flecha, los bloques que harían círculo no se ofrecen
+  // como destino. Soltar y ver aparecer la flecha para que desaparezca con un
+  // aviso es peor que no poder soltarla: el servidor sigue siendo el que manda
+  // (§6), esto solo evita el parpadeo.
+  const vedadas =
+    arrastre?.tipo === "unir"
+      ? prohibidas(arrastre.id, dependencias, "despues")
+      : new Set<string>();
+
+  /**
+   * El bloque solo va de lado y encaja en la semana: dejarlo libre haría creer
+   * que se puede dejar entre dos semanas, y la semana es la unidad.
+   * Unir no mueve nada, así que ahí el transform pasa tal cual.
+   */
+  const porSemanas: Modifier = ({ transform, active }) => {
+    if (active?.data.current?.tipo !== "mover") return transform;
+    return { ...transform, y: 0, x: Math.round(transform.x / anchoSemana) * anchoSemana };
+  };
+
+  const titulos = new Map(acciones.map((a) => [a.id, a.titulo]));
+
+  function alSoltar({ active, over, delta }: DragEndEvent) {
+    setArrastre(null);
+    const datos = active.data.current as { tipo?: string; id?: string } | undefined;
+    if (!datos?.id) return;
+    if (datos.tipo === "mover") {
+      const suya = acciones.find((a) => a.id === datos.id);
+      if (!suya || suya.inicioSemanas === null) return;
+      alMoverSemana(suya.id, semanaAlArrastrar(suya.inicioSemanas, delta.x, anchoSemana));
+      return;
+    }
+    if (datos.tipo === "unir" && over) {
+      const destino = String(over.id).replace("barra:", "");
+      if (destino !== datos.id && !vedadas.has(destino)) alUnir(destino, datos.id);
+    }
+  }
+
+  const accesibilidad = {
+    announcements: {
+      onDragStart: ({ active }: { active: { id: string | number } }) => {
+        const d = String(active.id);
+        return d.startsWith("unir:")
+          ? `Tirando una flecha desde «${titulos.get(d.replace("unir:", "")) ?? ""}».`
+          : `Levantaste «${titulos.get(d.replace("mover:", "")) ?? ""}».`;
+      },
+      onDragOver: ({ over }: { over: { id: string | number } | null }) =>
+        over
+          ? `Encima de «${titulos.get(String(over.id).replace("barra:", "")) ?? ""}».`
+          : "Fuera de los bloques.",
+      onDragEnd: ({ active, over }: { active: { id: string | number }; over: { id: string | number } | null }) => {
+        const d = String(active.id);
+        if (d.startsWith("unir:")) {
+          return over
+            ? `«${titulos.get(String(over.id).replace("barra:", "")) ?? ""}» ahora espera a «${titulos.get(d.replace("unir:", "")) ?? ""}».`
+            : "Soltaste la flecha fuera: no se unió nada.";
+        }
+        return `«${titulos.get(d.replace("mover:", "")) ?? ""}» quedó en su nueva semana.`;
+      },
+      onDragCancel: () => "Lo dejaste donde estaba.",
+    },
+  };
+
 
   const cabecera = (
     <div className="flex flex-wrap items-center justify-between gap-3">
@@ -170,6 +406,9 @@ export function Camino({
   for (let s = -4; s >= ultima; s -= 4) marcas.add(s);
 
   const hoy = semanasHastaLaBoda(fechaBoda);
+  // Dónde cae de verdad lo que no está hecho (docs/retrasos.md). Sin fecha de
+  // boda devuelve vacío, así que las filas no dicen nada.
+  const retrasos = proyeccion(acciones, dependencias, hoy);
   const columnaHoy = hoy !== null && hoy <= primera && hoy >= ultima ? columnaDe(hoy) : null;
 
   // En el celular el nombre va en su propia línea encima de la barra y la
@@ -249,10 +488,25 @@ export function Camino({
 
       {cabecera}
 
+      <DndContext
+        // Id fijo: sin esto dnd-kit genera uno distinto en servidor y cliente
+        // (aria-describedby) y React avisa de desajuste de hidratación.
+        id="camino-bloques"
+        accessibility={accesibilidad}
+        sensors={sensores}
+        modifiers={[porSemanas]}
+        onDragStart={({ active }: DragStartEvent) => {
+          const d = active.data.current as { tipo?: string; id?: string } | undefined;
+          setArrastre(d?.tipo && d.id ? { tipo: d.tipo, id: d.id } : null);
+        }}
+        onDragEnd={alSoltar}
+        onDragCancel={() => setArrastre(null)}
+      >
       <div className="overflow-x-auto pb-2 [--col-nombre:0px] [--col-semana:0px] [--fila-barra:2] [--nombre:1/-1] sm:[--col-nombre:11rem] sm:[--col-semana:2.25rem] sm:[--fila-barra:1] sm:[--nombre:1] lg:[--col-nombre:14rem]">
         <div style={{ minWidth: `calc(var(--col-nombre) + ${columnas} * var(--col-semana))` }}>
-          {/* Eje */}
-          <div className="border-border text-muted-foreground grid items-end border-b pb-1.5 text-xs" style={rejilla}>
+          {/* Eje. Lleva el ref porque sus pistas son las mismas que las de
+              cada fila, y aquí no hay barras que lo tapen al medir. */}
+          <div ref={eje} className="border-border text-muted-foreground grid items-end border-b pb-1.5 text-xs" style={rejilla}>
             <span className="bg-background sticky left-0 z-20" />
             {[...marcas]
               .sort((a, b) => b - a)
@@ -290,13 +544,24 @@ export function Camino({
                 acciones={acciones}
                 miembros={miembros}
                 metas={metas}
+                arrastre={arrastre}
+                vedadas={vedadas}
+                retrasos={retrasos}
+                elegida={elegida?.id}
+                pidiendo={eleccion?.modo !== "elegido" ? (eleccion?.modo ?? null) : null}
+                objetivos={objetivos}
+                onElegir={(id) => setEleccion({ id, modo: "elegido" })}
+                onTocarObjetivo={alTocarObjetivo}
                 onAlternar={alAlternar}
                 onBorrar={alBorrar}
+                onMoverSemana={alMoverSemana}
+                onDesunir={alDesunir}
               />
             ),
           )}
         </div>
       </div>
+      </DndContext>
 
       <div className="text-muted-foreground flex flex-wrap items-center gap-x-5 gap-y-2 text-xs">
         <span className="flex items-center gap-1.5">
@@ -324,6 +589,20 @@ export function Camino({
         )}
       </div>
 
+      {elegida && eleccion && (
+        <BarraEleccion
+          accion={elegida}
+          modo={eleccion.modo}
+          puedeDesunir={unidas.size > 0}
+          onSemana={(paso) =>
+            elegida.inicioSemanas !== null &&
+            alMoverSemana(elegida.id, elegida.inicioSemanas + paso)
+          }
+          onModo={(modo) => setEleccion({ id: elegida.id, modo })}
+          onCerrar={() => setEleccion(null)}
+        />
+      )}
+
       {sueltas.length > 0 && (
         <div className="border-border rounded-lg border border-dashed p-4">
           <h3 className="font-display text-base">Todavía sin sitio</h3>
@@ -334,7 +613,15 @@ export function Camino({
   );
 }
 
-type Flecha = { d: string; cadena: boolean; choque: boolean };
+type Flecha = {
+  d: string;
+  cadena: boolean;
+  choque: boolean;
+  /** A quién une, para poder deshacerla con un clic (docs/dependencias.md §10.1). */
+  quien: string;
+  requisito: string;
+  nombre: string;
+};
 
 /**
  * Un grupo del camino. En modo meta abre con la barra resumen (rango y
@@ -357,8 +644,18 @@ function Seccion({
   acciones,
   miembros,
   metas,
+  arrastre,
+  vedadas,
+  retrasos,
+  elegida,
+  pidiendo,
+  objetivos,
+  onElegir,
+  onTocarObjetivo,
   onAlternar,
   onBorrar,
+  onMoverSemana,
+  onDesunir,
 }: {
   grupo: Grupo;
   dependencias: Dependencia[];
@@ -375,8 +672,24 @@ function Seccion({
   acciones: Accion[];
   miembros: Miembro[];
   metas: MetaLite[];
+  /** Qué se está arrastrando ahora, para resaltar los destinos posibles. */
+  arrastre: { tipo: string; id: string } | null;
+  /** Los bloques que harían círculo con lo que se está tirando (§6). */
+  vedadas: Set<string>;
+  /** Lo que se pasó de su semana (docs/retrasos.md §4.2). */
+  retrasos: Map<string, Proyectada>;
+  /** Lo elegido con el dedo, resaltado en el gráfico (§10.2). */
+  elegida?: string;
+  /** La barra está pidiendo un segundo toque, o null. */
+  pidiendo: Modo | null;
+  /** Las filas que admiten ese segundo toque. */
+  objetivos: Set<string>;
+  onElegir: (id: string) => void;
+  onTocarObjetivo: (id: string) => void;
   onAlternar: (id: string, estado: Estado) => void;
   onBorrar: (id: string) => void;
+  onMoverSemana: (id: string, semanas: number) => void;
+  onDesunir: (quien: string, requisito: string) => void;
 }) {
   const contenedor = useRef<HTMLDivElement>(null);
   const [flechas, setFlechas] = useState<Flecha[]>([]);
@@ -418,6 +731,9 @@ function Seccion({
           d: `M ${x1} ${y1} H ${codo} V ${y2} H ${x2 - 2}`,
           cadena: cadena.has(p.requiereId) && cadena.has(p.accionId),
           choque: x2 < x1 - 1,
+          quien: p.accionId,
+          requisito: p.requiereId,
+          nombre: `${porId.get(p.accionId)?.titulo ?? ""} espera a ${porId.get(p.requiereId)?.titulo ?? ""}`,
         });
       }
       setFlechas(nuevas);
@@ -501,6 +817,10 @@ function Seccion({
           // Lo que va costando, sin palabras: aquí no cabe una frase (§4.3).
           const { costando } = cuentaDe(a.monto, pagosDe.get(a.id) ?? []);
 
+          const atrasada = retrasos.get(a.id);
+          const esElegida = elegida === a.id;
+          const esObjetivo = Boolean(pidiendo) && objetivos.has(a.id);
+
           const necesita = (requiereDe.get(a.id) ?? [])
             .map((id) => porId.get(id))
             .filter((x): x is Accion => Boolean(x));
@@ -512,8 +832,60 @@ function Seccion({
             (r) => r.estado !== "hecho" && finDe(r) < inicioDe(a),
           );
 
+          // El orden de prioridad de §4.2, resuelto una vez.
+          const segunda: { texto: string; grave: boolean; deRequisitos: boolean } | null =
+            choques.length > 0
+              ? {
+                  texto: `${REQUIERE} ${choques.map((r) => r.titulo).join(", ")}`,
+                  grave: true,
+                  deRequisitos: true,
+                }
+              : atrasada?.noLlega
+                ? { texto: RETRASO.filaNoLlega(atrasada.atraso), grave: true, deRequisitos: false }
+                : atrasada
+                  ? { texto: RETRASO.fila(atrasada.atraso), grave: false, deRequisitos: false }
+                  : fuera.length > 0
+                    ? {
+                        texto: `${REQUIERE} ${fuera.map((r) => r.titulo).join(", ")}`,
+                        grave: false,
+                        deRequisitos: true,
+                      }
+                    : null;
+
           return (
-            <div key={a.id} className="grid items-center gap-y-0.5" style={rejilla}>
+            <div
+              key={a.id}
+              // La fila entera es el blanco del segundo toque: mide el ancho
+              // de la pantalla, que es lo contrario de apuntar a una barra de
+              // 16 px (docs/dependencias.md §10.2). Lo que no se puede tocar
+              // se atenúa, para que se vea que la pregunta sigue abierta.
+              {...(esObjetivo
+                ? {
+                    role: "button",
+                    tabIndex: 0,
+                    "aria-label": `${pidiendo === "unir" ? "Unir con" : "Soltar la unión con"} ${a.titulo}`,
+                    onClick: () => onTocarObjetivo(a.id),
+                    onKeyDown: (e: React.KeyboardEvent) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        onTocarObjetivo(a.id);
+                      }
+                    },
+                  }
+                : {})}
+              // El anillo al 50 % se componía a 2.64:1 sobre el fondo oscuro:
+              // por debajo del 3:1 que pide un borde que transmite
+              // información, y en 1 px era invisible. Al 70 % da 3.89:1 y
+              // sigue siendo más tenue que los 2 px opacos de la elegida, así
+              // que la jerarquía se mantiene. Y las atenuadas van al 55 %: al
+              // 40 % su nombre quedaba en 3.9:1 y no se podía leer.
+              className={`grid items-center gap-y-0.5 rounded ${
+                esObjetivo ? "ring-primary/70 cursor-pointer ring-1" : ""
+              } ${pidiendo && !esObjetivo && !esElegida ? "opacity-55" : ""} ${
+                esElegida ? "ring-primary ring-2" : ""
+              }`}
+              style={rejilla}
+            >
               {lineas}
 
               {/* En el celular el fondo cubre solo el texto: las flechas pasan
@@ -523,11 +895,26 @@ function Seccion({
                     una semana mide 36 px y en el celular queda fuera de la
                     vista sin hacer scroll (docs/dependencias.md §9.1). */}
                 <div className="max-sm:bg-background flex min-w-0 items-center gap-1 max-sm:w-fit max-sm:max-w-full">
-                  <p
+                  <button
+                    type="button"
+                    // El nombre es el blanco del PRIMER toque, no la barra: una
+                    // barra de una semana mide 16.75 px en el celular y el
+                    // nombre ocupa su propia línea encima (§10.2).
                     // El title va aquí y no en la barra: es este texto el que
                     // se corta cuando el nombre no cabe en su columna.
                     title={a.titulo}
-                    className={`min-w-0 truncate text-sm ${hecha ? "text-muted-foreground line-through" : ""}`}
+                    aria-pressed={esElegida}
+                    // Durante el segundo toque la fila entera es el control,
+                    // así que el título sale del tabulador: dos botones
+                    // anidados dejarían al lector de pantalla sin saber cuál
+                    // confirma la unión.
+                    tabIndex={esObjetivo ? -1 : 0}
+                    onClick={(e) => {
+                      if (esObjetivo) return;
+                      e.stopPropagation();
+                      onElegir(a.id);
+                    }}
+                    className={`focus-visible:ring-ring min-w-0 cursor-pointer truncate rounded-sm text-left text-sm outline-none focus-visible:ring-2 ${hecha ? "text-muted-foreground line-through" : ""}`}
                   >
                     {listas.has(a.id) && (
                       <Sparkles className="text-primary mr-1 inline size-3.5" aria-label="Lista para empezar" />
@@ -535,10 +922,13 @@ function Seccion({
                     {a.titulo}
                     {/* En el celular la barra es corta: el monto viaja con el nombre. */}
                     {costando > 0 && <span className="text-muted-foreground sm:hidden"> · {soles(costando)}</span>}
-                  </p>
+                  </button>
                   {/* 16 px de icono: el pseudo-elemento le da los 44 px de
                       área táctil sin agrandar el dibujo. Sin "Mover a": aquí
                       el carril es la meta, y la meta se cambia en Cambiar. */}
+                  {/* Mientras la barra pide el segundo toque, el menú se apaga:
+                      si no, un toque sobre ⋯ abriría opciones en vez de
+                      contestar la pregunta que está en pantalla. */}
                   <MenuAccion
                     accion={a}
                     miembros={miembros}
@@ -548,82 +938,257 @@ function Seccion({
                     dependencias={dependencias}
                     onAlternar={onAlternar}
                     onBorrar={onBorrar}
-                    className="relative shrink-0 before:absolute before:-inset-[14px] before:content-['']"
+                    onMoverSemana={onMoverSemana}
+                    // `pointer-events-none` apaga el ratón pero NO saca del
+                    // tabulador: sin `inerte` el teclado abría el menú en
+                    // mitad del segundo toque.
+                    inerte={Boolean(pidiendo)}
+                    className={`area-toque shrink-0 ${
+                      pidiendo ? "pointer-events-none opacity-30" : ""
+                    }`}
                   />
                 </div>
-                {(fuera.length > 0 || choques.length > 0) && (
+                {/* UNA línea secundaria, nunca dos, y gana la más grave
+                    (docs/retrasos.md §4.2): choque, no llega, se pasó,
+                    requiere algo de otra meta. El `title` conserva la lista
+                    de requisitos entera, así que ganar no pierde nada. */}
+                {segunda && (
                   <p
-                    className={`max-sm:bg-background truncate text-xs max-sm:w-fit max-sm:max-w-full ${choques.length > 0 ? "text-destructive" : "text-muted-foreground"}`}
-                    title={necesita.map((r) => r.titulo).join(", ")}
+                    className={`max-sm:bg-background truncate text-xs max-sm:w-fit max-sm:max-w-full ${segunda.grave ? "text-destructive" : "text-muted-foreground"}`}
+                    // Cuando la línea ya nombra requisitos, el title solo
+                    // añade los que no cupieron; cuando gana el retraso, añade
+                    // la lista entera, que si no se perdería.
+                    title={
+                      segunda.deRequisitos
+                        ? necesita.map((r) => r.titulo).join(", ")
+                        : [segunda.texto, necesita.map((r) => r.titulo).join(", ")]
+                            .filter(Boolean)
+                            .join(" · ")
+                    }
                   >
-                    {choques.length > 0 && <TriangleAlert className="mr-1 inline size-3" />}
-                    {REQUIERE} {(choques.length > 0 ? choques : fuera).map((r) => r.titulo).join(", ")}
+                    {segunda.grave && <TriangleAlert className="mr-1 inline size-3" />}
+                    {segunda.texto}
                   </p>
                 )}
               </div>
 
-              {a.esHito ? (
-                // Hito: un día, no un periodo.
-                <div
-                  data-barra={a.id}
-                  style={{ gridColumn: `${inicio + 1} / span 1`, gridRow: "var(--fila-barra)" }}
-                  className="z-10 flex h-5 items-center justify-center sm:h-7"
-                  title={`${a.titulo} (día clave)`}
-                >
-                  <span
-                    className={`size-3 rotate-45 sm:size-3.5 rounded-[2px] ${
-                      hecha ? "bg-primary/40" : "bg-foreground/80"
-                    } ${enCadena ? "ring-primary ring-2 ring-offset-1 ring-offset-background" : ""}`}
-                  />
-                </div>
-              ) : (
-                <div
-                  data-barra={a.id}
-                  style={{ gridColumn: `${inicio + 1} / span ${span}`, gridRow: "var(--fila-barra)" }}
-                  title={`${a.titulo} · ${duracionDe(a)} ${duracionDe(a) === 1 ? "semana" : "semanas"}`}
-                  className={`z-10 flex h-5 min-w-0 items-center gap-1.5 rounded px-1 sm:h-7 sm:px-2 ${
-                    hecha
-                      ? "bg-primary/15 text-muted-foreground"
-                      : haciendo
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-secondary text-foreground"
-                  } ${enCadena ? "ring-primary ring-2" : ""}`}
-                >
-                  {/* En una barra corta no cabe todo: el nombre ya está a la
-                      izquierda, así que se cae primero el monto y luego el título. */}
-                  {quien && (
-                    <AvatarPersona persona={quien} className="size-4" />
-                  )}
-                  {span >= 3 && <span className="truncate text-xs max-sm:hidden">{a.titulo}</span>}
-                  {costando > 0 && span >= 2 && (
-                    <span className="ml-auto shrink-0 text-xs tabular-nums max-sm:hidden">{soles(costando)}</span>
-                  )}
-                </div>
-              )}
+              <Bloque
+                accion={a}
+                inicio={inicio}
+                span={span}
+                hecha={hecha}
+                haciendo={haciendo}
+                enCadena={enCadena}
+                quien={quien}
+                costando={costando}
+                arrastre={arrastre}
+                vedada={vedadas.has(a.id)}
+              />
             </div>
           );
         })}
 
         {flechas.length > 0 && (
-          <svg aria-hidden className="pointer-events-none absolute inset-0 z-[5] h-full w-full overflow-visible">
+          // Ya no es `aria-hidden` del todo: las flechas se pueden quitar con
+          // un clic, así que son contenido y no decoración. El `pointer-events`
+          // se apaga en el lienzo y se enciende solo en cada flecha, para que
+          // el lienzo no robe los clics de las barras que tiene debajo.
+          <svg className="pointer-events-none absolute inset-0 z-[5] h-full w-full overflow-visible">
             <defs>
               <marker id={`punta-${grupo.clave}`} viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
                 <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
               </marker>
             </defs>
             {flechas.map((f, i) => (
-              <path
-                key={i}
-                d={f.d}
-                fill="none"
-                markerEnd={`url(#punta-${grupo.clave})`}
-                className={f.choque ? "stroke-destructive" : f.cadena ? "stroke-primary" : "stroke-muted-foreground/50"}
-                strokeWidth={f.cadena ? 1.75 : 1}
-              />
+              // Mientras la barra pide el segundo toque, las flechas no
+              // reciben clics: pulsar una quitaría una unión en vez de
+              // contestar la pregunta que está en pantalla (§10.2).
+              <g key={i} className={pidiendo ? "pointer-events-none" : "pointer-events-auto"}>
+                {/* Un trazo invisible y ancho: la flecha mide 1 px y nadie
+                    acierta a eso con el ratón, mucho menos con el dedo. */}
+                <path
+                  d={f.d}
+                  fill="none"
+                  stroke="transparent"
+                  strokeWidth={14}
+                  className="cursor-pointer"
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Quitar: ${f.nombre}`}
+                  onClick={() => onDesunir(f.quien, f.requisito)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      onDesunir(f.quien, f.requisito);
+                    }
+                  }}
+                >
+                  <title>{`${f.nombre}. Pulsa para quitar.`}</title>
+                </path>
+                <path
+                  d={f.d}
+                  fill="none"
+                  markerEnd={`url(#punta-${grupo.clave})`}
+                  className={`pointer-events-none ${f.choque ? "stroke-destructive" : f.cadena ? "stroke-primary" : "stroke-muted-foreground/50"}`}
+                  strokeWidth={f.cadena ? 1.75 : 1}
+                />
+              </g>
             ))}
           </svg>
         )}
       </div>
     </section>
+  );
+}
+
+/**
+ * Un bloque del Gantt: la barra, o el rombo si es un día clave
+ * (docs/dependencias.md §10, §10.1).
+ *
+ * Hace tres cosas a la vez, y por eso es un componente aparte: se arrastra de
+ * lado para cambiar de semana, es destino de la flecha que viene de otro
+ * bloque, y aloja el `Asa` desde la que se tira esa flecha. Los hooks de
+ * `dnd-kit` necesitan un componente por bloque; en el `.map` no se pueden
+ * llamar.
+ */
+function Bloque({
+  accion: a,
+  inicio,
+  span,
+  hecha,
+  haciendo,
+  enCadena,
+  quien,
+  costando,
+  arrastre,
+  vedada,
+}: {
+  accion: EnCamino;
+  inicio: number;
+  span: number;
+  hecha: boolean;
+  haciendo: boolean;
+  enCadena: boolean;
+  quien?: Miembro;
+  costando: number;
+  arrastre: { tipo: string; id: string } | null;
+  /** Unirse a esto haría círculo: no se ofrece como destino (§6). */
+  vedada: boolean;
+}) {
+  // `attributes` se descarta a propósito, igual que en la tarjeta del Mapa:
+  // trae un aria-roledescription que promete arrastrar con el teclado, y aquí
+  // no hay KeyboardSensor. Sin ratón se usa el menú ⋯ de la fila.
+  const mover = useDraggable({ id: `mover:${a.id}`, data: { tipo: "mover", id: a.id } });
+  const destino = useDroppable({ id: `barra:${a.id}` });
+
+  const uniendo = arrastre?.tipo === "unir";
+  const esOrigen = uniendo && arrastre.id === a.id;
+  const disponible = uniendo && !esOrigen && !vedada;
+
+  const estilo = {
+    gridColumn: `${inicio + 1} / span ${a.esHito ? 1 : span}`,
+    gridRow: "var(--fila-barra)",
+    // Durante el arrastre el bloque se adelanta a todo: si quedara debajo de
+    // una barra vecina parecería que se ha ido detrás del Gantt.
+    transform: CSS.Translate.toString(mover.transform),
+    zIndex: mover.isDragging ? 30 : undefined,
+  };
+
+  // Dos refs en el mismo nodo: el de soltar y el de arrastrar.
+  const refs = (el: HTMLDivElement | null) => {
+    destino.setNodeRef(el);
+    mover.setNodeRef(el);
+  };
+
+  // Sin `touch-none`: el arrastre es de ratón, y ponerlo le quitaría al dedo
+  // el desplazamiento horizontal del Gantt en cuanto tocara una barra.
+  const comun = `group/bloque relative z-10 ${
+    mover.isDragging ? "cursor-grabbing" : "sm:cursor-grab"
+  } ${disponible ? "ring-primary/60 ring-2 ring-offset-1 ring-offset-background rounded" : ""} ${
+    destino.isOver && disponible ? "ring-primary ring-2" : ""
+  } ${esOrigen ? "opacity-60" : ""}`;
+
+  if (a.esHito) {
+    return (
+      <div
+        ref={refs}
+        {...mover.listeners}
+        data-barra={a.id}
+        style={estilo}
+        className={`${comun} flex h-5 items-center justify-center sm:h-7`}
+        title={`${a.titulo} (día clave) · arrastra para cambiar de semana`}
+      >
+        <span
+          className={`size-3 rotate-45 rounded-[2px] sm:size-3.5 ${
+            hecha ? "bg-primary/40" : "bg-foreground/80"
+          } ${enCadena ? "ring-primary ring-offset-background ring-2 ring-offset-1" : ""}`}
+        />
+        <Asa accion={a} />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      ref={refs}
+      {...mover.listeners}
+      data-barra={a.id}
+      style={estilo}
+      title={`${a.titulo} · ${duracionDe(a)} ${duracionDe(a) === 1 ? "semana" : "semanas"} · arrastra para cambiar de semana`}
+      className={`${comun} flex h-5 min-w-0 items-center gap-1.5 rounded px-1 sm:h-7 sm:px-2 ${
+        hecha
+          ? "bg-primary/15 text-muted-foreground"
+          : haciendo
+            ? "bg-primary text-primary-foreground"
+            : "bg-secondary text-foreground"
+      } ${enCadena ? "ring-primary ring-2" : ""}`}
+    >
+      {/* En una barra corta no cabe todo: el nombre ya está a la izquierda,
+          así que se cae primero el monto y luego el título. */}
+      {quien && <AvatarPersona persona={quien} className="size-4" />}
+      {span >= 3 && <span className="truncate text-xs max-sm:hidden">{a.titulo}</span>}
+      {costando > 0 && span >= 2 && (
+        <span className="ml-auto shrink-0 text-xs tabular-nums max-sm:hidden">{soles(costando)}</span>
+      )}
+      <Asa accion={a} />
+    </div>
+  );
+}
+
+/**
+ * El asa desde la que se tira la flecha, en el borde derecho del bloque.
+ *
+ * Componente propio y no un trozo de JSX guardado en una variable: el hook de
+ * arrastre tiene que vivir donde se usa su ref.
+ *
+ * La dependencia es fin-a-inicio, así que el asa está donde esto **acaba** y
+ * se suelta donde empieza lo que lo espera: se lee de izquierda a derecha, en
+ * el mismo sentido que el eje. Solo desde `sm`: a 375 px una columna mide unos
+ * 16 px y el asa taparía la barra entera. En el celular la ruta es el menú ⋯ →
+ * "Qué va antes".
+ */
+function Asa({ accion }: { accion: EnCamino }) {
+  const { setNodeRef, listeners, isDragging } = useDraggable({
+    id: `unir:${accion.id}`,
+    data: { tipo: "unir", id: accion.id },
+  });
+  return (
+    <span
+      ref={setNodeRef}
+      {...listeners}
+      // El asa vive DENTRO de la barra, que también arrastra: sin cortar aquí
+      // el pointerdown, los dos arrastres se activan con el mismo gesto y el
+      // bloque se iría de semana mientras se tira la flecha. Se corta después
+      // de pasárselo al asa, no antes.
+      onPointerDown={(e) => {
+        listeners?.onPointerDown?.(e);
+        e.stopPropagation();
+      }}
+      aria-label={`Tirar una flecha desde ${accion.titulo}`}
+      title="Arrastra hasta lo que no puede empezar antes de esto"
+      className={`border-background bg-primary absolute top-1/2 -right-1.5 z-20 size-3 -translate-y-1/2 cursor-crosshair rounded-full border opacity-0 transition-opacity max-sm:hidden group-hover/bloque:opacity-100 ${
+        isDragging ? "opacity-100" : ""
+      }`}
+    />
   );
 }

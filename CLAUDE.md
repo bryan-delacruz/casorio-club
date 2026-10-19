@@ -134,6 +134,9 @@ pantallas no puedan divergir.
 Todo cálculo de orden, fechas, totales o dependencias vive en `lib/` como
 función pura y se prueba con `node:test`. No metas ese cálculo en un componente.
 
+- `lib/retrasos.ts` — dónde cae de verdad cada cosa si se empieza hoy, de
+  donde salen los dos avisos de `docs/retrasos.md`: "se pasó de su semana" y
+  "no llega". Son **una sola cuenta**, no dos.
 - `lib/dependencias.ts` — el orden entre acciones: candidatas por meta, las
   que harían círculo, y la detección de ciclos (`docs/dependencias.md`).
 - `lib/metas.ts` — orden topológico de dependencias, cadena principal, "lista
@@ -177,9 +180,29 @@ La meta es el **único** agrupador en las dos pantallas.
   arrastre, obligatoria para teclado y táctil, y la vía principal en el celular.
 - **Camino** (`/mi-boda/camino`, `camino.tsx`) — Gantt agrupado por meta, sin
   selector (`?por=` se ignora), con flechas de dependencia, cadena principal
-  resaltada, choques en rojo y hitos como rombo. **También se edita**: cada
-  fila lleva el mismo menú ⋯ que la tarjeta del Mapa (`menu-accion.tsx`), sin
-  "Mover a" porque el carril es la meta.
+  resaltada, choques en rojo y hitos como rombo. **También se edita, y desde el
+  propio gráfico**: cada fila lleva el mismo menú ⋯ que la tarjeta del Mapa
+  (`menu-accion.tsx`), sin "Mover a" porque el carril es la meta; el bloque se
+  arrastra de lado para cambiar de semana, se une a otro tirando una flecha
+  desde su asa, y la flecha se pulsa para deshacer la unión
+  (`docs/dependencias.md` §10, §10.1).
+
+Arrastrar en el Camino es **horizontal y escribe la semana**; arrastrar en el
+Mapa es entre carriles y escribe la meta. Nunca al revés. El ancho de columna
+se mide en el DOM porque `--col-semana` vale 36 px desde `sm` y 0 en el
+celular, y la aritmética del signo vive probada en `semanaAlArrastrar`: el eje
+va hacia la boda a la derecha y `inicio_semanas` cuenta hacia atrás, así que
+arrastrar a la derecha **resta** semanas. El asa de unir no existe por debajo
+de `sm`: a 375 px una columna mide 16.75 px.
+
+Con el dedo se manipula por **elección**, no por arrastre (`barra-eleccion.tsx`,
+`docs/dependencias.md` §10.2): se toca el **nombre** de una fila, queda elegida,
+y una barra abajo mueve semanas de una en una y pide un **segundo toque sobre
+una fila entera** para unir o soltar. El segundo toque es sobre la fila y no
+sobre la barra del Gantt porque la fila mide el ancho de la pantalla. Esa barra
+existe también en escritorio: es la única vía para unir con algo de **otra
+meta**, ya que el asa solo alcanza lo que tiene flecha dibujada y las flechas no
+cruzan grupos.
 
 El orden entre acciones se arma en su propio diálogo, no al fondo del
 formulario, y se abre desde las dos pantallas (`docs/dependencias.md`). Las dos
@@ -211,6 +234,17 @@ mismo refresh token. Detalle completo en `docs/integracion-bernie.md`.
 
 ## Estilo
 
+**Atomic design, con los primitivos de shadcn.** Tres capas y ninguna más:
+`components/ui/` son los átomos de shadcn y no se tocan; `components/` son las
+piezas compartidas de la app (`avatar-persona`, `wordmark`, `expediente`);
+`app/mi-boda/_acciones/` son los organismos de la función, junto a su ruta.
+
+Antes de escribir un control a mano, mira si ya es un primitivo: un botón es
+`<Button variant size>`, no un `<button>` con clases de borde, hover y foco
+copiadas. Si un patrón visual se repite en tres sitios, pasa a ser una
+utilidad con nombre en `globals.css` —como `area-toque`, que da los 44 px de
+blanco táctil sin agrandar el dibujo— y el número mágico vive una sola vez.
+
 La paleta vive en los **tokens de shadcn**. No crees utilidades de color
 propias ni clases de color a mano. La interfaz de Clerk la dibuja Clerk: textos
 por localización (`lib/clerk-localization.ts`), cero overrides de CSS.
@@ -218,6 +252,13 @@ por localización (`lib/clerk-localization.ts`), cero overrides de CSS.
 Al verificar la interfaz en el navegador, **mide con JavaScript**
 (`getBoundingClientRect`, `getComputedStyle`, `devicePixelRatio`), no por
 captura: las capturas traen artefactos de escalado.
+
+El modo oscuro lo decide el sistema (`prefers-color-scheme`) y no hay
+interruptor (`docs/modo-oscuro.md`). Los tokens oscuros se declaran **dos
+veces** en `app/globals.css` —bajo `.dark` y bajo la media query— porque CSS
+no deja compartir un bloque entre las dos; que no se desincronicen lo vigila
+`lib/tema.test.ts`, que además falla si un color nuevo de `:root` se queda sin
+versión oscura.
 
 # Cómo se trabaja en este proyecto
 
@@ -308,10 +349,11 @@ Un cambio no está terminado hasta que todo esto se cumple y se puede mostrar:
 - `pnpm lint` y `pnpm test` pasan, con la salida real a la vista.
 - La spec en `docs/` refleja lo implementado.
 - Cada pantalla afectada está validada en móvil y escritorio, con valores
-  medidos por JavaScript y no por capturas. **El modo oscuro no entra en la
-  puerta**: `app/globals.css` define `.dark`, nada lo activa y `next-themes`
-  está instalado sin usar, así que ninguna pareja puede llegar ahí y validarlo
-  sería inventar. Vuelve a la puerta el día que se pueda alcanzar.
+  medidos por JavaScript y no por capturas. **El modo oscuro entra en la
+  puerta** desde `docs/modo-oscuro.md`: lo activa `prefers-color-scheme` en
+  `app/globals.css`, sin JavaScript y sin interruptor, así que cualquier
+  pareja con el teléfono en oscuro llega ahí. Los contrastes se miden, no se
+  miran.
 - Estados vacío, de carga y de error cubiertos, no solo el caso feliz.
 - Ruta de teclado y táctil donde haya arrastre con `dnd-kit`.
 - Sin errores de consola ni peticiones fallidas en las pantallas tocadas.

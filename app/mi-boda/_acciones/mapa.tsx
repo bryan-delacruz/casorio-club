@@ -13,7 +13,7 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { useState } from "react";
-import { Check } from "lucide-react";
+import { Check, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 import type { Accion, Dependencia, Pago } from "@/db/schema";
 import { AvatarPersona } from "@/components/avatar-persona";
@@ -28,6 +28,7 @@ import {
   semanaPorDefecto,
 } from "@/lib/metas";
 import { pagosPorAccion } from "@/lib/pagos";
+import { resumenRetraso } from "@/lib/retrasos";
 import { borrarAccion, cambiarEstado, moverAccion, type Estado } from "./acciones-servidor";
 import { EmpezarPlan } from "./empezar-plan";
 import { EditarAccion, NuevaAccion } from "./formulario-accion";
@@ -40,6 +41,7 @@ import {
   INVITA_META,
   BANDA_TODO_HECHO,
   NOMBRE_IDEAS,
+  RETRASO,
   siguienteEstado,
   SIN_META,
   soles,
@@ -128,9 +130,9 @@ function LineaBanda({
         aria-label={`${ESTADOS.find((e) => e.id === accion.estado)?.nombre}. Pasar a ${
           ESTADOS.find((e) => e.id === siguienteEstado(accion.estado))?.nombre
         }`}
-        /* 16 px y es la acción principal de la banda: el pseudo-elemento le da
-           los 44 px de área táctil sin agrandar el círculo. */
-        className={`focus-visible:ring-ring relative mt-1 grid size-4 shrink-0 cursor-pointer place-items-center rounded-full border outline-none before:absolute before:-inset-[14px] before:content-[''] focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
+        /* 16 px y es la acción principal de la banda: `area-toque` le da los
+           44 px sin agrandar el círculo. */
+        className={`focus-visible:ring-ring area-toque mt-1 grid size-4 shrink-0 cursor-pointer place-items-center rounded-full border outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
           haciendo ? "border-primary" : "border-muted-foreground/45"
         }`}
       >
@@ -215,6 +217,8 @@ export function Mapa({
   const hayMetas = carriles.some((c) => c.esMeta);
   // El botón se ofrece mientras falte alguna meta del plan (docs/plantillas.md §8).
   const faltaPlan = faltanMetasDelPlan(metas);
+  // Lo que se pasó de su semana y lo que no llega (docs/retrasos.md §4.1).
+  const retraso = resumenRetraso(lista, dependencias, semanasHastaLaBoda);
 
   /** De qué meta es una acción, con "Sin meta" para la que no tiene (§7). */
   const metaDe = (a: Accion): Destino =>
@@ -402,6 +406,28 @@ export function Mapa({
           la que se abre la app un lunes por la noche (docs/metas.md §5.2). */}
       <section className="bg-muted/40 rounded-lg p-4">
         <h2 className="font-display text-lg">Qué toca ahora</h2>
+        {/* Una sola línea, encima de la banda (docs/retrasos.md §4.1). Sin
+            fecha de boda no hay con qué comparar y no se dibuja nada. */}
+        {retraso.cuantas > 0 && (
+          <p className="mt-1 text-sm">
+            {retraso.peor ? (
+              <>
+                <span className="text-destructive">
+                  <TriangleAlert className="mr-1 inline size-3.5" />
+                  {RETRASO.noLlega(retraso.peor.accion.titulo, retraso.peor.atraso)}
+                </span>
+                {retraso.cuantas > 1 && (
+                  <span className="text-muted-foreground">
+                    {" "}
+                    {RETRASO.cuantas(retraso.cuantas - 1)}
+                  </span>
+                )}
+              </>
+            ) : (
+              <span className="text-muted-foreground">{RETRASO.cuantas(retraso.cuantas)}</span>
+            )}
+          </p>
+        )}
         {nadaEnElCamino ? (
           <p className="text-muted-foreground mt-2 text-sm">Todavía no hay nada con fecha.</p>
         ) : banda.length === 0 ? (
