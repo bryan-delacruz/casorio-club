@@ -42,10 +42,10 @@ The UI is in Spanish, for its target users.
 
 ## Getting started
 
-1. Install dependencies:
+1. Install dependencies (`pnpm` is the package manager; do not use `npm install`):
 
    ```bash
-   npm install
+   pnpm install
    ```
 
 2. Copy `.env.example` to `.env.local` and add your Clerk keys and Neon `DATABASE_URL`.
@@ -53,7 +53,7 @@ The UI is in Spanish, for its target users.
 3. Start the dev server:
 
    ```bash
-   npm run dev
+   pnpm dev
    ```
 
 Open [http://localhost:3000](http://localhost:3000).

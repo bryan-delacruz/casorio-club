@@ -35,6 +35,7 @@ corrección cada una:
 pnpm dev          # servidor de desarrollo (puerto 3000)
 pnpm build        # build de producción
 pnpm lint         # eslint
+pnpm typecheck    # tsc --noEmit
 pnpm test         # node:test sobre lib/**/*.test.ts, incluido lib/bernie/
 ```
 
@@ -60,6 +61,13 @@ pnpm dotenv -e .env.local -- node scripts/rellenar-inicio-semanas.mjs # rellenar
 ⚠️ Drizzle selecciona **todas** las columnas de una tabla, así que una columna
 nueva en `db/schema.ts` debe existir en Neon **antes** de mergear, o producción
 rompe. `push` solo agrega; revisa su plan antes de aceptarlo.
+
+Producción es el despliegue de `main` en Vercel
+([casorio-club.vercel.app](https://casorio-club.vercel.app)). "Mergear" significa
+desplegar: el merge a `main` publica. Por eso `push` a Neon va **antes** del
+merge, nunca después. Comprueba contra qué base apunta el `DATABASE_URL` de
+producción en Vercel antes de tocar el esquema; `push` solo agrega, y una
+columna que se quita rompe lo que ya está desplegado.
 
 Variables de entorno: copia `.env.example` a `.env.local`. Sin las variables de
 `BERNIE_*` la integración simplemente no aparece en la interfaz
@@ -169,6 +177,8 @@ función pura y se prueba con `node:test`. No metas ese cálculo en un component
 - `lib/historia.ts` — la imagen para compartir (`docs/compartir.md`).
 - `lib/fuente-og.ts`, `lib/icono-app.tsx` — fuentes e iconos de `next/og`.
 - `lib/persona.ts` — nombre e iniciales de un miembro de Clerk.
+- `lib/utils.ts` — solo reexporta `cn` del paquete `cn`, para que los átomos de
+  shadcn importen de `@/lib/utils` como esperan.
 - `lib/clerk-localization.ts` — los textos de la interfaz de Clerk.
 - `lib/demo.ts` — la semilla de la boda de ejemplo.
 - `lib/bernie/` — OAuth PKCE, cifrado, cliente, firma de webhooks, validador de
@@ -309,6 +319,33 @@ Queda uno: `validador-ux`, solo lectura, para el paso 3 del ciclo. Se invoca
 cuando hace falta medir con números una pantalla ya implementada, no para
 decidir ni para escribir código.
 
+Las skills de Neon no son código nuestro: las instala el CLI de Neon desde
+`neondatabase/agent-skills`, viven en `.agents/skills/` y `.gitignore` las
+ignora. `.claude/skills/neon` y `.claude/skills/neon-postgres` son **symlinks**
+a esa carpeta, no copias: Claude Code busca skills en `.claude/skills/`, y el
+enlace evita mantener dos contenidos sincronizados. No las edites a mano; lo
+único versionado es `skills-lock.json`, su manifiesto.
+
+## Cada cambio entra por un PR
+
+`main` es la rama de producción y no se le commitea directo: cada cambio sale en
+su rama, va a un PR y entra con **squash merge**, así que un cambio es un
+commit. El historial de `main` se lee entero sin ruido de pasos intermedios.
+
+El asunto del commit es conventional en español, con el tipo en inglés y el
+resto en minúscula: `feat: el Camino se manipula desde el gráfico`,
+`fix: los ítems de menú, altos para un pulgar`, `docs: README sin momento`. El
+squash le agrega `(#30)` solo.
+
+El cuerpo son viñetas con el **por qué**, no el qué: el diff ya dice qué
+cambió. Un cambio solo de documentación lo dice ("Solo documentación: no cambia
+código"). Estilo telegráfico, como las specs.
+
+**No hay CI de pruebas**: no existe `.github/workflows/`, y el único check del
+PR es el build de Vercel. `pnpm lint`, `pnpm typecheck` y `pnpm test` se corren
+en local o no se corren, así que un PR verde no dice nada de ellos. La puerta de
+calidad es manual a propósito; pide la salida real a la vista por eso mismo.
+
 ## Ciclo de un cambio
 
 1. **Decidir.** Se escribe o actualiza la spec en `docs/`, con el alcance y lo
@@ -334,7 +371,7 @@ retiró. Estas reglas valen con agentes o sin ellos:
   comprobado.
 - **Una pasada, un cambio coherente, hasta ~6 archivos.** El alcance manda más
   que cualquier otra cosa: dos temas en el mismo cambio es lo que lo alarga.
-- **Verificación una vez, al final**: `pnpm lint`, `pnpm test`, `npx tsc --noEmit`.
+- **Verificación una vez, al final**: `pnpm lint`, `pnpm test`, `pnpm typecheck`.
   `pnpm build` solo si el cambio toca rutas, `next.config.ts` o fronteras
   servidor/cliente: es lo más lento que hay.
 - **Medir cuesta menos que mirar.** Una captura de pantalla vale varias páginas
@@ -387,7 +424,8 @@ con números: contrastes, píxeles, estados límite y regresiones.
 
 Un cambio no está terminado hasta que todo esto se cumple y se puede mostrar:
 
-- `pnpm lint` y `pnpm test` pasan, con la salida real a la vista.
+- `pnpm lint`, `pnpm typecheck` y `pnpm test` pasan, con la salida real a la
+  vista.
 - La spec en `docs/` refleja lo implementado.
 - Cada pantalla afectada está validada en móvil y escritorio, con valores
   medidos por JavaScript y no por capturas. **El modo oscuro entra en la
