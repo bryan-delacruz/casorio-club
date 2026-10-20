@@ -177,6 +177,8 @@ función pura y se prueba con `node:test`. No metas ese cálculo en un component
 - `lib/historia.ts` — la imagen para compartir (`docs/compartir.md`).
 - `lib/fuente-og.ts`, `lib/icono-app.tsx` — fuentes e iconos de `next/og`.
 - `lib/persona.ts` — nombre e iniciales de un miembro de Clerk.
+- `lib/utils.ts` — solo reexporta `cn` del paquete `cn`, para que los átomos de
+  shadcn importen de `@/lib/utils` como esperan.
 - `lib/clerk-localization.ts` — los textos de la interfaz de Clerk.
 - `lib/demo.ts` — la semilla de la boda de ejemplo.
 - `lib/bernie/` — OAuth PKCE, cifrado, cliente, firma de webhooks, validador de
@@ -338,6 +340,11 @@ squash le agrega `(#30)` solo.
 El cuerpo son viñetas con el **por qué**, no el qué: el diff ya dice qué
 cambió. Un cambio solo de documentación lo dice ("Solo documentación: no cambia
 código"). Estilo telegráfico, como las specs.
+
+**No hay CI de pruebas**: no existe `.github/workflows/`, y el único check del
+PR es el build de Vercel. `pnpm lint`, `pnpm typecheck` y `pnpm test` se corren
+en local o no se corren, así que un PR verde no dice nada de ellos. La puerta de
+calidad es manual a propósito; pide la salida real a la vista por eso mismo.
 
 ## Ciclo de un cambio
 

@@ -41,6 +41,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# skills que instalan los CLI de terceros (Clerk, Neon); no son código nuestro
+# skills que instala el CLI de Neon; no son código nuestro. `.claude/skills/`
+# son symlinks a `.agents/skills/`, y `skills-lock.json` sí se versiona.
 .agents/
 .claude/skills/
